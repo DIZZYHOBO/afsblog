@@ -12,7 +12,150 @@
             box-sizing: border-box;
         }
 
-        // Admin functions
+        // Markdown editor functions
+        function switchEditorMode(mode) {
+            const writeTab = document.getElementById('writeTab');
+            const previewTab = document.getElementById('previewTab');
+            const textarea = document.getElementById('postContent');
+            const preview = document.getElementById('markdownPreview');
+
+            if (mode === 'write') {
+                writeTab.classList.add('active');
+                previewTab.classList.remove('active');
+                textarea.style.display = 'block';
+                preview.style.display = 'none';
+            } else {
+                writeTab.classList.remove('active');
+                previewTab.classList.add('active');
+                textarea.style.display = 'none';
+                preview.style.display = 'block';
+                
+                // Update preview
+                const content = textarea.value;
+                preview.innerHTML = renderMarkdown(content);
+            }
+        }
+
+        function insertMarkdown(before, after) {
+            const textarea = document.getElementById('postContent');
+            const start = textarea.selectionStart;
+            const end = textarea.selectionEnd;
+            const selectedText = textarea.value.substring(start, end);
+            const beforeText = textarea.value.substring(0, start);
+            const afterText = textarea.value.substring(end);
+
+            let newText;
+            if (selectedText) {
+                newText = beforeText + before + selectedText + after + afterText;
+            } else {
+                newText = beforeText + before + 'text' + after + afterText;
+            }
+
+            textarea.value = newText;
+            
+            // Set cursor position
+            if (selectedText) {
+                textarea.setSelectionRange(start + before.length, start + before.length + selectedText.length);
+            } else {
+                textarea.setSelectionRange(start + before.length, start + before.length + 4); // select "text"
+            }
+            
+            textarea.focus();
+        }
+
+        function insertTable() {
+            const tableMarkdown = `
+| Header 1 | Header 2 | Header 3 |
+|----------|----------|----------|
+| Cell 1   | Cell 2   | Cell 3   |
+| Cell 4   | Cell 5   | Cell 6   |
+`;
+            const textarea = document.getElementById('postContent');
+            const start = textarea.selectionStart;
+            const beforeText = textarea.value.substring(0, start);
+            const afterText = textarea.value.substring(start);
+
+            textarea.value = beforeText + tableMarkdown + afterText;
+            textarea.focus();
+        }
+
+        // Simple markdown renderer
+        function renderMarkdown(text) {
+            if (!text) return '';
+            
+            // Escape HTML first
+            text = text.replace(/&/g, '&amp;')
+                      .replace(/</g, '&lt;')
+                      .replace(/>/g, '&gt;');
+
+            // Code blocks (must be processed first)
+            text = text.replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
+            
+            // Inline code (after code blocks)
+            text = text.replace(/`([^`]+)`/g, '<code>$1</code>');
+            
+            // Headers
+            text = text.replace(/^### (.*$)/gim, '<h3>$1</h3>');
+            text = text.replace(/^## (.*$)/gim, '<h2>$1</h2>');
+            text = text.replace(/^# (.*$)/gim, '<h1>$1</h1>');
+            
+            // Bold and italic (order matters)
+            text = text.replace(/\*\*\*(.*?)\*\*\*/g, '<strong><em>$1</em></strong>');
+            text = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+            text = text.replace(/\*(.*?)\*/g, '<em>$1</em>');
+            
+            // Strikethrough
+            text = text.replace(/~~(.*?)~~/g, '<s>$1</s>');
+            
+            // Links
+            text = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
+            
+            // Images
+            text = text.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" style="max-width: 100%; height: auto; border-radius: 4px; margin: 8px 0;">');
+            
+            // Blockquotes
+            text = text.replace(/^> (.*$)/gim, '<blockquote>$1</blockquote>');
+            
+            // Horizontal rules
+            text = text.replace(/^---$/gim, '<hr>');
+            
+            // Lists
+            text = text.replace(/^\* (.*$)/gim, '<ul><li>$1</li></ul>');
+            text = text.replace(/^- (.*$)/gim, '<ul><li>$1</li></ul>');
+            text = text.replace(/^\d+\. (.*$)/gim, '<ol><li>$1</li></ol>');
+            
+            // Fix list formatting (merge consecutive list items)
+            text = text.replace(/<\/ul>\s*<ul>/g, '');
+            text = text.replace(/<\/ol>\s*<ol>/g, '');
+            
+            // Tables (basic support)
+            text = text.replace(/\|(.+)\|/g, function(match, content) {
+                const cells = content.split('|').map(cell => cell.trim());
+                const isHeader = match.includes('---');
+                if (isHeader) return ''; // Skip separator rows
+                
+                const cellTags = cells.map(cell => `<td>${cell}</td>`).join('');
+                return `<tr>${cellTags}</tr>`;
+            });
+            
+            // Wrap tables
+            text = text.replace(/(<tr>.*<\/tr>)/gs, '<table>$1</table>');
+            
+            // Line breaks
+            text = text.replace(/\n\n/g, '</p><p>');
+            text = text.replace(/\n/g, '<br>');
+            
+            // Wrap in paragraphs
+            if (text && !text.startsWith('<')) {
+                text = '<p>' + text + '</p>';
+            }
+            
+            return text;
+        }
+
+        }
+
+        // Admin functions - moved to proper location
         async function showAdminPanel() {
             if (!currentUser || !currentUser.profile || !currentUser.profile.isAdmin) {
                 alert('Access denied: Admin privileges required');
@@ -35,6 +178,207 @@
                 console.log('Loaded pending users:', pendingUsers.length);
             } catch (error) {
                 console.error('Error loading admin data:', error);
+            }
+        }
+
+        function renderAdminPanel() {
+            const adminContent = document.getElementById('adminContent');
+            
+            const totalUsers = Object.keys(users).length;
+            const totalPosts = posts.length;
+            const totalPending = pendingUsers.length;
+            
+            adminContent.innerHTML = `
+                <div class="admin-card">
+                    <h2>👑 Admin Dashboard</h2>
+                    <p>Welcome, <strong>@${escapeHtml(currentUser.username)}</strong></p>
+                </div>
+
+                <div class="admin-stats">
+                    <div class="stat-card">
+                        <h4>Total Users</h4>
+                        <div class="number">${totalUsers}</div>
+                    </div>
+                    <div class="stat-card">
+                        <h4>Total Posts</h4>
+                        <div class="number">${totalPosts}</div>
+                    </div>
+                    <div class="stat-card">
+                        <h4>Pending Approval</h4>
+                        <div class="number">${totalPending}</div>
+                    </div>
+                </div>
+
+                <div class="make-admin-section">
+                    <h3>🔒 Make User Admin</h3>
+                    <p style="color: #fca5a5; margin-bottom: 1rem;">
+                        <strong>Warning:</strong> This gives full admin privileges including user management.
+                    </p>
+                    <div class="make-admin-form">
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label for="adminUsername">Username</label>
+                            <input type="text" id="adminUsername" placeholder="Enter username" style="width: 200px;">
+                        </div>
+                        <button class="btn" onclick="makeUserAdmin()" style="background: #ef4444; border-color: #ef4444;">
+                            Make Admin
+                        </button>
+                    </div>
+                </div>
+
+                <div class="admin-section">
+                    <h3>📋 Pending User Approvals</h3>
+                    ${totalPending === 0 ? 
+                        '<p style="color: #9ca3af;">No pending users at this time.</p>' :
+                        pendingUsers.map(user => `
+                            <div class="pending-user">
+                                <div class="user-info-admin">
+                                    <h4>@${escapeHtml(user.username)}</h4>
+                                    <div class="user-meta">
+                                        <p><strong>Bio:</strong> ${escapeHtml(user.bio || 'No bio provided')}</p>
+                                        <p><strong>Registered:</strong> ${formatDate(user.createdAt)}</p>
+                                    </div>
+                                </div>
+                                <div class="admin-actions">
+                                    <button class="btn btn-small btn-approve" onclick="approveUser('${user.username}')">
+                                        ✓ Approve
+                                    </button>
+                                    <button class="btn btn-small btn-reject" onclick="rejectUser('${user.username}')">
+                                        ✗ Reject
+                                    </button>
+                                </div>
+                            </div>
+                        `).join('')
+                    }
+                </div>
+
+                <div class="admin-section">
+                    <h3>👥 Active Users</h3>
+                    ${Object.values(users).map(user => `
+                        <div class="pending-user">
+                            <div class="user-info-admin">
+                                <h4>@${escapeHtml(user.username)} ${user.isAdmin ? '<span style="color: #fbbf24;">👑 Admin</span>' : ''}</h4>
+                                <div class="user-meta">
+                                    <p><strong>Bio:</strong> ${escapeHtml(user.bio || 'No bio')}</p>
+                                    <p><strong>Joined:</strong> ${formatDate(user.createdAt)} | <strong>Posts:</strong> ${posts.filter(p => p.author === user.username).length}</p>
+                                </div>
+                            </div>
+                            ${!user.isAdmin && user.username !== currentUser.username ? `
+                                <div class="admin-actions">
+                                    <button class="btn btn-small" onclick="makeUserAdmin('${user.username}')" style="background: #fbbf24; color: #000;">
+                                        Make Admin
+                                    </button>
+                                </div>
+                            ` : ''}
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+
+        async function approveUser(username) {
+            try {
+                const pendingUser = pendingUsers.find(u => u.username === username);
+                if (!pendingUser) {
+                    alert('Pending user not found');
+                    return;
+                }
+
+                // Move from pending to approved
+                const approvedUser = {
+                    ...pendingUser,
+                    status: 'approved',
+                    approvedAt: new Date().toISOString(),
+                    approvedBy: currentUser.username
+                };
+
+                // Save as regular user
+                await blobAPI.set(`user_${username}`, approvedUser);
+                users[username] = approvedUser;
+
+                // Remove from pending
+                await blobAPI.delete(`pending_user_${username}`);
+                pendingUsers = pendingUsers.filter(u => u.username !== username);
+
+                // Re-render admin panel
+                renderAdminPanel();
+                
+                // Show success message
+                alert(`✅ User @${username} has been approved and can now log in.`);
+            } catch (error) {
+                console.error('Error approving user:', error);
+                alert('Failed to approve user. Please try again.');
+            }
+        }
+
+        async function rejectUser(username) {
+            if (!confirm(`Are you sure you want to reject user @${username}? This cannot be undone.`)) {
+                return;
+            }
+
+            try {
+                // Remove from pending users
+                await blobAPI.delete(`pending_user_${username}`);
+                pendingUsers = pendingUsers.filter(u => u.username !== username);
+
+                // Re-render admin panel
+                renderAdminPanel();
+                
+                alert(`❌ User @${username} has been rejected.`);
+            } catch (error) {
+                console.error('Error rejecting user:', error);
+                alert('Failed to reject user. Please try again.');
+            }
+        }
+
+        async function makeUserAdmin(username) {
+            if (!username) {
+                const inputUsername = document.getElementById('adminUsername')?.value.trim();
+                if (!inputUsername) {
+                    alert('Please enter a username');
+                    return;
+                }
+                username = inputUsername;
+            }
+
+            if (!confirm(`Are you sure you want to make @${username} an admin? This gives them full admin privileges.`)) {
+                return;
+            }
+
+            try {
+                // Get user data
+                const userData = await blobAPI.get(`user_${username}`);
+                if (!userData) {
+                    alert('User not found');
+                    return;
+                }
+
+                if (userData.isAdmin) {
+                    alert('User is already an admin');
+                    return;
+                }
+
+                // Update user to admin
+                const updatedUser = {
+                    ...userData,
+                    isAdmin: true,
+                    madeAdminAt: new Date().toISOString(),
+                    madeAdminBy: currentUser.username
+                };
+
+                await blobAPI.set(`user_${username}`, updatedUser);
+                users[username] = updatedUser;
+
+                // Clear input
+                const input = document.getElementById('adminUsername');
+                if (input) input.value = '';
+
+                // Re-render admin panel
+                renderAdminPanel();
+                
+                alert(`👑 @${username} is now an admin!`);
+            } catch (error) {
+                console.error('Error making user admin:', error);
+                alert('Failed to make user admin. Please try again.');
             }
         }
 
@@ -808,6 +1152,157 @@
             margin: 2rem 0;
         }
 
+        .markdown-toolbar {
+            background: #272729;
+            border: 1px solid #343536;
+            border-bottom: none;
+            border-radius: 4px 4px 0 0;
+            padding: 8px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            margin-top: 8px;
+        }
+
+        .markdown-btn {
+            background: #374151;
+            border: 1px solid #4b5563;
+            border-radius: 4px;
+            padding: 6px 8px;
+            font-size: 12px;
+            cursor: pointer;
+            color: #d7dadc;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            min-width: 32px;
+            justify-content: center;
+        }
+
+        .markdown-btn:hover {
+            background: #4b5563;
+            color: #fff;
+        }
+
+        .markdown-btn.active {
+            background: #0079d3;
+            border-color: #0079d3;
+            color: #fff;
+        }
+
+        .markdown-textarea {
+            border-radius: 0 0 4px 4px !important;
+            border-top: none !important;
+        }
+
+        .markdown-preview {
+            background: #1f2937;
+            border: 1px solid #343536;
+            border-radius: 4px;
+            padding: 12px;
+            margin-top: 8px;
+            min-height: 120px;
+            color: #d7dadc;
+        }
+
+        .markdown-toggle {
+            display: flex;
+            gap: 8px;
+            margin-top: 8px;
+            margin-bottom: 8px;
+        }
+
+        .markdown-toggle button {
+            background: #374151;
+            border: 1px solid #4b5563;
+            border-radius: 4px;
+            padding: 4px 8px;
+            font-size: 12px;
+            cursor: pointer;
+            color: #d7dadc;
+        }
+
+        .markdown-toggle button.active {
+            background: #0079d3;
+            border-color: #0079d3;
+            color: #fff;
+        }
+
+        /* Markdown styling for rendered content */
+        .markdown-content h1 { color: #fff; font-size: 1.8rem; margin-bottom: 0.5rem; }
+        .markdown-content h2 { color: #fff; font-size: 1.5rem; margin-bottom: 0.5rem; }
+        .markdown-content h3 { color: #fff; font-size: 1.3rem; margin-bottom: 0.5rem; }
+        .markdown-content h4 { color: #fff; font-size: 1.1rem; margin-bottom: 0.5rem; }
+        .markdown-content h5 { color: #fff; font-size: 1rem; margin-bottom: 0.5rem; }
+        .markdown-content h6 { color: #fff; font-size: 0.9rem; margin-bottom: 0.5rem; }
+        
+        .markdown-content p { margin-bottom: 1rem; line-height: 1.6; }
+        .markdown-content strong { color: #fff; font-weight: 600; }
+        .markdown-content em { font-style: italic; color: #e4e4e7; }
+        .markdown-content code { 
+            background: #374151; 
+            padding: 2px 4px; 
+            border-radius: 3px; 
+            font-size: 0.9em; 
+            color: #fbbf24; 
+            font-family: monospace;
+        }
+        .markdown-content pre { 
+            background: #1f2937; 
+            padding: 1rem; 
+            border-radius: 6px; 
+            overflow-x: auto; 
+            margin: 1rem 0;
+            border: 1px solid #374151;
+        }
+        .markdown-content pre code { 
+            background: none; 
+            padding: 0; 
+            color: #e4e4e7; 
+        }
+        .markdown-content blockquote { 
+            border-left: 4px solid #0079d3; 
+            padding-left: 1rem; 
+            margin: 1rem 0; 
+            color: #9ca3af; 
+            font-style: italic;
+        }
+        .markdown-content ul, .markdown-content ol { 
+            padding-left: 2rem; 
+            margin-bottom: 1rem; 
+        }
+        .markdown-content li { 
+            margin-bottom: 0.25rem; 
+        }
+        .markdown-content a { 
+            color: #60a5fa; 
+            text-decoration: none; 
+        }
+        .markdown-content a:hover { 
+            text-decoration: underline; 
+        }
+        .markdown-content hr { 
+            border: none; 
+            height: 1px; 
+            background: #374151; 
+            margin: 2rem 0; 
+        }
+        .markdown-content table { 
+            width: 100%; 
+            border-collapse: collapse; 
+            margin: 1rem 0; 
+        }
+        .markdown-content th, .markdown-content td { 
+            padding: 8px 12px; 
+            border: 1px solid #374151; 
+            text-align: left; 
+        }
+        .markdown-content th { 
+            background: #374151; 
+            font-weight: 600; 
+        }
+
         .file-input {
             display: none;
         }
@@ -998,7 +1493,59 @@
                 </div>
                 <div class="form-group">
                     <label for="postContent">Content</label>
-                    <textarea id="postContent" required placeholder="Share your thoughts..." maxlength="10000"></textarea>
+                    <div class="markdown-toggle">
+                        <button type="button" id="writeTab" class="active" onclick="switchEditorMode('write')">✏️ Write</button>
+                        <button type="button" id="previewTab" onclick="switchEditorMode('preview')">👁 Preview</button>
+                    </div>
+                    <div class="markdown-toolbar">
+                        <button type="button" class="markdown-btn" onclick="insertMarkdown('**', '**')" title="Bold">
+                            <strong>B</strong>
+                        </button>
+                        <button type="button" class="markdown-btn" onclick="insertMarkdown('*', '*')" title="Italic">
+                            <em>I</em>
+                        </button>
+                        <button type="button" class="markdown-btn" onclick="insertMarkdown('`', '`')" title="Code">
+                            &lt;/&gt;
+                        </button>
+                        <button type="button" class="markdown-btn" onclick="insertMarkdown('~~', '~~')" title="Strikethrough">
+                            <s>S</s>
+                        </button>
+                        <button type="button" class="markdown-btn" onclick="insertMarkdown('# ', '')" title="Heading 1">
+                            H1
+                        </button>
+                        <button type="button" class="markdown-btn" onclick="insertMarkdown('## ', '')" title="Heading 2">
+                            H2
+                        </button>
+                        <button type="button" class="markdown-btn" onclick="insertMarkdown('### ', '')" title="Heading 3">
+                            H3
+                        </button>
+                        <button type="button" class="markdown-btn" onclick="insertMarkdown('[', '](url)')" title="Link">
+                            🔗
+                        </button>
+                        <button type="button" class="markdown-btn" onclick="insertMarkdown('![', '](image-url)')" title="Image">
+                            🖼️
+                        </button>
+                        <button type="button" class="markdown-btn" onclick="insertMarkdown('> ', '')" title="Quote">
+                            💬
+                        </button>
+                        <button type="button" class="markdown-btn" onclick="insertMarkdown('- ', '')" title="List">
+                            📋
+                        </button>
+                        <button type="button" class="markdown-btn" onclick="insertMarkdown('1. ', '')" title="Numbered List">
+                            🔢
+                        </button>
+                        <button type="button" class="markdown-btn" onclick="insertMarkdown('```\n', '\n```')" title="Code Block">
+                            📄
+                        </button>
+                        <button type="button" class="markdown-btn" onclick="insertMarkdown('---\n', '')" title="Horizontal Rule">
+                            ➖
+                        </button>
+                        <button type="button" class="markdown-btn" onclick="insertTable()" title="Table">
+                            📊
+                        </button>
+                    </div>
+                    <textarea id="postContent" class="markdown-textarea" required placeholder="Share your thoughts using Markdown..." maxlength="10000"></textarea>
+                    <div id="markdownPreview" class="markdown-preview" style="display: none;"></div>
                 </div>
                 <div class="form-group">
                     <div class="checkbox-group">
@@ -1121,6 +1668,18 @@
             
             // Load profile pictures after initial render
             setTimeout(loadVisibleProfilePictures, 500);
+        }
+
+        // Admin functions
+        async function showAdminPanel() {
+            if (!currentUser || !currentUser.profile || !currentUser.profile.isAdmin) {
+                alert('Access denied: Admin privileges required');
+                return;
+            }
+            
+            showPage('admin');
+            await loadAdminData();
+            renderAdminPanel();
         });
 
         function setupEventListeners() {
@@ -1480,7 +2039,7 @@
                                 ${post.isPrivate ? '<span class="private-badge">Private</span>' : ''}
                             </div>
                             <h3 class="post-title">${escapeHtml(post.title)}</h3>
-                            <div class="post-content">${escapeHtml(post.content.substring(0, 200))}${post.content.length > 200 ? '...' : ''}</div>
+                            <div class="post-content markdown-content">${renderMarkdown(post.content.substring(0, 200))}${post.content.length > 200 ? '...' : ''}</div>
                             <div class="post-actions">
                                 <span class="action-btn">💬 ${post.replies ? post.replies.length : 0} replies</span>
                                 ${isOwnProfile ? `<button class="action-btn" onclick="deletePost('${post.id}')">🗑 Delete</button>` : ''}
@@ -1665,7 +2224,7 @@
                         ${post.isPrivate ? '<span class="private-badge">Private</span>' : ''}
                     </div>
                     <h3 class="post-title">${escapeHtml(post.title)}</h3>
-                    <div class="post-content">${escapeHtml(post.content).replace(/\n/g, '<br>')}</div>
+                    <div class="post-content markdown-content">${renderMarkdown(post.content)}</div>
                     <div class="post-actions">
                         <button class="action-btn" onclick="toggleReplyForm('${post.id}')">
                             💬 Reply (${post.replies ? post.replies.length : 0})
@@ -1693,7 +2252,7 @@
                                         </span>
                                         <span class="timestamp">${formatTimestamp(reply.timestamp)}</span>
                                     </div>
-                                    <div class="post-content">${escapeHtml(reply.content).replace(/\n/g, '<br>')}</div>
+                                    <div class="post-content markdown-content">${renderMarkdown(reply.content)}</div>
                                 </div>
                             `).join('')}
                         </div>
