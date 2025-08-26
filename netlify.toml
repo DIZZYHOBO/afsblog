@@ -1,0 +1,35 @@
+[build]
+  # Build command (not needed for static site)
+  command = "echo 'Static site - no build required'"
+  # Directory to publish
+  publish = "."
+
+[functions]
+  # Directory containing Netlify Functions
+  directory = "netlify/functions"
+
+# Enable Netlify Blobs
+[build.environment]
+  # Netlify Blobs is automatically available in functions
+
+# Headers for security and CORS
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    X-XSS-Protection = "1; mode=block"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+
+# Redirect all function calls to the functions directory
+[[redirects]]
+  from = "/.netlify/functions/*"
+  to = "/.netlify/functions/:splat"
+  status = 200
+
+# SPA fallback (optional - for single page applications)
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+  conditions = {Role = ["admin"], Country = ["US"]}  # Remove this line for public access
