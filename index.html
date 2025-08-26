@@ -1,0 +1,986 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Blog Feed</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background-color: #000;
+            color: #fff;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.4;
+        }
+
+        .header {
+            background-color: #1a1a1b;
+            padding: 12px 16px;
+            border-bottom: 1px solid #343536;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            font-size: 20px;
+            font-weight: bold;
+            color: #ff4500;
+        }
+
+        .auth-section {
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn {
+            background: #0079d3;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .btn:hover {
+            background: #1484d6;
+        }
+
+        .btn:disabled {
+            background: #666;
+            cursor: not-allowed;
+        }
+
+        .btn-secondary {
+            background: transparent;
+            border: 1px solid #0079d3;
+            color: #0079d3;
+        }
+
+        .btn-secondary:hover {
+            background: #0079d3;
+            color: white;
+        }
+
+        .feed-toggle {
+            display: flex;
+            background: #1a1a1b;
+            margin: 12px 16px;
+            border-radius: 20px;
+            overflow: hidden;
+        }
+
+        .feed-toggle button {
+            flex: 1;
+            background: transparent;
+            color: #818384;
+            border: none;
+            padding: 8px 16px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .feed-toggle button.active {
+            background: #272729;
+            color: #fff;
+        }
+
+        .compose-btn {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 56px;
+            height: 56px;
+            background: #ff4500;
+            border: none;
+            border-radius: 50%;
+            color: white;
+            font-size: 24px;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            z-index: 50;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.8);
+            z-index: 200;
+        }
+
+        .modal-content {
+            background: #1a1a1b;
+            margin: 20px;
+            margin-top: 60px;
+            border-radius: 8px;
+            padding: 20px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #343536;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            color: #818384;
+            font-size: 24px;
+            cursor: pointer;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 4px;
+            color: #d7dadc;
+            font-size: 14px;
+        }
+
+        .form-group input,
+        .form-group textarea {
+            width: 100%;
+            background: #272729;
+            border: 1px solid #343536;
+            border-radius: 4px;
+            padding: 12px;
+            color: #d7dadc;
+            font-size: 14px;
+        }
+
+        .form-group textarea {
+            min-height: 120px;
+            resize: vertical;
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .checkbox-group input[type="checkbox"] {
+            width: auto;
+        }
+
+        .post-card {
+            background: #1a1a1b;
+            margin: 8px 16px;
+            border-radius: 8px;
+            padding: 12px;
+            border-left: 4px solid transparent;
+        }
+
+        .post-card.private {
+            border-left-color: #ff4500;
+        }
+
+        .post-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .username {
+            color: #0079d3;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .timestamp {
+            color: #818384;
+            font-size: 12px;
+        }
+
+        .private-badge {
+            background: #ff4500;
+            color: white;
+            font-size: 10px;
+            padding: 2px 6px;
+            border-radius: 12px;
+        }
+
+        .post-title {
+            font-size: 16px;
+            font-weight: 500;
+            margin-bottom: 8px;
+            line-height: 1.3;
+        }
+
+        .post-content {
+            color: #d7dadc;
+            font-size: 14px;
+            line-height: 1.4;
+            margin-bottom: 12px;
+        }
+
+        .post-actions {
+            display: flex;
+            gap: 16px;
+            align-items: center;
+        }
+
+        .action-btn {
+            background: none;
+            border: none;
+            color: #818384;
+            font-size: 12px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+
+        .action-btn:hover {
+            background: #272729;
+        }
+
+        .replies {
+            margin-top: 12px;
+            padding-left: 16px;
+            border-left: 2px solid #343536;
+        }
+
+        .reply {
+            background: #0f0f10;
+            padding: 8px;
+            border-radius: 4px;
+            margin-bottom: 8px;
+        }
+
+        .reply-form {
+            display: none;
+            margin-top: 8px;
+        }
+
+        .reply-form textarea {
+            width: 100%;
+            background: #272729;
+            border: 1px solid #343536;
+            border-radius: 4px;
+            padding: 8px;
+            color: #d7dadc;
+            font-size: 14px;
+            min-height: 60px;
+        }
+
+        .reply-form-actions {
+            margin-top: 8px;
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn-small {
+            padding: 4px 12px;
+            font-size: 12px;
+        }
+
+        .user-info {
+            color: #d7dadc;
+            font-size: 14px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #818384;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #818384;
+        }
+
+        .error-message {
+            background: #b91c1c;
+            color: white;
+            padding: 8px 12px;
+            border-radius: 4px;
+            margin-bottom: 16px;
+            font-size: 14px;
+        }
+
+        .success-message {
+            background: #059669;
+            color: white;
+            padding: 8px 12px;
+            border-radius: 4px;
+            margin-bottom: 16px;
+            font-size: 14px;
+        }
+
+        @media (max-width: 768px) {
+            .modal-content {
+                margin: 10px;
+                margin-top: 40px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="header-content">
+            <div class="logo">Blog Feed</div>
+            <div class="auth-section" id="authSection">
+                <!-- Auth buttons will be inserted here -->
+            </div>
+        </div>
+    </header>
+
+    <div class="feed-toggle" id="feedToggle" style="display: none;">
+        <button id="publicFeedBtn" class="active">Public</button>
+        <button id="privateFeedBtn">Private</button>
+    </div>
+
+    <main id="feed" class="loading">
+        Loading...
+    </main>
+
+    <button class="compose-btn" id="composeBtn" style="display: none;">+</button>
+
+    <!-- Auth Modal -->
+    <div class="modal" id="authModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="authTitle">Sign Up</h3>
+                <button class="close-btn" onclick="closeModal('authModal')">&times;</button>
+            </div>
+            <div id="authError"></div>
+            <form id="authForm">
+                <div class="form-group">
+                    <label for="username">Username</label>
+                    <input type="text" id="username" required minlength="3" maxlength="20">
+                </div>
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" required minlength="6">
+                </div>
+                <button type="submit" class="btn" id="authSubmitBtn">Sign Up</button>
+            </form>
+            <p style="margin-top: 12px; color: #818384; font-size: 14px;">
+                <span id="authToggleText">Already have an account?</span>
+                <button type="button" class="btn-secondary btn-small" id="authToggleBtn">Sign In</button>
+            </p>
+        </div>
+    </div>
+
+    <!-- Compose Modal -->
+    <div class="modal" id="composeModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Create Post</h3>
+                <button class="close-btn" onclick="closeModal('composeModal')">&times;</button>
+            </div>
+            <div id="composeError"></div>
+            <form id="composeForm">
+                <div class="form-group">
+                    <label for="postTitle">Title</label>
+                    <input type="text" id="postTitle" required maxlength="200">
+                </div>
+                <div class="form-group">
+                    <label for="postContent">Content</label>
+                    <textarea id="postContent" required placeholder="Share your thoughts..." maxlength="10000"></textarea>
+                </div>
+                <div class="form-group">
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="isPrivate">
+                        <label for="isPrivate">Private post (only you can see this)</label>
+                    </div>
+                </div>
+                <button type="submit" class="btn" id="composeSubmitBtn">Post</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // App state
+        let currentUser = null;
+        let currentFeed = 'public';
+        let posts = [];
+        let isLoading = false;
+
+        // Netlify Blobs API implementation
+        const blobAPI = {
+            async get(key) {
+                try {
+                    const response = await fetch(`/.netlify/functions/blobs?key=${encodeURIComponent(key)}`, {
+                        method: 'GET',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                    
+                    if (!response.ok) {
+                        if (response.status === 404) return null;
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    
+                    const result = await response.json();
+                    return result.data;
+                } catch (error) {
+                    console.error('Error getting blob:', error);
+                    return null;
+                }
+            },
+            
+            async set(key, value) {
+                try {
+                    const response = await fetch('/.netlify/functions/blobs', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ key, value })
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    
+                    return await response.json();
+                } catch (error) {
+                    console.error('Error setting blob:', error);
+                    throw error;
+                }
+            },
+            
+            async list(prefix = '') {
+                try {
+                    const response = await fetch(`/.netlify/functions/blobs?list=true&prefix=${encodeURIComponent(prefix)}`, {
+                        method: 'GET',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    
+                    const result = await response.json();
+                    return result.keys || [];
+                } catch (error) {
+                    console.error('Error listing blobs:', error);
+                    return [];
+                }
+            },
+            
+            async delete(key) {
+                try {
+                    const response = await fetch('/.netlify/functions/blobs', {
+                        method: 'DELETE',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ key })
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    
+                    return await response.json();
+                } catch (error) {
+                    console.error('Error deleting blob:', error);
+                    throw error;
+                }
+            }
+        };
+
+        // Initialize app
+        document.addEventListener('DOMContentLoaded', async () => {
+            await loadUser();
+            await loadPosts();
+            updateUI();
+            setupEventListeners();
+        });
+
+        function setupEventListeners() {
+            // Auth form
+            document.getElementById('authForm').addEventListener('submit', handleAuth);
+            document.getElementById('authToggleBtn').addEventListener('click', toggleAuthMode);
+            
+            // Compose form
+            document.getElementById('composeForm').addEventListener('submit', handleCreatePost);
+            document.getElementById('composeBtn').addEventListener('click', () => openModal('composeModal'));
+            
+            // Feed toggle
+            document.getElementById('publicFeedBtn').addEventListener('click', () => switchFeed('public'));
+            document.getElementById('privateFeedBtn').addEventListener('click', () => switchFeed('private'));
+        }
+
+        async function loadUser() {
+            try {
+                const userData = await blobAPI.get('current_user');
+                if (userData) {
+                    currentUser = userData;
+                }
+            } catch (error) {
+                console.error('Error loading user:', error);
+            }
+        }
+
+        async function loadPosts() {
+            try {
+                isLoading = true;
+                const postKeys = await blobAPI.list('post_');
+                
+                if (postKeys.length === 0) {
+                    posts = [];
+                    return;
+                }
+                
+                const postPromises = postKeys.map(async (key) => {
+                    try {
+                        return await blobAPI.get(key);
+                    } catch (error) {
+                        console.error(`Error loading post ${key}:`, error);
+                        return null;
+                    }
+                });
+                
+                const loadedPosts = await Promise.all(postPromises);
+                posts = loadedPosts
+                    .filter(Boolean)
+                    .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+                    
+            } catch (error) {
+                console.error('Error loading posts:', error);
+                posts = [];
+            } finally {
+                isLoading = false;
+            }
+        }
+
+        function updateUI() {
+            updateAuthSection();
+            updateFeedToggle();
+            updateComposeButton();
+            renderFeed();
+        }
+
+        function updateAuthSection() {
+            const authSection = document.getElementById('authSection');
+            
+            if (currentUser) {
+                authSection.innerHTML = `
+                    <span class="user-info">@${escapeHtml(currentUser.username)}</span>
+                    <button class="btn btn-secondary" onclick="logout()">Logout</button>
+                `;
+            } else {
+                authSection.innerHTML = `
+                    <button class="btn btn-secondary" onclick="openAuthModal('signin')">Sign In</button>
+                    <button class="btn" onclick="openAuthModal('signup')">Sign Up</button>
+                `;
+            }
+        }
+
+        function updateFeedToggle() {
+            const feedToggle = document.getElementById('feedToggle');
+            feedToggle.style.display = currentUser ? 'flex' : 'none';
+        }
+
+        function updateComposeButton() {
+            const composeBtn = document.getElementById('composeBtn');
+            composeBtn.style.display = currentUser ? 'block' : 'none';
+        }
+
+        function renderFeed() {
+            const feed = document.getElementById('feed');
+            
+            if (isLoading) {
+                feed.innerHTML = '<div class="loading">Loading...</div>';
+                return;
+            }
+            
+            let filteredPosts = posts;
+            if (currentFeed === 'private') {
+                filteredPosts = posts.filter(post => post.isPrivate && post.author === currentUser?.username);
+            } else {
+                filteredPosts = posts.filter(post => !post.isPrivate);
+            }
+
+            if (filteredPosts.length === 0) {
+                feed.innerHTML = `
+                    <div class="empty-state">
+                        <p>No posts yet!</p>
+                        ${currentUser ? '<p>Be the first to share something.</p>' : '<p>Sign in to start posting.</p>'}
+                    </div>
+                `;
+                return;
+            }
+
+            feed.innerHTML = filteredPosts.map(post => `
+                <div class="post-card ${post.isPrivate ? 'private' : ''}">
+                    <div class="post-header">
+                        <span class="username">@${escapeHtml(post.author)}</span>
+                        <span class="timestamp">${formatTimestamp(post.timestamp)}</span>
+                        ${post.isPrivate ? '<span class="private-badge">Private</span>' : ''}
+                    </div>
+                    <h3 class="post-title">${escapeHtml(post.title)}</h3>
+                    <div class="post-content">${escapeHtml(post.content).replace(/\n/g, '<br>')}</div>
+                    <div class="post-actions">
+                        <button class="action-btn" onclick="toggleReplyForm('${post.id}')">
+                            💬 Reply (${post.replies ? post.replies.length : 0})
+                        </button>
+                        ${currentUser && currentUser.username === post.author ? 
+                            `<button class="action-btn" onclick="deletePost('${post.id}')">🗑 Delete</button>` : ''}
+                    </div>
+                    ${currentUser ? `
+                        <div class="reply-form" id="replyForm_${post.id}">
+                            <textarea placeholder="Write a reply..." id="replyText_${post.id}"></textarea>
+                            <div class="reply-form-actions">
+                                <button class="btn btn-small" onclick="submitReply('${post.id}')">Reply</button>
+                                <button class="btn btn-secondary btn-small" onclick="toggleReplyForm('${post.id}')">Cancel</button>
+                            </div>
+                        </div>
+                    ` : ''}
+                    ${post.replies && post.replies.length > 0 ? `
+                        <div class="replies">
+                            ${post.replies.map(reply => `
+                                <div class="reply">
+                                    <div class="post-header">
+                                        <span class="username">@${escapeHtml(reply.author)}</span>
+                                        <span class="timestamp">${formatTimestamp(reply.timestamp)}</span>
+                                    </div>
+                                    <div class="post-content">${escapeHtml(reply.content).replace(/\n/g, '<br>')}</div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    ` : ''}
+                </div>
+            `).join('');
+        }
+
+        function openAuthModal(mode) {
+            const modal = document.getElementById('authModal');
+            const title = document.getElementById('authTitle');
+            const toggleText = document.getElementById('authToggleText');
+            const toggleBtn = document.getElementById('authToggleBtn');
+            const submitBtn = document.getElementById('authSubmitBtn');
+            const form = document.getElementById('authForm');
+            
+            // Clear any previous errors
+            document.getElementById('authError').innerHTML = '';
+            
+            if (mode === 'signup') {
+                title.textContent = 'Sign Up';
+                toggleText.textContent = 'Already have an account?';
+                toggleBtn.textContent = 'Sign In';
+                submitBtn.textContent = 'Sign Up';
+                form.dataset.mode = 'signup';
+            } else {
+                title.textContent = 'Sign In';
+                toggleText.textContent = "Don't have an account?";
+                toggleBtn.textContent = 'Sign Up';
+                submitBtn.textContent = 'Sign In';
+                form.dataset.mode = 'signin';
+            }
+            
+            modal.style.display = 'block';
+        }
+
+        function toggleAuthMode() {
+            const form = document.getElementById('authForm');
+            const currentMode = form.dataset.mode;
+            openAuthModal(currentMode === 'signup' ? 'signin' : 'signup');
+        }
+
+        async function handleAuth(e) {
+            e.preventDefault();
+            const form = e.target;
+            const mode = form.dataset.mode;
+            const username = document.getElementById('username').value.trim();
+            const password = document.getElementById('password').value;
+            const errorDiv = document.getElementById('authError');
+            const submitBtn = document.getElementById('authSubmitBtn');
+
+            // Clear previous errors
+            errorDiv.innerHTML = '';
+            
+            // Basic validation
+            if (username.length < 3) {
+                showError('authError', 'Username must be at least 3 characters long');
+                return;
+            }
+            
+            if (password.length < 6) {
+                showError('authError', 'Password must be at least 6 characters long');
+                return;
+            }
+
+            try {
+                submitBtn.disabled = true;
+                submitBtn.textContent = 'Loading...';
+
+                if (mode === 'signup') {
+                    // Check if user already exists
+                    const existingUser = await blobAPI.get(`user_${username}`);
+                    if (existingUser) {
+                        showError('authError', 'Username already exists!');
+                        return;
+                    }
+                    
+                    // Create new user - hash password in production!
+                    const newUser = { 
+                        username, 
+                        password,
+                        createdAt: new Date().toISOString()
+                    };
+                    
+                    await blobAPI.set(`user_${username}`, newUser);
+                    
+                    // Set current user
+                    currentUser = { username };
+                    await blobAPI.set('current_user', currentUser);
+                    
+                    closeModal('authModal');
+                    updateUI();
+                    
+                } else {
+                    // Sign in
+                    const user = await blobAPI.get(`user_${username}`);
+                    
+                    if (!user || user.password !== password) {
+                        showError('authError', 'Invalid username or password');
+                        return;
+                    }
+                    
+                    currentUser = { username };
+                    await blobAPI.set('current_user', currentUser);
+                    
+                    closeModal('authModal');
+                    updateUI();
+                }
+                
+                form.reset();
+                
+            } catch (error) {
+                console.error('Auth error:', error);
+                showError('authError', 'Something went wrong. Please try again.');
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = mode === 'signup' ? 'Sign Up' : 'Sign In';
+            }
+        }
+
+        async function logout() {
+            try {
+                currentUser = null;
+                await blobAPI.delete('current_user');
+                currentFeed = 'public';
+                updateUI();
+            } catch (error) {
+                console.error('Logout error:', error);
+            }
+        }
+
+        async function handleCreatePost(e) {
+            e.preventDefault();
+            
+            if (!currentUser) {
+                showError('composeError', 'Please sign in to create a post');
+                return;
+            }
+            
+            const title = document.getElementById('postTitle').value.trim();
+            const content = document.getElementById('postContent').value.trim();
+            const isPrivate = document.getElementById('isPrivate').checked;
+            const submitBtn = document.getElementById('composeSubmitBtn');
+            const errorDiv = document.getElementById('composeError');
+            
+            // Clear previous errors
+            errorDiv.innerHTML = '';
+            
+            if (!title || !content) {
+                showError('composeError', 'Please fill in both title and content');
+                return;
+            }
+            
+            try {
+                submitBtn.disabled = true;
+                submitBtn.textContent = 'Posting...';
+                
+                const post = {
+                    id: `post_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                    title,
+                    content,
+                    author: currentUser.username,
+                    timestamp: new Date().toISOString(),
+                    isPrivate,
+                    replies: []
+                };
+                
+                await blobAPI.set(post.id, post);
+                posts.unshift(post);
+                
+                closeModal('composeModal');
+                document.getElementById('composeForm').reset();
+                renderFeed();
+                
+            } catch (error) {
+                console.error('Error creating post:', error);
+                showError('composeError', 'Failed to create post. Please try again.');
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Post';
+            }
+        }
+
+        function switchFeed(feedType) {
+            currentFeed = feedType;
+            
+            document.getElementById('publicFeedBtn').classList.toggle('active', feedType === 'public');
+            document.getElementById('privateFeedBtn').classList.toggle('active', feedType === 'private');
+            
+            renderFeed();
+        }
+
+        function toggleReplyForm(postId) {
+            if (!currentUser) {
+                alert('Please sign in to reply');
+                return;
+            }
+            
+            const form = document.getElementById(`replyForm_${postId}`);
+            form.style.display = form.style.display === 'block' ? 'none' : 'block';
+            
+            if (form.style.display === 'block') {
+                document.getElementById(`replyText_${postId}`).focus();
+            }
+        }
+
+        async function submitReply(postId) {
+            const replyText = document.getElementById(`replyText_${postId}`).value.trim();
+            if (!replyText) {
+                alert('Please enter a reply');
+                return;
+            }
+            
+            try {
+                const post = posts.find(p => p.id === postId);
+                if (!post) {
+                    alert('Post not found');
+                    return;
+                }
+                
+                const reply = {
+                    id: `reply_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                    content: replyText,
+                    author: currentUser.username,
+                    timestamp: new Date().toISOString()
+                };
+                
+                post.replies = post.replies || [];
+                post.replies.push(reply);
+                
+                await blobAPI.set(postId, post);
+                
+                document.getElementById(`replyText_${postId}`).value = '';
+                toggleReplyForm(postId);
+                renderFeed();
+                
+            } catch (error) {
+                console.error('Error submitting reply:', error);
+                alert('Failed to submit reply. Please try again.');
+            }
+        }
+
+        async function deletePost(postId) {
+            if (!confirm('Are you sure you want to delete this post?')) {
+                return;
+            }
+            
+            try {
+                await blobAPI.delete(postId);
+                posts = posts.filter(p => p.id !== postId);
+                renderFeed();
+            } catch (error) {
+                console.error('Error deleting post:', error);
+                alert('Failed to delete post. Please try again.');
+            }
+        }
+
+        function openModal(modalId) {
+            document.getElementById(modalId).style.display = 'block';
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).style.display = 'none';
+        }
+
+        function showError(elementId, message) {
+            document.getElementById(elementId).innerHTML = `<div class="error-message">${escapeHtml(message)}</div>`;
+        }
+
+        function formatTimestamp(timestamp) {
+            const date = new Date(timestamp);
+            const now = new Date();
+            const diff = now - date;
+            
+            if (diff < 60000) return 'now';
+            if (diff < 3600000) return Math.floor(diff / 60000) + 'm';
+            if (diff < 86400000) return Math.floor(diff / 3600000) + 'h';
+            if (diff < 604800000) return Math.floor(diff / 86400000) + 'd';
+            return date.toLocaleDateString();
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Close modals when clicking outside
+        window.addEventListener('click', (e) => {
+            if (e.target.classList.contains('modal')) {
+                e.target.style.display = 'none';
+            }
+        });
+
+        // Auto-save current user periodically
+        setInterval(async () => {
+            if (currentUser) {
+                try {
+                    await blobAPI.set('current_user', currentUser);
+                } catch (error) {
+                    console.error('Error auto-saving user:', error);
+                }
+            }
+        }, 30000); // Save every 30 seconds
+    </script>
+</body>
+</html>
