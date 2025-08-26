@@ -346,6 +346,104 @@
             font-size: 20px;
             font-weight: bold;
             color: white;
+            overflow: hidden;
+            cursor: pointer;
+            position: relative;
+        }
+
+        .profile-avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .profile-avatar-small {
+            width: 24px;
+            height: 24px;
+            background: linear-gradient(135deg, #ff4500, #ff6b35);
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: bold;
+            color: white;
+            overflow: hidden;
+            margin-right: 6px;
+            vertical-align: middle;
+        }
+
+        .profile-avatar-small img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .avatar-upload-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transition: opacity 0.2s;
+            font-size: 12px;
+            text-align: center;
+            color: white;
+        }
+
+        .profile-avatar:hover .avatar-upload-overlay {
+            opacity: 1;
+        }
+
+        .page-header {
+            background: #1a1a1b;
+            padding: 12px 16px;
+            border-bottom: 1px solid #343536;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .back-btn {
+            background: none;
+            border: none;
+            color: #818384;
+            font-size: 20px;
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 4px;
+        }
+
+        .back-btn:hover {
+            background: #272729;
+            color: #fff;
+        }
+
+        .page-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #fff;
+        }
+
+        .profile-page {
+            display: none;
+        }
+
+        .main-feed {
+            display: block;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .file-input {
+            display: none;
         }
 
         .profile-info {
@@ -451,11 +549,24 @@
     <div class="feed-toggle" id="feedToggle" style="display: none;">
         <button id="publicFeedBtn" class="active">Public</button>
         <button id="privateFeedBtn">Private</button>
-        <button id="profileBtn">Profile</button>
     </div>
 
-    <main id="feed" class="loading">
-        Loading...
+    <!-- Main Feed -->
+    <main id="mainFeed" class="main-feed">
+        <div id="feed" class="loading">
+            Loading...
+        </div>
+    </main>
+
+    <!-- Profile Page -->
+    <main id="profilePage" class="profile-page">
+        <div class="page-header">
+            <button class="back-btn" id="backToFeed">←</button>
+            <div class="page-title" id="profilePageTitle">Profile</div>
+        </div>
+        <div id="profileContent" class="loading">
+            Loading profile...
+        </div>
     </main>
 
     <button class="compose-btn" id="composeBtn" style="display: none;">+</button>
@@ -480,6 +591,13 @@
                 <div class="form-group">
                     <label for="bio">Bio (Optional)</label>
                     <textarea id="bio" placeholder="Tell us about yourself..." maxlength="500"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="profilePicture">Profile Picture (Optional)</label>
+                    <input type="file" id="profilePicture" accept="image/*">
+                    <div style="font-size: 12px; color: #818384; margin-top: 4px;">
+                        Max size: 1MB. Formats: JPG, PNG, GIF
+                    </div>
                 </div>
                 <button type="submit" class="btn" id="authSubmitBtn">Sign Up</button>
             </form>
@@ -518,6 +636,8 @@
         </div>
     </div>
 
+    <input type="file" id="hiddenFileInput" class="file-input" accept="image/*">
+
     <script>
         // App state
         let currentUser = null;
@@ -525,6 +645,8 @@
         let posts = [];
         let users = {};
         let isLoading = false;
+        let currentPage = 'feed'; // 'feed' or 'profile'
+        let currentProfileUser = null;
 
         // Netlify Blobs API implementation
         const blobAPI = {
@@ -620,6 +742,9 @@
             await loadPosts();
             updateUI();
             setupEventListeners();
+            
+            // Load profile pictures after initial render
+            setTimeout(loadVisibleProfilePictures, 500);
         });
 
         function setupEventListeners() {
@@ -634,7 +759,9 @@
             // Feed toggle
             document.getElementById('publicFeedBtn').addEventListener('click', () => switchFeed('public'));
             document.getElementById('privateFeedBtn').addEventListener('click', () => switchFeed('private'));
-            document.getElementById('profileBtn').addEventListener('click', () => switchFeed('profile'));
+            
+            // Profile page navigation
+            document.getElementById('backToFeed').addEventListener('click', () => showPage('feed'));
         }
 
         async function loadUser() {
@@ -676,6 +803,22 @@
                 posts = loadedPosts
                     .filter(Boolean)
                     .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+                // Load user data for all post authors
+                const authorPromises = [...new Set(posts.map(post => post.author))].map(async (author) => {
+                    if (!users[author]) {
+                        try {
+                            const userData = await blobAPI.get(`user_${author}`);
+                            if (userData) {
+                                users[author] = userData;
+                            }
+                        } catch (error) {
+                            console.error(`Error loading user ${author}:`, error);
+                        }
+                    }
+                });
+
+                await Promise.all(authorPromises);
                     
             } catch (error) {
                 console.error('Error loading posts:', error);
@@ -690,6 +833,257 @@
             updateFeedToggle();
             updateComposeButton();
             renderFeed();
+            loadVisibleProfilePictures();
+        }
+
+        // Profile picture upload function
+        async function uploadProfilePicture(file, username) {
+            try {
+                // Validate file
+                if (file.size > 1024 * 1024) { // 1MB limit
+                    return { success: false, error: 'File size must be less than 1MB' };
+                }
+
+                if (!file.type.startsWith('image/')) {
+                    return { success: false, error: 'File must be an image' };
+                }
+
+                // Convert to base64
+                const base64 = await new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = () => resolve(reader.result);
+                    reader.onerror = () => reject(new Error('Failed to read file'));
+                    reader.readAsDataURL(file);
+                });
+
+                // Store in blobs
+                const imageKey = `profile_pic_${username}_${Date.now()}`;
+                await blobAPI.set(imageKey, { 
+                    data: base64,
+                    type: file.type,
+                    size: file.size,
+                    uploadedAt: new Date().toISOString()
+                });
+
+                return { success: true, url: imageKey };
+            } catch (error) {
+                console.error('Profile picture upload error:', error);
+                return { success: false, error: 'Upload failed. Please try again.' };
+            }
+        }
+
+        // Get user avatar HTML
+        function getUserAvatar(userProfile, size = 'normal') {
+            const sizeClass = size === 'small' ? 'profile-avatar-small' : 'profile-avatar';
+            
+            if (!userProfile) {
+                return `<div class="${sizeClass}">?</div>`;
+            }
+
+            const initial = userProfile.username ? userProfile.username.charAt(0).toUpperCase() : '?';
+
+            if (userProfile.profilePicture) {
+                return `<div class="${sizeClass}"><img src="#" data-pic-key="${userProfile.profilePicture}" alt="${userProfile.username}" onerror="this.style.display='none'; this.parentNode.innerHTML='${initial}'"></div>`;
+            }
+
+            return `<div class="${sizeClass}">${initial}</div>`;
+        }
+
+        // Load profile pictures
+        async function loadProfilePicture(imgElement, picKey) {
+            try {
+                const picData = await blobAPI.get(picKey);
+                if (picData && picData.data) {
+                    imgElement.src = picData.data;
+                    imgElement.style.display = 'block';
+                }
+            } catch (error) {
+                console.error('Error loading profile picture:', error);
+                imgElement.style.display = 'none';
+            }
+        }
+
+        // Load all visible profile pictures
+        function loadVisibleProfilePictures() {
+            const images = document.querySelectorAll('img[data-pic-key]');
+            images.forEach(img => {
+                const picKey = img.getAttribute('data-pic-key');
+                if (picKey && !img.src.startsWith('data:')) {
+                    loadProfilePicture(img, picKey);
+                }
+            });
+        }
+
+        // Page navigation
+        function showPage(page) {
+            currentPage = page;
+            
+            const mainFeed = document.getElementById('mainFeed');
+            const profilePage = document.getElementById('profilePage');
+            const feedToggle = document.getElementById('feedToggle');
+
+            if (page === 'profile') {
+                mainFeed.style.display = 'none';
+                profilePage.style.display = 'block';
+                feedToggle.style.display = 'none';
+            } else {
+                mainFeed.style.display = 'block';
+                profilePage.style.display = 'none';
+                feedToggle.style.display = currentUser ? 'flex' : 'none';
+            }
+        }
+
+        // Show user profile
+        async function showUserProfile(username) {
+            if (!username) return;
+            
+            currentProfileUser = username;
+            document.getElementById('profilePageTitle').textContent = `@${username}`;
+            showPage('profile');
+            
+            const profileContent = document.getElementById('profileContent');
+            profileContent.innerHTML = '<div class="loading">Loading profile...</div>';
+
+            try {
+                // Load user data if not already loaded
+                if (!users[username]) {
+                    const userData = await blobAPI.get(`user_${username}`);
+                    if (userData) {
+                        users[username] = userData;
+                    } else {
+                        profileContent.innerHTML = '<div class="empty-state">User not found</div>';
+                        return;
+                    }
+                }
+
+                renderUserProfile(users[username]);
+            } catch (error) {
+                console.error('Error loading user profile:', error);
+                profileContent.innerHTML = '<div class="empty-state">Error loading profile</div>';
+            }
+        }
+
+        // Render user profile page
+        function renderUserProfile(user) {
+            const profileContent = document.getElementById('profileContent');
+            const userPosts = posts.filter(post => post.author === user.username);
+            const publicPosts = userPosts.filter(post => !post.isPrivate);
+            const privatePosts = userPosts.filter(post => post.isPrivate);
+            const totalReplies = userPosts.reduce((acc, post) => acc + (post.replies?.length || 0), 0);
+            const isOwnProfile = currentUser && currentUser.username === user.username;
+
+            profileContent.innerHTML = `
+                <div class="profile-card">
+                    <div class="profile-header">
+                        <div class="profile-avatar" ${isOwnProfile ? 'onclick="uploadNewProfilePicture()"' : ''}>
+                            ${user.profilePicture ? 
+                                `<img src="#" data-pic-key="${user.profilePicture}" alt="${user.username}" onerror="this.style.display='none'; this.parentNode.innerHTML='${user.username.charAt(0).toUpperCase()}'">` : 
+                                user.username.charAt(0).toUpperCase()
+                            }
+                            ${isOwnProfile ? '<div class="avatar-upload-overlay">Change<br>Photo</div>' : ''}
+                        </div>
+                        <div class="profile-info">
+                            <div class="profile-username">@${escapeHtml(user.username)}</div>
+                            <div class="profile-joined">Joined ${formatDate(user.createdAt)}</div>
+                        </div>
+                    </div>
+                    
+                    <div class="profile-stats">
+                        <div class="stat-item">
+                            <span class="stat-number">${userPosts.length}</span>
+                            <span class="stat-label">Posts</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-number">${publicPosts.length}</span>
+                            <span class="stat-label">Public</span>
+                        </div>
+                        ${isOwnProfile ? `
+                            <div class="stat-item">
+                                <span class="stat-number">${privatePosts.length}</span>
+                                <span class="stat-label">Private</span>
+                            </div>
+                        ` : ''}
+                        <div class="stat-item">
+                            <span class="stat-number">${totalReplies}</span>
+                            <span class="stat-label">Replies</span>
+                        </div>
+                    </div>
+
+                    <div class="profile-bio">
+                        ${escapeHtml(user.bio || 'No bio available.').replace(/\n/g, '<br>')}
+                    </div>
+
+                    ${isOwnProfile ? `
+                        <div class="profile-actions">
+                            <button class="btn" onclick="openModal('composeModal')">Create Post</button>
+                            <button class="btn btn-secondary" onclick="editProfile()">Edit Profile</button>
+                        </div>
+                    ` : ''}
+                </div>
+
+                ${publicPosts.length > 0 ? `
+                    <div style="margin: 16px; color: #818384; font-size: 14px; font-weight: 500;">
+                        ${isOwnProfile ? 'Your Posts' : 'Posts'}
+                    </div>
+                    ${(isOwnProfile ? userPosts : publicPosts).slice(0, 10).map(post => `
+                        <div class="post-card ${post.isPrivate ? 'private' : ''}">
+                            <div class="post-header">
+                                <span class="username">
+                                    ${getUserAvatar(user, 'small')}
+                                    @${escapeHtml(post.author)}
+                                </span>
+                                <span class="timestamp">${formatTimestamp(post.timestamp)}</span>
+                                ${post.isPrivate ? '<span class="private-badge">Private</span>' : ''}
+                            </div>
+                            <h3 class="post-title">${escapeHtml(post.title)}</h3>
+                            <div class="post-content">${escapeHtml(post.content.substring(0, 200))}${post.content.length > 200 ? '...' : ''}</div>
+                            <div class="post-actions">
+                                <span class="action-btn">💬 ${post.replies ? post.replies.length : 0} replies</span>
+                                ${isOwnProfile ? `<button class="action-btn" onclick="deletePost('${post.id}')">🗑 Delete</button>` : ''}
+                            </div>
+                        </div>
+                    `).join('')}
+                ` : `
+                    <div class="empty-state">
+                        <p>${isOwnProfile ? "You haven't" : "This user hasn't"} posted anything yet.</p>
+                    </div>
+                `}
+            `;
+
+            // Load profile pictures after rendering
+            setTimeout(loadVisibleProfilePictures, 100);
+        }
+
+        // Upload new profile picture
+        function uploadNewProfilePicture() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = 'image/*';
+            input.onchange = async (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    try {
+                        const result = await uploadProfilePicture(file, currentUser.username);
+                        if (result.success) {
+                            // Update user profile
+                            const updatedUser = { ...currentUser.profile, profilePicture: result.url };
+                            await blobAPI.set(`user_${currentUser.username}`, updatedUser);
+                            currentUser.profile = updatedUser;
+                            users[currentUser.username] = updatedUser;
+                            
+                            // Re-render profile
+                            renderUserProfile(updatedUser);
+                            updateAuthSection();
+                        } else {
+                            alert(result.error);
+                        }
+                    } catch (error) {
+                        console.error('Error uploading profile picture:', error);
+                        alert('Failed to upload profile picture');
+                    }
+                }
+            };
+            input.click();
         }
 
         function updateAuthSection() {
@@ -697,7 +1091,10 @@
             
             if (currentUser) {
                 authSection.innerHTML = `
-                    <span class="user-info" onclick="switchFeed('profile')">@${escapeHtml(currentUser.username)}</span>
+                    <span class="user-info" onclick="showUserProfile('${currentUser.username}')">
+                        ${getUserAvatar(currentUser.profile, 'small')}
+                        @${escapeHtml(currentUser.username)}
+                    </span>
                     <button class="btn btn-secondary" onclick="logout()">Logout</button>
                 `;
             } else {
@@ -726,12 +1123,6 @@
                 return;
             }
             
-            // Handle profile view
-            if (currentFeed === 'profile') {
-                renderProfile();
-                return;
-            }
-            
             let filteredPosts = posts;
             if (currentFeed === 'private') {
                 filteredPosts = posts.filter(post => post.isPrivate && post.author === currentUser?.username);
@@ -752,7 +1143,10 @@
             feed.innerHTML = filteredPosts.map(post => `
                 <div class="post-card ${post.isPrivate ? 'private' : ''}">
                     <div class="post-header">
-                        <span class="username" onclick="viewUserProfile('${escapeHtml(post.author)}')">@${escapeHtml(post.author)}</span>
+                        <span class="username" onclick="showUserProfile('${escapeHtml(post.author)}')">
+                            ${getUserAvatar(users[post.author], 'small')}
+                            @${escapeHtml(post.author)}
+                        </span>
                         <span class="timestamp">${formatTimestamp(post.timestamp)}</span>
                         ${post.isPrivate ? '<span class="private-badge">Private</span>' : ''}
                     </div>
@@ -779,7 +1173,10 @@
                             ${post.replies.map(reply => `
                                 <div class="reply">
                                     <div class="post-header">
-                                        <span class="username" onclick="viewUserProfile('${escapeHtml(reply.author)}')">@${escapeHtml(reply.author)}</span>
+                                        <span class="username" onclick="showUserProfile('${escapeHtml(reply.author)}')">
+                                            ${getUserAvatar(users[reply.author], 'small')}
+                                            @${escapeHtml(reply.author)}
+                                        </span>
                                         <span class="timestamp">${formatTimestamp(reply.timestamp)}</span>
                                     </div>
                                     <div class="post-content">${escapeHtml(reply.content).replace(/\n/g, '<br>')}</div>
@@ -832,6 +1229,7 @@
             const username = document.getElementById('username').value.trim();
             const password = document.getElementById('password').value;
             const bio = document.getElementById('bio').value.trim();
+            const profilePicture = document.getElementById('profilePicture').files[0];
             const errorDiv = document.getElementById('authError');
             const submitBtn = document.getElementById('authSubmitBtn');
 
@@ -861,17 +1259,31 @@
                         return;
                     }
                     
+                    // Handle profile picture upload
+                    let profilePictureUrl = null;
+                    if (profilePicture) {
+                        const result = await uploadProfilePicture(profilePicture, username);
+                        if (result.success) {
+                            profilePictureUrl = result.url;
+                        } else {
+                            showError('authError', result.error);
+                            return;
+                        }
+                    }
+                    
                     // Create new user - hash password in production!
                     const newUser = { 
                         username, 
                         password,
                         bio: bio || `Hello! I'm ${username}`,
+                        profilePicture: profilePictureUrl,
                         createdAt: new Date().toISOString(),
                         postCount: 0,
                         replyCount: 0
                     };
                     
                     await blobAPI.set(`user_${username}`, newUser);
+                    users[username] = newUser;
                     
                     // Set current user
                     currentUser = { username, profile: newUser };
@@ -891,6 +1303,7 @@
                     
                     currentUser = { username, profile: user };
                     await blobAPI.set('current_user', currentUser);
+                    users[user.username] = user;
                     
                     closeModal('authModal');
                     updateUI();
@@ -975,100 +1388,9 @@
             
             document.getElementById('publicFeedBtn').classList.toggle('active', feedType === 'public');
             document.getElementById('privateFeedBtn').classList.toggle('active', feedType === 'private');
-            document.getElementById('profileBtn').classList.toggle('active', feedType === 'profile');
             
             renderFeed();
-        }
-
-        function renderProfile() {
-            const feed = document.getElementById('feed');
-            
-            if (!currentUser || !currentUser.profile) {
-                feed.innerHTML = `
-                    <div class="empty-state">
-                        <p>Profile not found</p>
-                    </div>
-                `;
-                return;
-            }
-
-            const user = currentUser.profile;
-            const userPosts = posts.filter(post => post.author === currentUser.username);
-            const publicPosts = userPosts.filter(post => !post.isPrivate);
-            const privatePosts = userPosts.filter(post => post.isPrivate);
-            const totalReplies = userPosts.reduce((acc, post) => acc + (post.replies?.length || 0), 0);
-
-            feed.innerHTML = `
-                <div class="profile-card">
-                    <div class="profile-header">
-                        <div class="profile-avatar">
-                            ${user.username.charAt(0).toUpperCase()}
-                        </div>
-                        <div class="profile-info">
-                            <div class="profile-username">@${escapeHtml(user.username)}</div>
-                            <div class="profile-joined">Joined ${formatDate(user.createdAt)}</div>
-                        </div>
-                    </div>
-                    
-                    <div class="profile-stats">
-                        <div class="stat-item">
-                            <span class="stat-number">${userPosts.length}</span>
-                            <span class="stat-label">Posts</span>
-                        </div>
-                        <div class="stat-item">
-                            <span class="stat-number">${publicPosts.length}</span>
-                            <span class="stat-label">Public</span>
-                        </div>
-                        <div class="stat-item">
-                            <span class="stat-number">${privatePosts.length}</span>
-                            <span class="stat-label">Private</span>
-                        </div>
-                        <div class="stat-item">
-                            <span class="stat-number">${totalReplies}</span>
-                            <span class="stat-label">Replies</span>
-                        </div>
-                    </div>
-
-                    <div class="profile-bio">
-                        ${escapeHtml(user.bio || 'No bio available.').replace(/\n/g, '<br>')}
-                    </div>
-
-                    <div class="profile-actions">
-                        <button class="btn" onclick="openModal('composeModal')">Create Post</button>
-                        <button class="btn btn-secondary" onclick="editProfile()">Edit Profile</button>
-                    </div>
-                </div>
-
-                ${userPosts.length > 0 ? `
-                    <div style="margin: 16px; color: #818384; font-size: 14px; font-weight: 500;">
-                        Recent Posts
-                    </div>
-                    ${userPosts.slice(0, 5).map(post => `
-                        <div class="post-card ${post.isPrivate ? 'private' : ''}">
-                            <div class="post-header">
-                                <span class="username">@${escapeHtml(post.author)}</span>
-                                <span class="timestamp">${formatTimestamp(post.timestamp)}</span>
-                                ${post.isPrivate ? '<span class="private-badge">Private</span>' : ''}
-                            </div>
-                            <h3 class="post-title">${escapeHtml(post.title)}</h3>
-                            <div class="post-content">${escapeHtml(post.content.substring(0, 150))}${post.content.length > 150 ? '...' : ''}</div>
-                            <div class="post-actions">
-                                <span class="action-btn">💬 ${post.replies ? post.replies.length : 0} replies</span>
-                                <button class="action-btn" onclick="deletePost('${post.id}')">🗑 Delete</button>
-                            </div>
-                        </div>
-                    `).join('')}
-                ` : ''}
-            `;
-        }
-
-        function viewUserProfile(username) {
-            // For now, only show current user's profile
-            if (currentUser && username === currentUser.username) {
-                switchFeed('profile');
-            } else {
-                alert('User profiles coming soon!');
-            }
+            loadVisibleProfilePictures(); // Load profile pictures after rendering
         }
 
         function editProfile() {
