@@ -199,6 +199,18 @@
             border-radius: 8px;
             padding: 12px;
             border-left: 4px solid transparent;
+            display: flex;
+            gap: 12px;
+        }
+
+        .post-left {
+            flex-shrink: 0;
+            width: 200px;
+        }
+
+        .post-right {
+            flex: 1;
+            min-width: 0;
         }
 
         .post-card.private {
@@ -236,6 +248,7 @@
             font-weight: 500;
             margin-bottom: 8px;
             line-height: 1.3;
+            word-wrap: break-word;
         }
 
         .post-content {
@@ -553,24 +566,7 @@
             color: #fff;
         }
 
-        .make-admin-section {
-            background: #7f1d1d;
-            border: 1px solid #ef4444;
-            border-radius: 8px;
-            padding: 1.5rem;
-            margin-bottom: 2rem;
-        }
 
-        .make-admin-section h3 {
-            color: #ef4444;
-        }
-
-        .make-admin-form {
-            display: flex;
-            gap: 1rem;
-            align-items: flex-end;
-            flex-wrap: wrap;
-        }
 
         .approval-pending {
             background: #92400e;
@@ -953,7 +949,7 @@
                         <button type="button" class="markdown-btn" onclick="insertMarkdown('[', '](url)')" title="Link">
                             🔗
                         </button>
-                        <button type="button" class="markdown-btn" onclick="insertMarkdown('![', '](image-url)')" title="Image">
+                        <button type="button" class="markdown-btn" onclick="insertMarkdown('![](', ')')" title="Image">
                             🖼️
                         </button>
                         <button type="button" class="markdown-btn" onclick="insertMarkdown('> ', '')" title="Quote">
@@ -1590,19 +1586,23 @@
                     </div>
                     ${(isOwnProfile ? userPosts : publicPosts).slice(0, 10).map(post => `
                         <div class="post-card ${post.isPrivate ? 'private' : ''}">
-                            <div class="post-header">
-                                <span class="username">
-                                    ${getUserAvatar(user, 'small')}
-                                    @${escapeHtml(post.author)}
-                                </span>
-                                <span class="timestamp">${formatTimestamp(post.timestamp)}</span>
-                                ${post.isPrivate ? '<span class="private-badge">Private</span>' : ''}
+                            <div class="post-left">
+                                <h3 class="post-title">${escapeHtml(post.title)}</h3>
                             </div>
-                            <h3 class="post-title">${escapeHtml(post.title)}</h3>
-                            <div class="post-content markdown-content">${renderMarkdown(post.content.substring(0, 200)) + (post.content.length > 200 ? '...' : '')}</div>
-                            <div class="post-actions">
-                                <span class="action-btn">💬 ${post.replies ? post.replies.length : 0} replies</span>
-                                ${isOwnProfile ? `<button class="action-btn" onclick="deletePost('${post.id}')">🗑 Delete</button>` : ''}
+                            <div class="post-right">
+                                <div class="post-header">
+                                    <span class="username">
+                                        ${getUserAvatar(user, 'small')}
+                                        @${escapeHtml(post.author)}
+                                    </span>
+                                    <span class="timestamp">${formatTimestamp(post.timestamp)}</span>
+                                    ${post.isPrivate ? '<span class="private-badge">Private</span>' : ''}
+                                </div>
+                                <div class="post-content markdown-content">${renderMarkdown(post.content.substring(0, 200)) + (post.content.length > 200 ? '...' : '')}</div>
+                                <div class="post-actions">
+                                    <span class="action-btn">💬 ${post.replies ? post.replies.length : 0} replies</span>
+                                    ${isOwnProfile ? `<button class="action-btn" onclick="deletePost('${post.id}')">🗑 Delete</button>` : ''}
+                                </div>
                             </div>
                         </div>
                     `).join('')}
@@ -1818,13 +1818,6 @@
                                     <p><strong>Joined:</strong> ${formatDate(user.createdAt)} | <strong>Posts:</strong> ${posts.filter(p => p.author === user.username).length}</p>
                                 </div>
                             </div>
-                            ${!user.isAdmin && user.username !== currentUser.username ? `
-                                <div class="admin-actions">
-                                    <button class="btn btn-small" onclick="makeUserAdmin('${user.username}')" style="background: #fbbf24; color: #000;">
-                                        Make Admin
-                                    </button>
-                                </div>
-                            ` : ''}
                         </div>
                     `).join('')}
                 </div>
@@ -1887,55 +1880,8 @@
         }
 
         async function makeUserAdmin(username) {
-            if (!username) {
-                const inputUsername = document.getElementById('adminUsername')?.value.trim();
-                if (!inputUsername) {
-                    alert('Please enter a username');
-                    return;
-                }
-                username = inputUsername;
-            }
-
-            if (!confirm(`Are you sure you want to make @${username} an admin? This gives them full admin privileges.`)) {
-                return;
-            }
-
-            try {
-                // Get user data
-                const userData = await blobAPI.get(`user_${username}`);
-                if (!userData) {
-                    alert('User not found');
-                    return;
-                }
-
-                if (userData.isAdmin) {
-                    alert('User is already an admin');
-                    return;
-                }
-
-                // Update user to admin
-                const updatedUser = {
-                    ...userData,
-                    isAdmin: true,
-                    madeAdminAt: new Date().toISOString(),
-                    madeAdminBy: currentUser.username
-                };
-
-                await blobAPI.set(`user_${username}`, updatedUser);
-                users[username] = updatedUser;
-
-                // Clear input
-                const input = document.getElementById('adminUsername');
-                if (input) input.value = '';
-
-                // Re-render admin panel
-                renderAdminPanel();
-                
-                alert(`👑 @${username} is now an admin!`);
-            } catch (error) {
-                console.error('Error making user admin:', error);
-                alert('Failed to make user admin. Please try again.');
-            }
+            // Function removed - no longer available
+            console.log('Make user admin functionality has been removed');
         }
 
         function updateAuthSection() {
