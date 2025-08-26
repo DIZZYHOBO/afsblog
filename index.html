@@ -12,6 +12,233 @@
             box-sizing: border-box;
         }
 
+        // Admin functions
+        async function showAdminPanel() {
+            if (!currentUser || !currentUser.profile || !currentUser.profile.isAdmin) {
+                alert('Access denied: Admin privileges required');
+                return;
+            }
+            
+            showPage('admin');
+            await loadAdminData();
+            renderAdminPanel();
+        }
+
+        async function loadAdminData() {
+            try {
+                // Load pending users
+                const pendingKeys = await blobAPI.list('pending_user_');
+                const pendingPromises = pendingKeys.map(key => blobAPI.get(key));
+                const loadedPending = await Promise.all(pendingPromises);
+                pendingUsers = loadedPending.filter(Boolean);
+                
+                console.log('Loaded pending users:', pendingUsers.length);
+            } catch (error) {
+                console.error('Error loading admin data:', error);
+            }
+        }
+
+        function renderAdminPanel() {
+            const adminContent = document.getElementById('adminContent');
+            
+            const totalUsers = Object.keys(users).length;
+            const totalPosts = posts.length;
+            const totalPending = pendingUsers.length;
+            
+            adminContent.innerHTML = `
+                <div class="admin-card">
+                    <h2>👑 Admin Dashboard</h2>
+                    <p>Welcome, <strong>@${escapeHtml(currentUser.username)}</strong></p>
+                </div>
+
+                <div class="admin-stats">
+                    <div class="stat-card">
+                        <h4>Total Users</h4>
+                        <div class="number">${totalUsers}</div>
+                    </div>
+                    <div class="stat-card">
+                        <h4>Total Posts</h4>
+                        <div class="number">${totalPosts}</div>
+                    </div>
+                    <div class="stat-card">
+                        <h4>Pending Approval</h4>
+                        <div class="number">${totalPending}</div>
+                    </div>
+                </div>
+
+                <div class="make-admin-section">
+                    <h3>🔒 Make User Admin</h3>
+                    <p style="color: #fca5a5; margin-bottom: 1rem;">
+                        <strong>Warning:</strong> This gives full admin privileges including user management.
+                    </p>
+                    <div class="make-admin-form">
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label for="adminUsername">Username</label>
+                            <input type="text" id="adminUsername" placeholder="Enter username" style="width: 200px;">
+                        </div>
+                        <button class="btn" onclick="makeUserAdmin()" style="background: #ef4444; border-color: #ef4444;">
+                            Make Admin
+                        </button>
+                    </div>
+                </div>
+
+                <div class="admin-section">
+                    <h3>📋 Pending User Approvals</h3>
+                    ${totalPending === 0 ? 
+                        '<p style="color: #9ca3af;">No pending users at this time.</p>' :
+                        pendingUsers.map(user => `
+                            <div class="pending-user">
+                                <div class="user-info-admin">
+                                    <h4>@${escapeHtml(user.username)}</h4>
+                                    <div class="user-meta">
+                                        <p><strong>Bio:</strong> ${escapeHtml(user.bio || 'No bio provided')}</p>
+                                        <p><strong>Registered:</strong> ${formatDate(user.createdAt)}</p>
+                                    </div>
+                                </div>
+                                <div class="admin-actions">
+                                    <button class="btn btn-small btn-approve" onclick="approveUser('${user.username}')">
+                                        ✓ Approve
+                                    </button>
+                                    <button class="btn btn-small btn-reject" onclick="rejectUser('${user.username}')">
+                                        ✗ Reject
+                                    </button>
+                                </div>
+                            </div>
+                        `).join('')
+                    }
+                </div>
+
+                <div class="admin-section">
+                    <h3>👥 Active Users</h3>
+                    ${Object.values(users).map(user => `
+                        <div class="pending-user">
+                            <div class="user-info-admin">
+                                <h4>@${escapeHtml(user.username)} ${user.isAdmin ? '<span style="color: #fbbf24;">👑 Admin</span>' : ''}</h4>
+                                <div class="user-meta">
+                                    <p><strong>Bio:</strong> ${escapeHtml(user.bio || 'No bio')}</p>
+                                    <p><strong>Joined:</strong> ${formatDate(user.createdAt)} | <strong>Posts:</strong> ${posts.filter(p => p.author === user.username).length}</p>
+                                </div>
+                            </div>
+                            ${!user.isAdmin && user.username !== currentUser.username ? `
+                                <div class="admin-actions">
+                                    <button class="btn btn-small" onclick="makeUserAdmin('${user.username}')" style="background: #fbbf24; color: #000;">
+                                        Make Admin
+                                    </button>
+                                </div>
+                            ` : ''}
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+
+        async function approveUser(username) {
+            try {
+                const pendingUser = pendingUsers.find(u => u.username === username);
+                if (!pendingUser) {
+                    alert('Pending user not found');
+                    return;
+                }
+
+                // Move from pending to approved
+                const approvedUser = {
+                    ...pendingUser,
+                    status: 'approved',
+                    approvedAt: new Date().toISOString(),
+                    approvedBy: currentUser.username
+                };
+
+                // Save as regular user
+                await blobAPI.set(`user_${username}`, approvedUser);
+                users[username] = approvedUser;
+
+                // Remove from pending
+                await blobAPI.delete(`pending_user_${username}`);
+                pendingUsers = pendingUsers.filter(u => u.username !== username);
+
+                // Re-render admin panel
+                renderAdminPanel();
+                
+                // Show success message
+                alert(`✅ User @${username} has been approved and can now log in.`);
+            } catch (error) {
+                console.error('Error approving user:', error);
+                alert('Failed to approve user. Please try again.');
+            }
+        }
+
+        async function rejectUser(username) {
+            if (!confirm(`Are you sure you want to reject user @${username}? This cannot be undone.`)) {
+                return;
+            }
+
+            try {
+                // Remove from pending users
+                await blobAPI.delete(`pending_user_${username}`);
+                pendingUsers = pendingUsers.filter(u => u.username !== username);
+
+                // Re-render admin panel
+                renderAdminPanel();
+                
+                alert(`❌ User @${username} has been rejected.`);
+            } catch (error) {
+                console.error('Error rejecting user:', error);
+                alert('Failed to reject user. Please try again.');
+            }
+        }
+
+        async function makeUserAdmin(username) {
+            if (!username) {
+                const inputUsername = document.getElementById('adminUsername')?.value.trim();
+                if (!inputUsername) {
+                    alert('Please enter a username');
+                    return;
+                }
+                username = inputUsername;
+            }
+
+            if (!confirm(`Are you sure you want to make @${username} an admin? This gives them full admin privileges.`)) {
+                return;
+            }
+
+            try {
+                // Get user data
+                const userData = await blobAPI.get(`user_${username}`);
+                if (!userData) {
+                    alert('User not found');
+                    return;
+                }
+
+                if (userData.isAdmin) {
+                    alert('User is already an admin');
+                    return;
+                }
+
+                // Update user to admin
+                const updatedUser = {
+                    ...userData,
+                    isAdmin: true,
+                    madeAdminAt: new Date().toISOString(),
+                    madeAdminBy: currentUser.username
+                };
+
+                await blobAPI.set(`user_${username}`, updatedUser);
+                users[username] = updatedUser;
+
+                // Clear input
+                const input = document.getElementById('adminUsername');
+                if (input) input.value = '';
+
+                // Re-render admin panel
+                renderAdminPanel();
+                
+                alert(`👑 @${username} is now an admin!`);
+            } catch (error) {
+                console.error('Error making user admin:', error);
+                alert('Failed to make user admin. Please try again.');
+            }
+        }
+
         body {
             background-color: #000;
             color: #fff;
@@ -460,6 +687,127 @@
             display: none;
         }
 
+        .admin-card {
+            background: #1a1a1b;
+            margin: 8px 16px;
+            border-radius: 8px;
+            padding: 16px;
+            border-left: 4px solid #fbbf24;
+        }
+
+        .admin-section {
+            margin-bottom: 2rem;
+        }
+
+        .admin-section h3 {
+            color: #fbbf24;
+            margin-bottom: 1rem;
+            font-size: 1.2rem;
+        }
+
+        .pending-user {
+            background: #1f2937;
+            border: 1px solid #374151;
+            border-radius: 6px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .user-info-admin {
+            flex: 1;
+        }
+
+        .user-info-admin h4 {
+            color: #60a5fa;
+            margin-bottom: 0.5rem;
+        }
+
+        .user-meta {
+            color: #9ca3af;
+            font-size: 0.9rem;
+        }
+
+        .admin-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .btn-approve {
+            background: #059669;
+            color: white;
+            border: 1px solid #10b981;
+        }
+
+        .btn-approve:hover {
+            background: #047857;
+        }
+
+        .btn-reject {
+            background: #dc2626;
+            color: white;
+            border: 1px solid #ef4444;
+        }
+
+        .btn-reject:hover {
+            background: #b91c1c;
+        }
+
+        .admin-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: #374151;
+            padding: 1rem;
+            border-radius: 6px;
+            text-align: center;
+        }
+
+        .stat-card h4 {
+            color: #fbbf24;
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-card .number {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #fff;
+        }
+
+        .make-admin-section {
+            background: #7f1d1d;
+            border: 1px solid #ef4444;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .make-admin-section h3 {
+            color: #ef4444;
+        }
+
+        .make-admin-form {
+            display: flex;
+            gap: 1rem;
+            align-items: flex-end;
+            flex-wrap: wrap;
+        }
+
+        .approval-pending {
+            background: #92400e;
+            color: #fbbf24;
+            padding: 1rem;
+            border-radius: 8px;
+            text-align: center;
+            margin: 2rem 0;
+        }
+
         .file-input {
             display: none;
         }
@@ -574,7 +922,16 @@
         <div id="feed" class="loading">
             Loading...
         </div>
-    </main>
+            <!-- Admin Page -->
+        <main id="adminPage" class="profile-page">
+            <div class="page-header">
+                <button class="back-btn" id="backToFeedFromAdmin">←</button>
+                <div class="page-title">Admin Panel</div>
+            </div>
+            <div id="adminContent" class="loading">
+                Loading admin panel...
+            </div>
+        </main>
 
     <!-- Profile Page -->
     <main id="profilePage" class="profile-page">
@@ -662,8 +1019,9 @@
         let currentFeed = 'public';
         let posts = [];
         let users = {};
+        let pendingUsers = [];
         let isLoading = false;
-        let currentPage = 'feed'; // 'feed' or 'profile'
+        let currentPage = 'feed'; // 'feed', 'profile', or 'admin'
         let currentProfileUser = null;
 
         // Netlify Blobs API implementation
@@ -780,6 +1138,7 @@
             
             // Profile page navigation
             document.getElementById('backToFeed').addEventListener('click', () => showPage('feed'));
+            document.getElementById('backToFeedFromAdmin').addEventListener('click', () => showPage('feed'));
         }
 
         async function loadUser() {
@@ -908,7 +1267,7 @@
             }
         }
 
-        // Get user avatar HTML
+        // Get user avatar HTML with proper image handling
         function getUserAvatar(userProfile, size = 'normal') {
             const sizeClass = size === 'small' ? 'profile-avatar-small' : 'profile-avatar';
             
@@ -919,7 +1278,17 @@
             const initial = userProfile.username ? userProfile.username.charAt(0).toUpperCase() : '?';
 
             if (userProfile.profilePicture) {
-                return `<div class="${sizeClass}"><img src="#" data-pic-key="${userProfile.profilePicture}" alt="${userProfile.username}" onerror="this.style.display='none'; this.parentNode.innerHTML='${initial}'"></div>`;
+                return `
+                    <div class="${sizeClass}">
+                        <img src="#" 
+                             data-pic-key="${userProfile.profilePicture}" 
+                             alt="${userProfile.username}" 
+                             style="display: none;"
+                             onload="this.style.display='block'"
+                             onerror="this.style.display='none'; this.parentNode.innerHTML='${initial}';">
+                        <span style="display: block;">${initial}</span>
+                    </div>
+                `;
             }
 
             return `<div class="${sizeClass}">${initial}</div>`;
@@ -934,26 +1303,34 @@
                 if (picData && picData.data) {
                     imgElement.src = picData.data;
                     imgElement.style.display = 'block';
+                    
+                    // Hide the text initial when image loads
+                    const textSpan = imgElement.nextElementSibling;
+                    if (textSpan && textSpan.tagName === 'SPAN') {
+                        textSpan.style.display = 'none';
+                    }
+                    
                     imgElement.onerror = function() {
                         this.style.display = 'none';
-                        // Show initials instead
-                        const parent = this.parentNode;
-                        if (parent && parent.classList.contains('profile-avatar') || parent.classList.contains('profile-avatar-small')) {
-                            const username = this.alt || '?';
-                            parent.innerHTML = username.charAt(0).toUpperCase();
+                        // Show initials if image fails
+                        if (textSpan) {
+                            textSpan.style.display = 'block';
                         }
                     };
                 } else {
                     imgElement.style.display = 'none';
+                    const textSpan = imgElement.nextElementSibling;
+                    if (textSpan && textSpan.tagName === 'SPAN') {
+                        textSpan.style.display = 'block';
+                    }
                 }
             } catch (error) {
                 console.error('Error loading profile picture:', error);
                 imgElement.style.display = 'none';
                 // Show initials instead
-                const parent = imgElement.parentNode;
-                if (parent && (parent.classList.contains('profile-avatar') || parent.classList.contains('profile-avatar-small'))) {
-                    const username = imgElement.alt || '?';
-                    parent.innerHTML = username.charAt(0).toUpperCase();
+                const textSpan = imgElement.nextElementSibling;
+                if (textSpan && textSpan.tagName === 'SPAN') {
+                    textSpan.style.display = 'block';
                 }
             }
         }
@@ -963,7 +1340,7 @@
             const images = document.querySelectorAll('img[data-pic-key]');
             images.forEach(img => {
                 const picKey = img.getAttribute('data-pic-key');
-                if (picKey && !img.src.startsWith('data:') && img.src === '#') {
+                if (picKey && img.src === '#') {
                     loadProfilePicture(img, picKey);
                 }
             });
@@ -975,15 +1352,22 @@
             
             const mainFeed = document.getElementById('mainFeed');
             const profilePage = document.getElementById('profilePage');
+            const adminPage = document.getElementById('adminPage');
             const feedToggle = document.getElementById('feedToggle');
 
+            // Hide all pages
+            mainFeed.style.display = 'none';
+            profilePage.style.display = 'none';
+            adminPage.style.display = 'none';
+
             if (page === 'profile') {
-                mainFeed.style.display = 'none';
                 profilePage.style.display = 'block';
+                feedToggle.style.display = 'none';
+            } else if (page === 'admin') {
+                adminPage.style.display = 'block';
                 feedToggle.style.display = 'none';
             } else {
                 mainFeed.style.display = 'block';
-                profilePage.style.display = 'none';
                 feedToggle.style.display = currentUser ? 'flex' : 'none';
             }
         }
@@ -1031,10 +1415,15 @@
                 <div class="profile-card">
                     <div class="profile-header">
                         <div class="profile-avatar" ${isOwnProfile ? 'onclick="uploadNewProfilePicture()"' : ''}>
-                            ${user.profilePicture ? 
-                                `<img src="#" data-pic-key="${user.profilePicture}" alt="${user.username}" onerror="this.style.display='none'; this.parentNode.innerHTML='${user.username.charAt(0).toUpperCase()}'">` : 
-                                user.username.charAt(0).toUpperCase()
-                            }
+                            ${user.profilePicture ? `
+                                <img src="#" 
+                                     data-pic-key="${user.profilePicture}" 
+                                     alt="${user.username}" 
+                                     style="display: none;"
+                                     onload="this.style.display='block'; this.nextElementSibling.style.display='none';"
+                                     onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                                <span style="display: block;">${user.username.charAt(0).toUpperCase()}</span>
+                            ` : user.username.charAt(0).toUpperCase()}
                             ${isOwnProfile ? '<div class="avatar-upload-overlay">Change<br>Photo</div>' : ''}
                         </div>
                         <div class="profile-info">
@@ -1150,11 +1539,27 @@
                             uploadingOverlay.remove();
                         }
                         
-                        // Re-render profile page and update header
-                        if (currentPage === 'profile' && currentProfileUser === currentUser.username) {
-                            renderUserProfile(updatedUser);
+                        // Force immediate update of profile avatar
+                        const profileAvatar = document.querySelector('.profile-avatar');
+                        if (profileAvatar && result.url) {
+                            // Get the image data immediately
+                            const picData = await blobAPI.get(result.url);
+                            if (picData && picData.data) {
+                                profileAvatar.innerHTML = `
+                                    <img src="${picData.data}" 
+                                         alt="${currentUser.username}" 
+                                         style="width: 100%; height: 100%; object-fit: cover;">
+                                    <div class="avatar-upload-overlay">Change<br>Photo</div>
+                                `;
+                            }
                         }
+                        
+                        // Update header and re-render profile if needed
                         updateAuthSection();
+                        if (currentPage === 'profile' && currentProfileUser === currentUser.username) {
+                            // Wait a bit for the data to be saved, then re-render
+                            setTimeout(() => renderUserProfile(updatedUser), 500);
+                        }
                         
                         // Show success message
                         const successDiv = document.createElement('div');
@@ -1201,6 +1606,9 @@
                         ${getUserAvatar(currentUser.profile, 'small')}
                         @${escapeHtml(currentUser.username)}
                     </span>
+                    ${currentUser.profile && currentUser.profile.isAdmin ? 
+                        '<button class="btn" onclick="showAdminPanel()" style="background: #fbbf24; color: #000;">Admin</button>' : ''
+                    }
                     <button class="btn btn-secondary" onclick="logout()">Logout</button>
                 `;
             } else {
@@ -1377,32 +1785,50 @@
                         }
                     }
                     
-                    // Create new user - hash password in production!
-                    const newUser = { 
+                    // Create pending user (requires admin approval)
+                    const pendingUser = { 
                         username, 
                         password,
                         bio: bio || `Hello! I'm ${username}`,
                         profilePicture: profilePictureUrl,
                         createdAt: new Date().toISOString(),
                         postCount: 0,
-                        replyCount: 0
+                        replyCount: 0,
+                        status: 'pending',
+                        isAdmin: false
                     };
                     
-                    await blobAPI.set(`user_${username}`, newUser);
-                    users[username] = newUser;
-                    
-                    // Set current user
-                    currentUser = { username, profile: newUser };
-                    await blobAPI.set('current_user', currentUser);
+                    await blobAPI.set(`pending_user_${username}`, pendingUser);
                     
                     closeModal('authModal');
+                    
+                    // Show approval pending message
+                    document.getElementById('feed').innerHTML = `
+                        <div class="approval-pending">
+                            <h3>📋 Account Pending Approval</h3>
+                            <p>Your account has been created and is waiting for admin approval.</p>
+                            <p>You'll be able to log in once an administrator approves your account.</p>
+                            <p><strong>Username:</strong> ${escapeHtml(username)}</p>
+                        </div>
+                    `;
                     updateUI();
                     
                 } else {
-                    // Sign in
+                    // Sign in - check if user exists and is approved
                     const user = await blobAPI.get(`user_${username}`);
                     
-                    if (!user || user.password !== password) {
+                    if (!user) {
+                        // Check if user is still pending
+                        const pendingUser = await blobAPI.get(`pending_user_${username}`);
+                        if (pendingUser) {
+                            showError('authError', 'Your account is still pending admin approval.');
+                        } else {
+                            showError('authError', 'Invalid username or password');
+                        }
+                        return;
+                    }
+                    
+                    if (user.password !== password) {
                         showError('authError', 'Invalid username or password');
                         return;
                     }
