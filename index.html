@@ -12,577 +12,6 @@
             box-sizing: border-box;
         }
 
-        // Markdown editor functions
-        function switchEditorMode(mode) {
-            const writeTab = document.getElementById('writeTab');
-            const previewTab = document.getElementById('previewTab');
-            const textarea = document.getElementById('postContent');
-            const preview = document.getElementById('markdownPreview');
-
-            if (mode === 'write') {
-                writeTab.classList.add('active');
-                previewTab.classList.remove('active');
-                textarea.style.display = 'block';
-                preview.style.display = 'none';
-            } else {
-                writeTab.classList.remove('active');
-                previewTab.classList.add('active');
-                textarea.style.display = 'none';
-                preview.style.display = 'block';
-                
-                // Update preview
-                const content = textarea.value;
-                preview.innerHTML = renderMarkdown(content);
-            }
-        }
-
-        function insertMarkdown(before, after) {
-            const textarea = document.getElementById('postContent');
-            const start = textarea.selectionStart;
-            const end = textarea.selectionEnd;
-            const selectedText = textarea.value.substring(start, end);
-            const beforeText = textarea.value.substring(0, start);
-            const afterText = textarea.value.substring(end);
-
-            let newText;
-            if (selectedText) {
-                newText = beforeText + before + selectedText + after + afterText;
-            } else {
-                newText = beforeText + before + 'text' + after + afterText;
-            }
-
-            textarea.value = newText;
-            
-            // Set cursor position
-            if (selectedText) {
-                textarea.setSelectionRange(start + before.length, start + before.length + selectedText.length);
-            } else {
-                textarea.setSelectionRange(start + before.length, start + before.length + 4); // select "text"
-            }
-            
-            textarea.focus();
-        }
-
-        function insertTable() {
-            const tableMarkdown = `
-| Header 1 | Header 2 | Header 3 |
-|----------|----------|----------|
-| Cell 1   | Cell 2   | Cell 3   |
-| Cell 4   | Cell 5   | Cell 6   |
-`;
-            const textarea = document.getElementById('postContent');
-            const start = textarea.selectionStart;
-            const beforeText = textarea.value.substring(0, start);
-            const afterText = textarea.value.substring(start);
-
-            textarea.value = beforeText + tableMarkdown + afterText;
-            textarea.focus();
-        }
-
-        // Simple markdown renderer
-        function renderMarkdown(text) {
-            if (!text) return '';
-            
-            // Escape HTML first
-            text = text.replace(/&/g, '&amp;')
-                      .replace(/</g, '&lt;')
-                      .replace(/>/g, '&gt;');
-
-            // Code blocks (must be processed first)
-            text = text.replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
-            
-            // Inline code (after code blocks)
-            text = text.replace(/`([^`]+)`/g, '<code>$1</code>');
-            
-            // Headers
-            text = text.replace(/^### (.*$)/gim, '<h3>$1</h3>');
-            text = text.replace(/^## (.*$)/gim, '<h2>$1</h2>');
-            text = text.replace(/^# (.*$)/gim, '<h1>$1</h1>');
-            
-            // Bold and italic (order matters)
-            text = text.replace(/\*\*\*(.*?)\*\*\*/g, '<strong><em>$1</em></strong>');
-            text = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-            text = text.replace(/\*(.*?)\*/g, '<em>$1</em>');
-            
-            // Strikethrough
-            text = text.replace(/~~(.*?)~~/g, '<s>$1</s>');
-            
-            // Links
-            text = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
-            
-            // Images
-            text = text.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" style="max-width: 100%; height: auto; border-radius: 4px; margin: 8px 0;">');
-            
-            // Blockquotes
-            text = text.replace(/^> (.*$)/gim, '<blockquote>$1</blockquote>');
-            
-            // Horizontal rules
-            text = text.replace(/^---$/gim, '<hr>');
-            
-            // Lists
-            text = text.replace(/^\* (.*$)/gim, '<ul><li>$1</li></ul>');
-            text = text.replace(/^- (.*$)/gim, '<ul><li>$1</li></ul>');
-            text = text.replace(/^\d+\. (.*$)/gim, '<ol><li>$1</li></ol>');
-            
-            // Fix list formatting (merge consecutive list items)
-            text = text.replace(/<\/ul>\s*<ul>/g, '');
-            text = text.replace(/<\/ol>\s*<ol>/g, '');
-            
-            // Tables (basic support)
-            text = text.replace(/\|(.+)\|/g, function(match, content) {
-                const cells = content.split('|').map(cell => cell.trim());
-                const isHeader = match.includes('---');
-                if (isHeader) return ''; // Skip separator rows
-                
-                const cellTags = cells.map(cell => `<td>${cell}</td>`).join('');
-                return `<tr>${cellTags}</tr>`;
-            });
-            
-            // Wrap tables
-            text = text.replace(/(<tr>.*<\/tr>)/gs, '<table>$1</table>');
-            
-            // Line breaks
-            text = text.replace(/\n\n/g, '</p><p>');
-            text = text.replace(/\n/g, '<br>');
-            
-            // Wrap in paragraphs
-            if (text && !text.startsWith('<')) {
-                text = '<p>' + text + '</p>';
-            }
-            
-            return text;
-        }
-
-        }
-
-        // Admin functions - moved to proper location
-        async function showAdminPanel() {
-            if (!currentUser || !currentUser.profile || !currentUser.profile.isAdmin) {
-                alert('Access denied: Admin privileges required');
-                return;
-            }
-            
-            showPage('admin');
-            await loadAdminData();
-            renderAdminPanel();
-        }
-
-        async function loadAdminData() {
-            try {
-                // Load pending users
-                const pendingKeys = await blobAPI.list('pending_user_');
-                const pendingPromises = pendingKeys.map(key => blobAPI.get(key));
-                const loadedPending = await Promise.all(pendingPromises);
-                pendingUsers = loadedPending.filter(Boolean);
-                
-                console.log('Loaded pending users:', pendingUsers.length);
-            } catch (error) {
-                console.error('Error loading admin data:', error);
-            }
-        }
-
-        function renderAdminPanel() {
-            const adminContent = document.getElementById('adminContent');
-            
-            const totalUsers = Object.keys(users).length;
-            const totalPosts = posts.length;
-            const totalPending = pendingUsers.length;
-            
-            adminContent.innerHTML = `
-                <div class="admin-card">
-                    <h2>👑 Admin Dashboard</h2>
-                    <p>Welcome, <strong>@${escapeHtml(currentUser.username)}</strong></p>
-                </div>
-
-                <div class="admin-stats">
-                    <div class="stat-card">
-                        <h4>Total Users</h4>
-                        <div class="number">${totalUsers}</div>
-                    </div>
-                    <div class="stat-card">
-                        <h4>Total Posts</h4>
-                        <div class="number">${totalPosts}</div>
-                    </div>
-                    <div class="stat-card">
-                        <h4>Pending Approval</h4>
-                        <div class="number">${totalPending}</div>
-                    </div>
-                </div>
-
-                <div class="make-admin-section">
-                    <h3>🔒 Make User Admin</h3>
-                    <p style="color: #fca5a5; margin-bottom: 1rem;">
-                        <strong>Warning:</strong> This gives full admin privileges including user management.
-                    </p>
-                    <div class="make-admin-form">
-                        <div class="form-group" style="margin-bottom: 0;">
-                            <label for="adminUsername">Username</label>
-                            <input type="text" id="adminUsername" placeholder="Enter username" style="width: 200px;">
-                        </div>
-                        <button class="btn" onclick="makeUserAdmin()" style="background: #ef4444; border-color: #ef4444;">
-                            Make Admin
-                        </button>
-                    </div>
-                </div>
-
-                <div class="admin-section">
-                    <h3>📋 Pending User Approvals</h3>
-                    ${totalPending === 0 ? 
-                        '<p style="color: #9ca3af;">No pending users at this time.</p>' :
-                        pendingUsers.map(user => `
-                            <div class="pending-user">
-                                <div class="user-info-admin">
-                                    <h4>@${escapeHtml(user.username)}</h4>
-                                    <div class="user-meta">
-                                        <p><strong>Bio:</strong> ${escapeHtml(user.bio || 'No bio provided')}</p>
-                                        <p><strong>Registered:</strong> ${formatDate(user.createdAt)}</p>
-                                    </div>
-                                </div>
-                                <div class="admin-actions">
-                                    <button class="btn btn-small btn-approve" onclick="approveUser('${user.username}')">
-                                        ✓ Approve
-                                    </button>
-                                    <button class="btn btn-small btn-reject" onclick="rejectUser('${user.username}')">
-                                        ✗ Reject
-                                    </button>
-                                </div>
-                            </div>
-                        `).join('')
-                    }
-                </div>
-
-                <div class="admin-section">
-                    <h3>👥 Active Users</h3>
-                    ${Object.values(users).map(user => `
-                        <div class="pending-user">
-                            <div class="user-info-admin">
-                                <h4>@${escapeHtml(user.username)} ${user.isAdmin ? '<span style="color: #fbbf24;">👑 Admin</span>' : ''}</h4>
-                                <div class="user-meta">
-                                    <p><strong>Bio:</strong> ${escapeHtml(user.bio || 'No bio')}</p>
-                                    <p><strong>Joined:</strong> ${formatDate(user.createdAt)} | <strong>Posts:</strong> ${posts.filter(p => p.author === user.username).length}</p>
-                                </div>
-                            </div>
-                            ${!user.isAdmin && user.username !== currentUser.username ? `
-                                <div class="admin-actions">
-                                    <button class="btn btn-small" onclick="makeUserAdmin('${user.username}')" style="background: #fbbf24; color: #000;">
-                                        Make Admin
-                                    </button>
-                                </div>
-                            ` : ''}
-                        </div>
-                    `).join('')}
-                </div>
-            `;
-        }
-
-        async function approveUser(username) {
-            try {
-                const pendingUser = pendingUsers.find(u => u.username === username);
-                if (!pendingUser) {
-                    alert('Pending user not found');
-                    return;
-                }
-
-                // Move from pending to approved
-                const approvedUser = {
-                    ...pendingUser,
-                    status: 'approved',
-                    approvedAt: new Date().toISOString(),
-                    approvedBy: currentUser.username
-                };
-
-                // Save as regular user
-                await blobAPI.set(`user_${username}`, approvedUser);
-                users[username] = approvedUser;
-
-                // Remove from pending
-                await blobAPI.delete(`pending_user_${username}`);
-                pendingUsers = pendingUsers.filter(u => u.username !== username);
-
-                // Re-render admin panel
-                renderAdminPanel();
-                
-                // Show success message
-                alert(`✅ User @${username} has been approved and can now log in.`);
-            } catch (error) {
-                console.error('Error approving user:', error);
-                alert('Failed to approve user. Please try again.');
-            }
-        }
-
-        async function rejectUser(username) {
-            if (!confirm(`Are you sure you want to reject user @${username}? This cannot be undone.`)) {
-                return;
-            }
-
-            try {
-                // Remove from pending users
-                await blobAPI.delete(`pending_user_${username}`);
-                pendingUsers = pendingUsers.filter(u => u.username !== username);
-
-                // Re-render admin panel
-                renderAdminPanel();
-                
-                alert(`❌ User @${username} has been rejected.`);
-            } catch (error) {
-                console.error('Error rejecting user:', error);
-                alert('Failed to reject user. Please try again.');
-            }
-        }
-
-        async function makeUserAdmin(username) {
-            if (!username) {
-                const inputUsername = document.getElementById('adminUsername')?.value.trim();
-                if (!inputUsername) {
-                    alert('Please enter a username');
-                    return;
-                }
-                username = inputUsername;
-            }
-
-            if (!confirm(`Are you sure you want to make @${username} an admin? This gives them full admin privileges.`)) {
-                return;
-            }
-
-            try {
-                // Get user data
-                const userData = await blobAPI.get(`user_${username}`);
-                if (!userData) {
-                    alert('User not found');
-                    return;
-                }
-
-                if (userData.isAdmin) {
-                    alert('User is already an admin');
-                    return;
-                }
-
-                // Update user to admin
-                const updatedUser = {
-                    ...userData,
-                    isAdmin: true,
-                    madeAdminAt: new Date().toISOString(),
-                    madeAdminBy: currentUser.username
-                };
-
-                await blobAPI.set(`user_${username}`, updatedUser);
-                users[username] = updatedUser;
-
-                // Clear input
-                const input = document.getElementById('adminUsername');
-                if (input) input.value = '';
-
-                // Re-render admin panel
-                renderAdminPanel();
-                
-                alert(`👑 @${username} is now an admin!`);
-            } catch (error) {
-                console.error('Error making user admin:', error);
-                alert('Failed to make user admin. Please try again.');
-            }
-        }
-
-        function renderAdminPanel() {
-            const adminContent = document.getElementById('adminContent');
-            
-            const totalUsers = Object.keys(users).length;
-            const totalPosts = posts.length;
-            const totalPending = pendingUsers.length;
-            
-            adminContent.innerHTML = `
-                <div class="admin-card">
-                    <h2>👑 Admin Dashboard</h2>
-                    <p>Welcome, <strong>@${escapeHtml(currentUser.username)}</strong></p>
-                </div>
-
-                <div class="admin-stats">
-                    <div class="stat-card">
-                        <h4>Total Users</h4>
-                        <div class="number">${totalUsers}</div>
-                    </div>
-                    <div class="stat-card">
-                        <h4>Total Posts</h4>
-                        <div class="number">${totalPosts}</div>
-                    </div>
-                    <div class="stat-card">
-                        <h4>Pending Approval</h4>
-                        <div class="number">${totalPending}</div>
-                    </div>
-                </div>
-
-                <div class="make-admin-section">
-                    <h3>🔒 Make User Admin</h3>
-                    <p style="color: #fca5a5; margin-bottom: 1rem;">
-                        <strong>Warning:</strong> This gives full admin privileges including user management.
-                    </p>
-                    <div class="make-admin-form">
-                        <div class="form-group" style="margin-bottom: 0;">
-                            <label for="adminUsername">Username</label>
-                            <input type="text" id="adminUsername" placeholder="Enter username" style="width: 200px;">
-                        </div>
-                        <button class="btn" onclick="makeUserAdmin()" style="background: #ef4444; border-color: #ef4444;">
-                            Make Admin
-                        </button>
-                    </div>
-                </div>
-
-                <div class="admin-section">
-                    <h3>📋 Pending User Approvals</h3>
-                    ${totalPending === 0 ? 
-                        '<p style="color: #9ca3af;">No pending users at this time.</p>' :
-                        pendingUsers.map(user => `
-                            <div class="pending-user">
-                                <div class="user-info-admin">
-                                    <h4>@${escapeHtml(user.username)}</h4>
-                                    <div class="user-meta">
-                                        <p><strong>Bio:</strong> ${escapeHtml(user.bio || 'No bio provided')}</p>
-                                        <p><strong>Registered:</strong> ${formatDate(user.createdAt)}</p>
-                                    </div>
-                                </div>
-                                <div class="admin-actions">
-                                    <button class="btn btn-small btn-approve" onclick="approveUser('${user.username}')">
-                                        ✓ Approve
-                                    </button>
-                                    <button class="btn btn-small btn-reject" onclick="rejectUser('${user.username}')">
-                                        ✗ Reject
-                                    </button>
-                                </div>
-                            </div>
-                        `).join('')
-                    }
-                </div>
-
-                <div class="admin-section">
-                    <h3>👥 Active Users</h3>
-                    ${Object.values(users).map(user => `
-                        <div class="pending-user">
-                            <div class="user-info-admin">
-                                <h4>@${escapeHtml(user.username)} ${user.isAdmin ? '<span style="color: #fbbf24;">👑 Admin</span>' : ''}</h4>
-                                <div class="user-meta">
-                                    <p><strong>Bio:</strong> ${escapeHtml(user.bio || 'No bio')}</p>
-                                    <p><strong>Joined:</strong> ${formatDate(user.createdAt)} | <strong>Posts:</strong> ${posts.filter(p => p.author === user.username).length}</p>
-                                </div>
-                            </div>
-                            ${!user.isAdmin && user.username !== currentUser.username ? `
-                                <div class="admin-actions">
-                                    <button class="btn btn-small" onclick="makeUserAdmin('${user.username}')" style="background: #fbbf24; color: #000;">
-                                        Make Admin
-                                    </button>
-                                </div>
-                            ` : ''}
-                        </div>
-                    `).join('')}
-                </div>
-            `;
-        }
-
-        async function approveUser(username) {
-            try {
-                const pendingUser = pendingUsers.find(u => u.username === username);
-                if (!pendingUser) {
-                    alert('Pending user not found');
-                    return;
-                }
-
-                // Move from pending to approved
-                const approvedUser = {
-                    ...pendingUser,
-                    status: 'approved',
-                    approvedAt: new Date().toISOString(),
-                    approvedBy: currentUser.username
-                };
-
-                // Save as regular user
-                await blobAPI.set(`user_${username}`, approvedUser);
-                users[username] = approvedUser;
-
-                // Remove from pending
-                await blobAPI.delete(`pending_user_${username}`);
-                pendingUsers = pendingUsers.filter(u => u.username !== username);
-
-                // Re-render admin panel
-                renderAdminPanel();
-                
-                // Show success message
-                alert(`✅ User @${username} has been approved and can now log in.`);
-            } catch (error) {
-                console.error('Error approving user:', error);
-                alert('Failed to approve user. Please try again.');
-            }
-        }
-
-        async function rejectUser(username) {
-            if (!confirm(`Are you sure you want to reject user @${username}? This cannot be undone.`)) {
-                return;
-            }
-
-            try {
-                // Remove from pending users
-                await blobAPI.delete(`pending_user_${username}`);
-                pendingUsers = pendingUsers.filter(u => u.username !== username);
-
-                // Re-render admin panel
-                renderAdminPanel();
-                
-                alert(`❌ User @${username} has been rejected.`);
-            } catch (error) {
-                console.error('Error rejecting user:', error);
-                alert('Failed to reject user. Please try again.');
-            }
-        }
-
-        async function makeUserAdmin(username) {
-            if (!username) {
-                const inputUsername = document.getElementById('adminUsername')?.value.trim();
-                if (!inputUsername) {
-                    alert('Please enter a username');
-                    return;
-                }
-                username = inputUsername;
-            }
-
-            if (!confirm(`Are you sure you want to make @${username} an admin? This gives them full admin privileges.`)) {
-                return;
-            }
-
-            try {
-                // Get user data
-                const userData = await blobAPI.get(`user_${username}`);
-                if (!userData) {
-                    alert('User not found');
-                    return;
-                }
-
-                if (userData.isAdmin) {
-                    alert('User is already an admin');
-                    return;
-                }
-
-                // Update user to admin
-                const updatedUser = {
-                    ...userData,
-                    isAdmin: true,
-                    madeAdminAt: new Date().toISOString(),
-                    madeAdminBy: currentUser.username
-                };
-
-                await blobAPI.set(`user_${username}`, updatedUser);
-                users[username] = updatedUser;
-
-                // Clear input
-                const input = document.getElementById('adminUsername');
-                if (input) input.value = '';
-
-                // Re-render admin panel
-                renderAdminPanel();
-                
-                alert(`👑 @${username} is now an admin!`);
-            } catch (error) {
-                console.error('Error making user admin:', error);
-                alert('Failed to make user admin. Please try again.');
-            }
-        }
-
         body {
             background-color: #000;
             color: #fff;
@@ -1417,16 +846,18 @@
         <div id="feed" class="loading">
             Loading...
         </div>
-            <!-- Admin Page -->
-        <main id="adminPage" class="profile-page">
-            <div class="page-header">
-                <button class="back-btn" id="backToFeedFromAdmin">←</button>
-                <div class="page-title">Admin Panel</div>
-            </div>
-            <div id="adminContent" class="loading">
-                Loading admin panel...
-            </div>
-        </main>
+    </main>
+
+    <!-- Admin Page -->
+    <main id="adminPage" class="profile-page">
+        <div class="page-header">
+            <button class="back-btn" id="backToFeedFromAdmin">←</button>
+            <div class="page-title">Admin Panel</div>
+        </div>
+        <div id="adminContent" class="loading">
+            Loading admin panel...
+        </div>
+    </main>
 
     <!-- Profile Page -->
     <main id="profilePage" class="profile-page">
@@ -1668,18 +1099,6 @@
             
             // Load profile pictures after initial render
             setTimeout(loadVisibleProfilePictures, 500);
-        }
-
-        // Admin functions
-        async function showAdminPanel() {
-            if (!currentUser || !currentUser.profile || !currentUser.profile.isAdmin) {
-                alert('Access denied: Admin privileges required');
-                return;
-            }
-            
-            showPage('admin');
-            await loadAdminData();
-            renderAdminPanel();
         });
 
         function setupEventListeners() {
@@ -1698,6 +1117,147 @@
             // Profile page navigation
             document.getElementById('backToFeed').addEventListener('click', () => showPage('feed'));
             document.getElementById('backToFeedFromAdmin').addEventListener('click', () => showPage('feed'));
+        }
+
+        // Markdown editor functions
+        function switchEditorMode(mode) {
+            const writeTab = document.getElementById('writeTab');
+            const previewTab = document.getElementById('previewTab');
+            const textarea = document.getElementById('postContent');
+            const preview = document.getElementById('markdownPreview');
+
+            if (mode === 'write') {
+                writeTab.classList.add('active');
+                previewTab.classList.remove('active');
+                textarea.style.display = 'block';
+                preview.style.display = 'none';
+            } else {
+                writeTab.classList.remove('active');
+                previewTab.classList.add('active');
+                textarea.style.display = 'none';
+                preview.style.display = 'block';
+                
+                // Update preview
+                const content = textarea.value;
+                preview.innerHTML = renderMarkdown(content);
+            }
+        }
+
+        function insertMarkdown(before, after) {
+            const textarea = document.getElementById('postContent');
+            const start = textarea.selectionStart;
+            const end = textarea.selectionEnd;
+            const selectedText = textarea.value.substring(start, end);
+            const beforeText = textarea.value.substring(0, start);
+            const afterText = textarea.value.substring(end);
+
+            let newText;
+            if (selectedText) {
+                newText = beforeText + before + selectedText + after + afterText;
+            } else {
+                newText = beforeText + before + 'text' + after + afterText;
+            }
+
+            textarea.value = newText;
+            
+            // Set cursor position
+            if (selectedText) {
+                textarea.setSelectionRange(start + before.length, start + before.length + selectedText.length);
+            } else {
+                textarea.setSelectionRange(start + before.length, start + before.length + 4); // select "text"
+            }
+            
+            textarea.focus();
+        }
+
+        function insertTable() {
+            const tableMarkdown = `
+| Header 1 | Header 2 | Header 3 |
+|----------|----------|----------|
+| Cell 1   | Cell 2   | Cell 3   |
+| Cell 4   | Cell 5   | Cell 6   |
+`;
+            const textarea = document.getElementById('postContent');
+            const start = textarea.selectionStart;
+            const beforeText = textarea.value.substring(0, start);
+            const afterText = textarea.value.substring(start);
+
+            textarea.value = beforeText + tableMarkdown + afterText;
+            textarea.focus();
+        }
+
+        // Simple markdown renderer
+        function renderMarkdown(text) {
+            if (!text) return '';
+            
+            // Escape HTML first
+            text = text.replace(/&/g, '&amp;')
+                      .replace(/</g, '&lt;')
+                      .replace(/>/g, '&gt;');
+
+            // Code blocks (must be processed first)
+            text = text.replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
+            
+            // Inline code (after code blocks)
+            text = text.replace(/`([^`]+)`/g, '<code>$1</code>');
+            
+            // Headers
+            text = text.replace(/^### (.*$)/gim, '<h3>$1</h3>');
+            text = text.replace(/^## (.*$)/gim, '<h2>$1</h2>');
+            text = text.replace(/^# (.*$)/gim, '<h1>$1</h1>');
+            
+            // Bold and italic (order matters)
+            text = text.replace(/\*\*\*(.*?)\*\*\*/g, '<strong><em>$1</em></strong>');
+            text = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+            text = text.replace(/\*(.*?)\*/g, '<em>$1</em>');
+            
+            // Strikethrough
+            text = text.replace(/~~(.*?)~~/g, '<s>$1</s>');
+            
+            // Links
+            text = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
+            
+            // Images
+            text = text.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" style="max-width: 100%; height: auto; border-radius: 4px; margin: 8px 0;">');
+            
+            // Blockquotes
+            text = text.replace(/^> (.*$)/gim, '<blockquote>$1</blockquote>');
+            
+            // Horizontal rules
+            text = text.replace(/^---$/gim, '<hr>');
+            
+            // Lists
+            text = text.replace(/^\* (.*$)/gim, '<ul><li>$1</li></ul>');
+            text = text.replace(/^- (.*$)/gim, '<ul><li>$1</li></ul>');
+            text = text.replace(/^\d+\. (.*$)/gim, '<ol><li>$1</li></ol>');
+            
+            // Fix list formatting (merge consecutive list items)
+            text = text.replace(/<\/ul>\s*<ul>/g, '');
+            text = text.replace(/<\/ol>\s*<ol>/g, '');
+            
+            // Tables (basic support)
+            text = text.replace(/\|(.+)\|/g, function(match, content) {
+                const cells = content.split('|').map(cell => cell.trim());
+                const isHeader = match.includes('---');
+                if (isHeader) return ''; // Skip separator rows
+                
+                const cellTags = cells.map(cell => `<td>${cell}</td>`).join('');
+                return `<tr>${cellTags}</tr>`;
+            });
+            
+            // Wrap tables
+            text = text.replace(/(<tr>.*<\/tr>)/gs, '<table>$1</table>');
+            
+            // Line breaks
+            text = text.replace(/\n\n/g, '</p><p>');
+            text = text.replace(/\n/g, '<br>');
+            
+            // Wrap in paragraphs
+            if (text && !text.startsWith('<')) {
+                text = '<p>' + text + '</p>';
+            }
+            
+            return text;
         }
 
         async function loadUser() {
@@ -2154,6 +1714,228 @@
                 }
             };
             input.click();
+        }
+
+        // Admin functions
+        async function showAdminPanel() {
+            if (!currentUser || !currentUser.profile || !currentUser.profile.isAdmin) {
+                alert('Access denied: Admin privileges required');
+                return;
+            }
+            
+            showPage('admin');
+            await loadAdminData();
+            renderAdminPanel();
+        }
+
+        async function loadAdminData() {
+            try {
+                // Load pending users
+                const pendingKeys = await blobAPI.list('pending_user_');
+                const pendingPromises = pendingKeys.map(key => blobAPI.get(key));
+                const loadedPending = await Promise.all(pendingPromises);
+                pendingUsers = loadedPending.filter(Boolean);
+                
+                console.log('Loaded pending users:', pendingUsers.length);
+            } catch (error) {
+                console.error('Error loading admin data:', error);
+            }
+        }
+
+        function renderAdminPanel() {
+            const adminContent = document.getElementById('adminContent');
+            
+            const totalUsers = Object.keys(users).length;
+            const totalPosts = posts.length;
+            const totalPending = pendingUsers.length;
+            
+            adminContent.innerHTML = `
+                <div class="admin-card">
+                    <h2>👑 Admin Dashboard</h2>
+                    <p>Welcome, <strong>@${escapeHtml(currentUser.username)}</strong></p>
+                </div>
+
+                <div class="admin-stats">
+                    <div class="stat-card">
+                        <h4>Total Users</h4>
+                        <div class="number">${totalUsers}</div>
+                    </div>
+                    <div class="stat-card">
+                        <h4>Total Posts</h4>
+                        <div class="number">${totalPosts}</div>
+                    </div>
+                    <div class="stat-card">
+                        <h4>Pending Approval</h4>
+                        <div class="number">${totalPending}</div>
+                    </div>
+                </div>
+
+                <div class="make-admin-form">
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label for="adminUsername">Username</label>
+                            <input type="text" id="adminUsername" placeholder="Enter username" style="width: 200px;">
+                        </div>
+                        <button class="btn" onclick="makeUserAdmin()" style="background: #ef4444; border-color: #ef4444;">
+                            Make Admin
+                        </button>
+                    </div>
+                </div>
+
+                <div class="admin-section">
+                    <h3>📋 Pending User Approvals</h3>
+                    ${totalPending === 0 ? 
+                        '<p style="color: #9ca3af;">No pending users at this time.</p>' :
+                        pendingUsers.map(user => `
+                            <div class="pending-user">
+                                <div class="user-info-admin">
+                                    <h4>@${escapeHtml(user.username)}</h4>
+                                    <div class="user-meta">
+                                        <p><strong>Bio:</strong> ${escapeHtml(user.bio || 'No bio provided')}</p>
+                                        <p><strong>Registered:</strong> ${formatDate(user.createdAt)}</p>
+                                    </div>
+                                </div>
+                                <div class="admin-actions">
+                                    <button class="btn btn-small btn-approve" onclick="approveUser('${user.username}')">
+                                        ✓ Approve
+                                    </button>
+                                    <button class="btn btn-small btn-reject" onclick="rejectUser('${user.username}')">
+                                        ✗ Reject
+                                    </button>
+                                </div>
+                            </div>
+                        `).join('')
+                    }
+                </div>
+
+                <div class="admin-section">
+                    <h3>👥 Active Users</h3>
+                    ${Object.values(users).map(user => `
+                        <div class="pending-user">
+                            <div class="user-info-admin">
+                                <h4>@${escapeHtml(user.username)} ${user.isAdmin ? '<span style="color: #fbbf24;">👑 Admin</span>' : ''}</h4>
+                                <div class="user-meta">
+                                    <p><strong>Bio:</strong> ${escapeHtml(user.bio || 'No bio')}</p>
+                                    <p><strong>Joined:</strong> ${formatDate(user.createdAt)} | <strong>Posts:</strong> ${posts.filter(p => p.author === user.username).length}</p>
+                                </div>
+                            </div>
+                            ${!user.isAdmin && user.username !== currentUser.username ? `
+                                <div class="admin-actions">
+                                    <button class="btn btn-small" onclick="makeUserAdmin('${user.username}')" style="background: #fbbf24; color: #000;">
+                                        Make Admin
+                                    </button>
+                                </div>
+                            ` : ''}
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+
+        async function approveUser(username) {
+            try {
+                const pendingUser = pendingUsers.find(u => u.username === username);
+                if (!pendingUser) {
+                    alert('Pending user not found');
+                    return;
+                }
+
+                // Move from pending to approved
+                const approvedUser = {
+                    ...pendingUser,
+                    status: 'approved',
+                    approvedAt: new Date().toISOString(),
+                    approvedBy: currentUser.username
+                };
+
+                // Save as regular user
+                await blobAPI.set(`user_${username}`, approvedUser);
+                users[username] = approvedUser;
+
+                // Remove from pending
+                await blobAPI.delete(`pending_user_${username}`);
+                pendingUsers = pendingUsers.filter(u => u.username !== username);
+
+                // Re-render admin panel
+                renderAdminPanel();
+                
+                // Show success message
+                alert(`✅ User @${username} has been approved and can now log in.`);
+            } catch (error) {
+                console.error('Error approving user:', error);
+                alert('Failed to approve user. Please try again.');
+            }
+        }
+
+        async function rejectUser(username) {
+            if (!confirm(`Are you sure you want to reject user @${username}? This cannot be undone.`)) {
+                return;
+            }
+
+            try {
+                // Remove from pending users
+                await blobAPI.delete(`pending_user_${username}`);
+                pendingUsers = pendingUsers.filter(u => u.username !== username);
+
+                // Re-render admin panel
+                renderAdminPanel();
+                
+                alert(`❌ User @${username} has been rejected.`);
+            } catch (error) {
+                console.error('Error rejecting user:', error);
+                alert('Failed to reject user. Please try again.');
+            }
+        }
+
+        async function makeUserAdmin(username) {
+            if (!username) {
+                const inputUsername = document.getElementById('adminUsername')?.value.trim();
+                if (!inputUsername) {
+                    alert('Please enter a username');
+                    return;
+                }
+                username = inputUsername;
+            }
+
+            if (!confirm(`Are you sure you want to make @${username} an admin? This gives them full admin privileges.`)) {
+                return;
+            }
+
+            try {
+                // Get user data
+                const userData = await blobAPI.get(`user_${username}`);
+                if (!userData) {
+                    alert('User not found');
+                    return;
+                }
+
+                if (userData.isAdmin) {
+                    alert('User is already an admin');
+                    return;
+                }
+
+                // Update user to admin
+                const updatedUser = {
+                    ...userData,
+                    isAdmin: true,
+                    madeAdminAt: new Date().toISOString(),
+                    madeAdminBy: currentUser.username
+                };
+
+                await blobAPI.set(`user_${username}`, updatedUser);
+                users[username] = updatedUser;
+
+                // Clear input
+                const input = document.getElementById('adminUsername');
+                if (input) input.value = '';
+
+                // Re-render admin panel
+                renderAdminPanel();
+                
+                alert(`👑 @${username} is now an admin!`);
+            } catch (error) {
+                console.error('Error making user admin:', error);
+                alert('Failed to make user admin. Please try again.');
+            }
         }
 
         function updateAuthSection() {
@@ -2634,4 +2416,9 @@
         }, 30000); // Save every 30 seconds
     </script>
 </body>
-</html>
+</html>admin-section">
+                    <h3>🔒 Make User Admin</h3>
+                    <p style="color: #fca5a5; margin-bottom: 1rem;">
+                        <strong>Warning:</strong> This gives full admin privileges including user management.
+                    </p>
+                    <div class="make-
