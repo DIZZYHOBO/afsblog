@@ -2039,7 +2039,7 @@
                                 ${post.isPrivate ? '<span class="private-badge">Private</span>' : ''}
                             </div>
                             <h3 class="post-title">${escapeHtml(post.title)}</h3>
-                            <div class="post-content markdown-content">${renderMarkdown(post.content.substring(0, 200))}${post.content.length > 200 ? '...' : ''}</div>
+                            <div class="post-content markdown-content">${renderMarkdown(post.content.substring(0, 200)) + (post.content.length > 200 ? '...' : '')}</div>
                             <div class="post-actions">
                                 <span class="action-btn">💬 ${post.replies ? post.replies.length : 0} replies</span>
                                 ${isOwnProfile ? `<button class="action-btn" onclick="deletePost('${post.id}')">🗑 Delete</button>` : ''}
