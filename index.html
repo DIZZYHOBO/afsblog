@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📝</text></svg>">
     <title>Blog Feed</title>
     <style>
         * {
@@ -394,10 +395,27 @@
             font-size: 12px;
             text-align: center;
             color: white;
+            cursor: pointer;
         }
 
         .profile-avatar:hover .avatar-upload-overlay {
             opacity: 1;
+        }
+
+        .uploading-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            text-align: center;
+            color: white;
+            border-radius: 50%;
         }
 
         .page-header {
@@ -836,16 +854,23 @@
             loadVisibleProfilePictures();
         }
 
-        // Profile picture upload function
+        // Profile picture upload function with better error handling
         async function uploadProfilePicture(file, username) {
             try {
-                // Validate file
+                // Validate file size
                 if (file.size > 1024 * 1024) { // 1MB limit
                     return { success: false, error: 'File size must be less than 1MB' };
                 }
 
+                // Validate file type
                 if (!file.type.startsWith('image/')) {
-                    return { success: false, error: 'File must be an image' };
+                    return { success: false, error: 'File must be an image (JPG, PNG, GIF)' };
+                }
+
+                // Additional file type check
+                const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+                if (!validTypes.includes(file.type)) {
+                    return { success: false, error: 'Supported formats: JPG, PNG, GIF, WebP' };
                 }
 
                 // Convert to base64
@@ -856,13 +881,24 @@
                     reader.readAsDataURL(file);
                 });
 
-                // Store in blobs
+                // Delete old profile picture if it exists
+                if (currentUser.profile.profilePicture) {
+                    try {
+                        await blobAPI.delete(currentUser.profile.profilePicture);
+                    } catch (error) {
+                        // Don't fail upload if old picture deletion fails
+                        console.warn('Could not delete old profile picture:', error);
+                    }
+                }
+
+                // Store new image in blobs
                 const imageKey = `profile_pic_${username}_${Date.now()}`;
                 await blobAPI.set(imageKey, { 
                     data: base64,
                     type: file.type,
                     size: file.size,
-                    uploadedAt: new Date().toISOString()
+                    uploadedAt: new Date().toISOString(),
+                    username: username
                 });
 
                 return { success: true, url: imageKey };
@@ -889,17 +925,36 @@
             return `<div class="${sizeClass}">${initial}</div>`;
         }
 
-        // Load profile pictures
+        // Load profile pictures with better error handling
         async function loadProfilePicture(imgElement, picKey) {
+            if (!imgElement || !picKey) return;
+            
             try {
                 const picData = await blobAPI.get(picKey);
                 if (picData && picData.data) {
                     imgElement.src = picData.data;
                     imgElement.style.display = 'block';
+                    imgElement.onerror = function() {
+                        this.style.display = 'none';
+                        // Show initials instead
+                        const parent = this.parentNode;
+                        if (parent && parent.classList.contains('profile-avatar') || parent.classList.contains('profile-avatar-small')) {
+                            const username = this.alt || '?';
+                            parent.innerHTML = username.charAt(0).toUpperCase();
+                        }
+                    };
+                } else {
+                    imgElement.style.display = 'none';
                 }
             } catch (error) {
                 console.error('Error loading profile picture:', error);
                 imgElement.style.display = 'none';
+                // Show initials instead
+                const parent = imgElement.parentNode;
+                if (parent && (parent.classList.contains('profile-avatar') || parent.classList.contains('profile-avatar-small'))) {
+                    const username = imgElement.alt || '?';
+                    parent.innerHTML = username.charAt(0).toUpperCase();
+                }
             }
         }
 
@@ -908,7 +963,7 @@
             const images = document.querySelectorAll('img[data-pic-key]');
             images.forEach(img => {
                 const picKey = img.getAttribute('data-pic-key');
-                if (picKey && !img.src.startsWith('data:')) {
+                if (picKey && !img.src.startsWith('data:') && img.src === '#') {
                     loadProfilePicture(img, picKey);
                 }
             });
@@ -1054,33 +1109,84 @@
             setTimeout(loadVisibleProfilePictures, 100);
         }
 
-        // Upload new profile picture
+        // Upload new profile picture with auto-save
         function uploadNewProfilePicture() {
             const input = document.createElement('input');
             input.type = 'file';
             input.accept = 'image/*';
             input.onchange = async (e) => {
                 const file = e.target.files[0];
-                if (file) {
-                    try {
-                        const result = await uploadProfilePicture(file, currentUser.username);
-                        if (result.success) {
-                            // Update user profile
-                            const updatedUser = { ...currentUser.profile, profilePicture: result.url };
-                            await blobAPI.set(`user_${currentUser.username}`, updatedUser);
-                            currentUser.profile = updatedUser;
-                            users[currentUser.username] = updatedUser;
-                            
-                            // Re-render profile
-                            renderUserProfile(updatedUser);
-                            updateAuthSection();
-                        } else {
-                            alert(result.error);
+                if (!file) return;
+
+                // Show uploading state
+                const avatarElement = document.querySelector('.profile-avatar');
+                if (avatarElement) {
+                    const uploadingDiv = document.createElement('div');
+                    uploadingDiv.className = 'uploading-overlay';
+                    uploadingDiv.innerHTML = 'Uploading...';
+                    avatarElement.appendChild(uploadingDiv);
+                }
+
+                try {
+                    const result = await uploadProfilePicture(file, currentUser.username);
+                    if (result.success) {
+                        // Auto-save: Update user profile immediately
+                        const updatedUser = { 
+                            ...currentUser.profile, 
+                            profilePicture: result.url,
+                            updatedAt: new Date().toISOString()
+                        };
+                        
+                        // Save to database
+                        await blobAPI.set(`user_${currentUser.username}`, updatedUser);
+                        
+                        // Update local state
+                        currentUser.profile = updatedUser;
+                        users[currentUser.username] = updatedUser;
+                        
+                        // Remove uploading overlay
+                        const uploadingOverlay = document.querySelector('.uploading-overlay');
+                        if (uploadingOverlay) {
+                            uploadingOverlay.remove();
                         }
-                    } catch (error) {
-                        console.error('Error uploading profile picture:', error);
-                        alert('Failed to upload profile picture');
+                        
+                        // Re-render profile page and update header
+                        if (currentPage === 'profile' && currentProfileUser === currentUser.username) {
+                            renderUserProfile(updatedUser);
+                        }
+                        updateAuthSection();
+                        
+                        // Show success message
+                        const successDiv = document.createElement('div');
+                        successDiv.className = 'success-message';
+                        successDiv.textContent = 'Profile picture updated!';
+                        successDiv.style.position = 'fixed';
+                        successDiv.style.top = '80px';
+                        successDiv.style.right = '20px';
+                        successDiv.style.zIndex = '1000';
+                        document.body.appendChild(successDiv);
+                        
+                        setTimeout(() => {
+                            successDiv.remove();
+                        }, 3000);
+                        
+                    } else {
+                        // Remove uploading overlay on error
+                        const uploadingOverlay = document.querySelector('.uploading-overlay');
+                        if (uploadingOverlay) {
+                            uploadingOverlay.remove();
+                        }
+                        alert(result.error);
                     }
+                } catch (error) {
+                    console.error('Error uploading profile picture:', error);
+                    
+                    // Remove uploading overlay on error
+                    const uploadingOverlay = document.querySelector('.uploading-overlay');
+                    if (uploadingOverlay) {
+                        uploadingOverlay.remove();
+                    }
+                    alert('Failed to upload profile picture. Please try again.');
                 }
             };
             input.click();
@@ -1396,7 +1502,7 @@
         function editProfile() {
             // Simple prompt-based editing for now
             const newBio = prompt('Edit your bio:', currentUser.profile.bio);
-            if (newBio !== null) {
+            if (newBio !== null && newBio !== currentUser.profile.bio) {
                 updateUserProfile({ bio: newBio });
             }
         }
@@ -1406,7 +1512,15 @@
                 const updatedUser = { ...currentUser.profile, ...updates };
                 await blobAPI.set(`user_${currentUser.username}`, updatedUser);
                 currentUser.profile = updatedUser;
-                renderProfile();
+                users[currentUser.username] = updatedUser;
+                
+                // Re-render the current profile if we're on the profile page
+                if (currentPage === 'profile' && currentProfileUser === currentUser.username) {
+                    renderUserProfile(updatedUser);
+                }
+                
+                // Update auth section in case username display changed
+                updateAuthSection();
             } catch (error) {
                 console.error('Error updating profile:', error);
                 alert('Failed to update profile. Please try again.');
