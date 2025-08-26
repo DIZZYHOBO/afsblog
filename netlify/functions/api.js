@@ -8,6 +8,8 @@ const API_CONFIG = {
   RATE_LIMIT_WINDOW: 60 * 60 * 1000, // 1 hour
   RATE_LIMIT_MAX_REQUESTS: 1000,
   SESSION_DURATION: 7 * 24 * 60 * 60 * 1000, // 7 days
+  DEFAULT_PAGE_SIZE: 10,
+  MAX_PAGE_SIZE: 50
 };
 
 export default async (req, context) => {
@@ -75,6 +77,15 @@ export default async (req, context) => {
     );
   }
 };
+
+// Helper function to get pagination parameters
+function getPaginationParams(url) {
+  const page = Math.max(1, parseInt(url.searchParams.get('page')) || 1);
+  const limit = Math.min(API_CONFIG.MAX_PAGE_SIZE, Math.max(1, parseInt(url.searchParams.get('limit')) || API_CONFIG.DEFAULT_PAGE_SIZE));
+  const skip = (page - 1) * limit;
+  
+  return { page, limit, skip };
+}
 
 // Authentication handlers
 async function handleLogin(req, blogStore, headers) {
@@ -312,7 +323,7 @@ async function validateAuth(req, store, blogStore) {
   return { valid: false, error: "Authentication required", status: 401 };
 }
 
-// Feed handlers
+// Feed handlers with pagination
 async function handlePublicFeed(req, blogStore, headers, user) {
   if (req.method !== 'GET') {
     return new Response(
@@ -322,6 +333,9 @@ async function handlePublicFeed(req, blogStore, headers, user) {
   }
 
   try {
+    const url = new URL(req.url);
+    const { page, limit, skip } = getPaginationParams(url);
+
     const { blobs } = await blogStore.list({ prefix: "post_" });
     const posts = [];
 
@@ -336,14 +350,29 @@ async function handlePublicFeed(req, blogStore, headers, user) {
       }
     }
 
+    // Sort posts by timestamp (newest first)
     const sortedPosts = posts.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    
+    // Apply pagination
+    const paginatedPosts = sortedPosts.slice(skip, skip + limit);
+    const totalPosts = sortedPosts.length;
+    const totalPages = Math.ceil(totalPosts / limit);
+    const hasMore = page < totalPages;
 
     return new Response(
       JSON.stringify({
         success: true,
         feed: "public",
-        posts: sortedPosts,
-        total: sortedPosts.length,
+        posts: paginatedPosts,
+        pagination: {
+          page,
+          limit,
+          total: totalPosts,
+          totalPages,
+          hasMore,
+          nextPage: hasMore ? page + 1 : null,
+          prevPage: page > 1 ? page - 1 : null
+        },
         user: user.username
       }),
       { status: 200, headers }
@@ -367,6 +396,9 @@ async function handlePrivateFeed(req, blogStore, headers, user) {
   }
 
   try {
+    const url = new URL(req.url);
+    const { page, limit, skip } = getPaginationParams(url);
+
     const { blobs } = await blogStore.list({ prefix: "post_" });
     const posts = [];
 
@@ -381,14 +413,29 @@ async function handlePrivateFeed(req, blogStore, headers, user) {
       }
     }
 
+    // Sort posts by timestamp (newest first)
     const sortedPosts = posts.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    
+    // Apply pagination
+    const paginatedPosts = sortedPosts.slice(skip, skip + limit);
+    const totalPosts = sortedPosts.length;
+    const totalPages = Math.ceil(totalPosts / limit);
+    const hasMore = page < totalPages;
 
     return new Response(
       JSON.stringify({
         success: true,
         feed: "private",
-        posts: sortedPosts,
-        total: sortedPosts.length,
+        posts: paginatedPosts,
+        pagination: {
+          page,
+          limit,
+          total: totalPosts,
+          totalPages,
+          hasMore,
+          nextPage: hasMore ? page + 1 : null,
+          prevPage: page > 1 ? page - 1 : null
+        },
         user: user.username
       }),
       { status: 200, headers }
@@ -568,16 +615,16 @@ async function handleProfileUpdate(req, blogStore, headers, user) {
 // Default documentation endpoint
 async function handleDefault(req, headers) {
   const docs = {
-    message: "Blog API v2.0 - Now with Authentication!",
+    message: "Blog API v2.1 - Now with Pagination Support!",
     endpoints: {
       // Authentication
       "POST /api/auth/login": "Login with username/password",
       "POST /api/auth/register": "Register new account",
       "POST /api/auth/logout": "Logout (invalidate session)",
       
-      // Feeds (requires auth)
-      "GET /api/feeds/public": "Get public posts feed",
-      "GET /api/feeds/private": "Get user's private posts",
+      // Feeds (requires auth) - Now with pagination
+      "GET /api/feeds/public": "Get public posts feed (supports ?page=N&limit=N)",
+      "GET /api/feeds/private": "Get user's private posts (supports ?page=N&limit=N)",
       
       // Posts (requires auth)
       "POST /api/posts": "Create new post",
@@ -585,6 +632,28 @@ async function handleDefault(req, headers) {
       // Profile (requires auth)
       "GET /api/profile": "Get user profile with stats",
       "PUT /api/profile/update": "Update user profile"
+    },
+    pagination: {
+      parameters: {
+        page: "Page number (default: 1, min: 1)",
+        limit: "Items per page (default: 10, min: 1, max: 50)"
+      },
+      response: {
+        posts: "Array of posts for current page",
+        pagination: {
+          page: "Current page number",
+          limit: "Items per page",
+          total: "Total number of posts",
+          totalPages: "Total number of pages",
+          hasMore: "Whether there are more pages",
+          nextPage: "Next page number (null if last page)",
+          prevPage: "Previous page number (null if first page)"
+        }
+      },
+      examples: [
+        "GET /api/feeds/public?page=1&limit=5",
+        "GET /api/feeds/private?page=2&limit=20"
+      ]
     },
     authentication: {
       session: {
@@ -602,7 +671,7 @@ async function handleDefault(req, headers) {
       "1. Register": "POST /api/auth/register {username, password, bio?}",
       "2. Login": "POST /api/auth/login {username, password}",
       "3. Use token": "Include 'Authorization: Bearer <token>' header",
-      "4. Access feeds": "GET /api/feeds/public or /api/feeds/private"
+      "4. Access feeds": "GET /api/feeds/public?page=1&limit=10"
     }
   };
 
