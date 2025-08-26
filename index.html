@@ -634,6 +634,7 @@
             // Feed toggle
             document.getElementById('publicFeedBtn').addEventListener('click', () => switchFeed('public'));
             document.getElementById('privateFeedBtn').addEventListener('click', () => switchFeed('private'));
+            document.getElementById('profileBtn').addEventListener('click', () => switchFeed('profile'));
         }
 
         async function loadUser() {
@@ -830,6 +831,7 @@
             const mode = form.dataset.mode;
             const username = document.getElementById('username').value.trim();
             const password = document.getElementById('password').value;
+            const bio = document.getElementById('bio').value.trim();
             const errorDiv = document.getElementById('authError');
             const submitBtn = document.getElementById('authSubmitBtn');
 
@@ -863,13 +865,16 @@
                     const newUser = { 
                         username, 
                         password,
-                        createdAt: new Date().toISOString()
+                        bio: bio || `Hello! I'm ${username}`,
+                        createdAt: new Date().toISOString(),
+                        postCount: 0,
+                        replyCount: 0
                     };
                     
                     await blobAPI.set(`user_${username}`, newUser);
                     
                     // Set current user
-                    currentUser = { username };
+                    currentUser = { username, profile: newUser };
                     await blobAPI.set('current_user', currentUser);
                     
                     closeModal('authModal');
@@ -884,7 +889,7 @@
                         return;
                     }
                     
-                    currentUser = { username };
+                    currentUser = { username, profile: user };
                     await blobAPI.set('current_user', currentUser);
                     
                     closeModal('authModal');
@@ -970,8 +975,120 @@
             
             document.getElementById('publicFeedBtn').classList.toggle('active', feedType === 'public');
             document.getElementById('privateFeedBtn').classList.toggle('active', feedType === 'private');
+            document.getElementById('profileBtn').classList.toggle('active', feedType === 'profile');
             
             renderFeed();
+        }
+
+        function renderProfile() {
+            const feed = document.getElementById('feed');
+            
+            if (!currentUser || !currentUser.profile) {
+                feed.innerHTML = `
+                    <div class="empty-state">
+                        <p>Profile not found</p>
+                    </div>
+                `;
+                return;
+            }
+
+            const user = currentUser.profile;
+            const userPosts = posts.filter(post => post.author === currentUser.username);
+            const publicPosts = userPosts.filter(post => !post.isPrivate);
+            const privatePosts = userPosts.filter(post => post.isPrivate);
+            const totalReplies = userPosts.reduce((acc, post) => acc + (post.replies?.length || 0), 0);
+
+            feed.innerHTML = `
+                <div class="profile-card">
+                    <div class="profile-header">
+                        <div class="profile-avatar">
+                            ${user.username.charAt(0).toUpperCase()}
+                        </div>
+                        <div class="profile-info">
+                            <div class="profile-username">@${escapeHtml(user.username)}</div>
+                            <div class="profile-joined">Joined ${formatDate(user.createdAt)}</div>
+                        </div>
+                    </div>
+                    
+                    <div class="profile-stats">
+                        <div class="stat-item">
+                            <span class="stat-number">${userPosts.length}</span>
+                            <span class="stat-label">Posts</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-number">${publicPosts.length}</span>
+                            <span class="stat-label">Public</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-number">${privatePosts.length}</span>
+                            <span class="stat-label">Private</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-number">${totalReplies}</span>
+                            <span class="stat-label">Replies</span>
+                        </div>
+                    </div>
+
+                    <div class="profile-bio">
+                        ${escapeHtml(user.bio || 'No bio available.').replace(/\n/g, '<br>')}
+                    </div>
+
+                    <div class="profile-actions">
+                        <button class="btn" onclick="openModal('composeModal')">Create Post</button>
+                        <button class="btn btn-secondary" onclick="editProfile()">Edit Profile</button>
+                    </div>
+                </div>
+
+                ${userPosts.length > 0 ? `
+                    <div style="margin: 16px; color: #818384; font-size: 14px; font-weight: 500;">
+                        Recent Posts
+                    </div>
+                    ${userPosts.slice(0, 5).map(post => `
+                        <div class="post-card ${post.isPrivate ? 'private' : ''}">
+                            <div class="post-header">
+                                <span class="username">@${escapeHtml(post.author)}</span>
+                                <span class="timestamp">${formatTimestamp(post.timestamp)}</span>
+                                ${post.isPrivate ? '<span class="private-badge">Private</span>' : ''}
+                            </div>
+                            <h3 class="post-title">${escapeHtml(post.title)}</h3>
+                            <div class="post-content">${escapeHtml(post.content.substring(0, 150))}${post.content.length > 150 ? '...' : ''}</div>
+                            <div class="post-actions">
+                                <span class="action-btn">💬 ${post.replies ? post.replies.length : 0} replies</span>
+                                <button class="action-btn" onclick="deletePost('${post.id}')">🗑 Delete</button>
+                            </div>
+                        </div>
+                    `).join('')}
+                ` : ''}
+            `;
+        }
+
+        function viewUserProfile(username) {
+            // For now, only show current user's profile
+            if (currentUser && username === currentUser.username) {
+                switchFeed('profile');
+            } else {
+                alert('User profiles coming soon!');
+            }
+        }
+
+        function editProfile() {
+            // Simple prompt-based editing for now
+            const newBio = prompt('Edit your bio:', currentUser.profile.bio);
+            if (newBio !== null) {
+                updateUserProfile({ bio: newBio });
+            }
+        }
+
+        async function updateUserProfile(updates) {
+            try {
+                const updatedUser = { ...currentUser.profile, ...updates };
+                await blobAPI.set(`user_${currentUser.username}`, updatedUser);
+                currentUser.profile = updatedUser;
+                renderProfile();
+            } catch (error) {
+                console.error('Error updating profile:', error);
+                alert('Failed to update profile. Please try again.');
+            }
         }
 
         function toggleReplyForm(postId) {
@@ -1061,6 +1178,14 @@
             if (diff < 86400000) return Math.floor(diff / 3600000) + 'h';
             if (diff < 604800000) return Math.floor(diff / 86400000) + 'd';
             return date.toLocaleDateString();
+        }
+
+        function formatDate(timestamp) {
+            const date = new Date(timestamp);
+            return date.toLocaleDateString('en-US', { 
+                year: 'numeric', 
+                month: 'short' 
+            });
         }
 
         function escapeHtml(text) {
