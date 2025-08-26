@@ -15,7 +15,7 @@ export default async (req, context) => {
   const blogStore = getStore("blog-data");
   
   const headers = {
-    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Origin": "https://feeds.afsapp.lol",
     "Access-Control-Allow-Headers": "Content-Type, Authorization, X-API-Key",
     "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
     "Content-Type": "application/json"
