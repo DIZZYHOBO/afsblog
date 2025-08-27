@@ -566,8 +566,6 @@
             color: #fff;
         }
 
-
-
         .approval-pending {
             background: #92400e;
             color: #fbbf24;
@@ -814,6 +812,33 @@
             font-size: 14px;
         }
 
+        /* Pagination styles */
+        .pagination-controls {
+            border-top: 1px solid #343536;
+        }
+
+        .pagination-controls .btn {
+            min-width: 150px;
+        }
+
+        .no-more-posts {
+            background: #1a1a1b;
+            border: 1px solid #343536;
+            border-radius: 6px;
+            padding: 12px 16px;
+            display: inline-block;
+        }
+
+        .pagination-info {
+            opacity: 0.7;
+        }
+
+        #loadMoreBtn:disabled {
+            background: #374151;
+            color: #6b7280;
+            cursor: not-allowed;
+        }
+
         @media (max-width: 768px) {
             .modal-content {
                 margin: 10px;
@@ -997,6 +1022,12 @@
         let isLoading = false;
         let currentPage = 'feed'; // 'feed', 'profile', or 'admin'
         let currentProfileUser = null;
+        
+        // Pagination state
+        let currentPostPage = 1;
+        let totalPages = 1;
+        let isLoadingMore = false;
+        let hasMorePosts = true;
 
         // Netlify Blobs API implementation
         const blobAPI = {
@@ -1188,8 +1219,8 @@
             
             // Escape HTML first
             text = text.replace(/&/g, '&amp;')
-                      .replace(/</g, '&lt;')
-                      .replace(/>/g, '&gt;');
+                          .replace(/</g, '&lt;')
+                          .replace(/>/g, '&gt;');
 
             // Code blocks (must be processed first)
             text = text.replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
@@ -1272,16 +1303,30 @@
             }
         }
 
-        async function loadPosts() {
+        async function loadPosts(page = 1, append = false) {
             try {
-                isLoading = true;
+                if (!append) {
+                    isLoading = true;
+                    document.getElementById('feed').innerHTML = '<div class="loading">Loading...</div>';
+                } else {
+                    isLoadingMore = true;
+                    // Show loading indicator at bottom
+                    const loadMoreBtn = document.getElementById('loadMoreBtn');
+                    if (loadMoreBtn) {
+                        loadMoreBtn.textContent = 'Loading...';
+                        loadMoreBtn.disabled = true;
+                    }
+                }
+                
                 const postKeys = await blobAPI.list('post_');
                 
                 if (postKeys.length === 0) {
-                    posts = [];
+                    posts = append ? posts : [];
+                    hasMorePosts = false;
                     return;
                 }
                 
+                // Load all posts first (since we're using blob storage)
                 const postPromises = postKeys.map(async (key) => {
                     try {
                         return await blobAPI.get(key);
@@ -1292,12 +1337,32 @@
                 });
                 
                 const loadedPosts = await Promise.all(postPromises);
-                posts = loadedPosts
+                const allPosts = loadedPosts
                     .filter(Boolean)
                     .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
+                // Implement client-side pagination
+                const postsPerPage = 10;
+                const startIndex = (page - 1) * postsPerPage;
+                const endIndex = startIndex + postsPerPage;
+                const pagePosts = allPosts.slice(startIndex, endIndex);
+                
+                // Update pagination state
+                currentPostPage = page;
+                totalPages = Math.ceil(allPosts.length / postsPerPage);
+                hasMorePosts = page < totalPages;
+                
+                if (append) {
+                    // Append new posts to existing ones
+                    posts = [...posts, ...pagePosts];
+                } else {
+                    // Replace all posts
+                    posts = pagePosts;
+                }
+
                 // Load user data for all post authors
-                const authorPromises = [...new Set(posts.map(post => post.author))].map(async (author) => {
+                const allAuthors = [...new Set([...posts.map(post => post.author)])];
+                const authorPromises = allAuthors.map(async (author) => {
                     if (!users[author]) {
                         try {
                             const userData = await blobAPI.get(`user_${author}`);
@@ -1314,10 +1379,23 @@
                     
             } catch (error) {
                 console.error('Error loading posts:', error);
-                posts = [];
+                if (!append) {
+                    posts = [];
+                }
+                hasMorePosts = false;
             } finally {
                 isLoading = false;
+                isLoadingMore = false;
             }
+        }
+
+        // Add this new function for loading more posts
+        async function loadMorePosts() {
+            if (isLoadingMore || !hasMorePosts) return;
+            
+            await loadPosts(currentPostPage + 1, true);
+            renderFeed();
+            loadVisibleProfilePictures();
         }
 
         function updateUI() {
@@ -1420,20 +1498,6 @@
                     imgElement.style.display = 'block';
                     
                     // Hide the text initial when image loads
-                    const textSpan = imgElement.nextElementSibling;
-                    if (textSpan && textSpan.tagName === 'SPAN') {
-                        textSpan.style.display = 'none';
-                    }
-                    
-                    imgElement.onerror = function() {
-                        this.style.display = 'none';
-                        // Show initials if image fails
-                        if (textSpan) {
-                            textSpan.style.display = 'block';
-                        }
-                    };
-                } else {
-                    imgElement.style.display = 'none';
                     const textSpan = imgElement.nextElementSibling;
                     if (textSpan && textSpan.tagName === 'SPAN') {
                         textSpan.style.display = 'block';
@@ -1770,17 +1834,6 @@
                     </div>
                 </div>
 
-                <div class="make-admin-form">
-                        <div class="form-group" style="margin-bottom: 0;">
-                            <label for="adminUsername">Username</label>
-                            <input type="text" id="adminUsername" placeholder="Enter username" style="width: 200px;">
-                        </div>
-                        <button class="btn" onclick="makeUserAdmin()" style="background: #ef4444; border-color: #ef4444;">
-                            Make Admin
-                        </button>
-                    </div>
-                </div>
-
                 <div class="admin-section">
                     <h3>📋 Pending User Approvals</h3>
                     ${totalPending === 0 ? 
@@ -1879,11 +1932,6 @@
             }
         }
 
-        async function makeUserAdmin(username) {
-            // Function removed - no longer available
-            console.log('Make user admin functionality has been removed');
-        }
-
         function updateAuthSection() {
             const authSection = document.getElementById('authSection');
             
@@ -1931,7 +1979,7 @@
                 filteredPosts = posts.filter(post => !post.isPrivate);
             }
 
-            if (filteredPosts.length === 0) {
+            if (filteredPosts.length === 0 && currentPostPage === 1) {
                 feed.innerHTML = `
                     <div class="empty-state">
                         <p>No posts yet!</p>
@@ -1941,7 +1989,7 @@
                 return;
             }
 
-            feed.innerHTML = filteredPosts.map(post => `
+            const feedHTML = filteredPosts.map(post => `
                 <div class="post-card ${post.isPrivate ? 'private' : ''}">
                     <div class="post-header">
                         <span class="username" onclick="showUserProfile('${escapeHtml(post.author)}')">
@@ -1987,6 +2035,28 @@
                     ` : ''}
                 </div>
             `).join('');
+
+            // Add pagination controls
+            const paginationHTML = `
+                <div class="pagination-controls" style="text-align: center; padding: 20px; margin-top: 20px;">
+                    ${hasMorePosts ? `
+                        <button id="loadMoreBtn" class="btn" onclick="loadMorePosts()" ${isLoadingMore ? 'disabled' : ''}>
+                            ${isLoadingMore ? 'Loading...' : 'Load More Posts'}
+                        </button>
+                    ` : (filteredPosts.length > 0 ? `
+                        <div class="no-more-posts" style="color: #818384; font-size: 14px;">
+                            📄 No more posts to display
+                        </div>
+                    ` : '')}
+                    ${currentPostPage > 1 ? `
+                        <div class="pagination-info" style="color: #818384; font-size: 12px; margin-top: 8px;">
+                            Page ${currentPostPage} of ${totalPages} • ${filteredPosts.length} posts loaded
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+
+            feed.innerHTML = feedHTML + paginationHTML;
         }
 
         function openAuthModal(mode) {
@@ -2144,6 +2214,10 @@
                 currentUser = null;
                 await blobAPI.delete('current_user');
                 currentFeed = 'public';
+                // Reset pagination state
+                currentPostPage = 1;
+                hasMorePosts = true;
+                posts = [];
                 updateUI();
             } catch (error) {
                 console.error('Logout error:', error);
@@ -2187,11 +2261,16 @@
                 };
                 
                 await blobAPI.set(post.id, post);
-                posts.unshift(post);
                 
                 closeModal('composeModal');
                 document.getElementById('composeForm').reset();
+                
+                // Refresh the feed to show the new post
+                currentPostPage = 1;
+                hasMorePosts = true;
+                await loadPosts(1, false);
                 renderFeed();
+                loadVisibleProfilePictures();
                 
             } catch (error) {
                 console.error('Error creating post:', error);
@@ -2204,12 +2283,18 @@
 
         function switchFeed(feedType) {
             currentFeed = feedType;
+            currentPostPage = 1;
+            hasMorePosts = true;
             
             document.getElementById('publicFeedBtn').classList.toggle('active', feedType === 'public');
             document.getElementById('privateFeedBtn').classList.toggle('active', feedType === 'private');
             
-            renderFeed();
-            loadVisibleProfilePictures(); // Load profile pictures after rendering
+            // Reset posts and reload
+            posts = [];
+            loadPosts(1, false).then(() => {
+                renderFeed();
+                loadVisibleProfilePictures();
+            });
         }
 
         function editProfile() {
@@ -2363,3 +2448,4 @@
     </script>
 </body>
 </html>
+    
