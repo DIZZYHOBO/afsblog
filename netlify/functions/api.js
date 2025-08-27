@@ -17,7 +17,7 @@ export default async (req, context) => {
   const blogStore = getStore("blog-data");
   
   const headers = {
-    "Access-Control-Allow-Origin": "https://feeds.afsapp.lol",
+    "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Headers": "Content-Type, Authorization, X-API-Key",
     "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
     "Content-Type": "application/json"
@@ -78,13 +78,34 @@ export default async (req, context) => {
   }
 };
 
-// Helper function to get pagination parameters
+// Helper function to get pagination parameters with validation
 function getPaginationParams(url) {
   const page = Math.max(1, parseInt(url.searchParams.get('page')) || 1);
   const limit = Math.min(API_CONFIG.MAX_PAGE_SIZE, Math.max(1, parseInt(url.searchParams.get('limit')) || API_CONFIG.DEFAULT_PAGE_SIZE));
   const skip = (page - 1) * limit;
   
   return { page, limit, skip };
+}
+
+// Helper function to sort posts by timestamp
+function sortPostsByTimestamp(posts) {
+  return posts.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+}
+
+// Helper function to create pagination metadata
+function createPaginationMeta(totalItems, page, limit) {
+  const totalPages = Math.ceil(totalItems / limit);
+  const hasMore = page < totalPages;
+  
+  return {
+    page,
+    limit,
+    total: totalItems,
+    totalPages,
+    hasMore,
+    nextPage: hasMore ? page + 1 : null,
+    prevPage: page > 1 ? page - 1 : null
+  };
 }
 
 // Authentication handlers
@@ -193,7 +214,8 @@ async function handleRegister(req, blogStore, headers) {
       bio: bio || `Hello! I'm ${username}`,
       createdAt: new Date().toISOString(),
       postCount: 0,
-      replyCount: 0
+      replyCount: 0,
+      isAdmin: false
     };
 
     await blogStore.set(`user_${username}`, JSON.stringify(newUser));
@@ -323,7 +345,7 @@ async function validateAuth(req, store, blogStore) {
   return { valid: false, error: "Authentication required", status: 401 };
 }
 
-// Feed handlers with pagination
+// Feed handlers with improved pagination
 async function handlePublicFeed(req, blogStore, headers, user) {
   if (req.method !== 'GET') {
     return new Response(
@@ -336,43 +358,50 @@ async function handlePublicFeed(req, blogStore, headers, user) {
     const url = new URL(req.url);
     const { page, limit, skip } = getPaginationParams(url);
 
+    // Get all post keys
     const { blobs } = await blogStore.list({ prefix: "post_" });
-    const posts = [];
-
-    for (const blob of blobs) {
-      try {
-        const post = await blogStore.get(blob.key, { type: "json" });
-        if (post && !post.isPrivate) {
-          posts.push(post);
-        }
-      } catch (error) {
-        console.error(`Error loading post ${blob.key}:`, error);
-      }
+    
+    if (blobs.length === 0) {
+      return new Response(
+        JSON.stringify({
+          success: true,
+          feed: "public",
+          posts: [],
+          pagination: createPaginationMeta(0, page, limit),
+          user: user.username
+        }),
+        { status: 200, headers }
+      );
     }
 
+    // Load all posts to filter and sort them
+    const postPromises = blobs.map(async (blob) => {
+      try {
+        const post = await blogStore.get(blob.key, { type: "json" });
+        // Only include public posts
+        return (post && !post.isPrivate) ? post : null;
+      } catch (error) {
+        console.error(`Error loading post ${blob.key}:`, error);
+        return null;
+      }
+    });
+    
+    const loadedPosts = await Promise.all(postPromises);
+    const publicPosts = loadedPosts.filter(Boolean);
+
     // Sort posts by timestamp (newest first)
-    const sortedPosts = posts.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    const sortedPosts = sortPostsByTimestamp(publicPosts);
     
     // Apply pagination
     const paginatedPosts = sortedPosts.slice(skip, skip + limit);
-    const totalPosts = sortedPosts.length;
-    const totalPages = Math.ceil(totalPosts / limit);
-    const hasMore = page < totalPages;
+    const paginationMeta = createPaginationMeta(sortedPosts.length, page, limit);
 
     return new Response(
       JSON.stringify({
         success: true,
         feed: "public",
         posts: paginatedPosts,
-        pagination: {
-          page,
-          limit,
-          total: totalPosts,
-          totalPages,
-          hasMore,
-          nextPage: hasMore ? page + 1 : null,
-          prevPage: page > 1 ? page - 1 : null
-        },
+        pagination: paginationMeta,
         user: user.username
       }),
       { status: 200, headers }
@@ -399,43 +428,50 @@ async function handlePrivateFeed(req, blogStore, headers, user) {
     const url = new URL(req.url);
     const { page, limit, skip } = getPaginationParams(url);
 
+    // Get all post keys
     const { blobs } = await blogStore.list({ prefix: "post_" });
-    const posts = [];
-
-    for (const blob of blobs) {
-      try {
-        const post = await blogStore.get(blob.key, { type: "json" });
-        if (post && post.isPrivate && post.author === user.username) {
-          posts.push(post);
-        }
-      } catch (error) {
-        console.error(`Error loading post ${blob.key}:`, error);
-      }
+    
+    if (blobs.length === 0) {
+      return new Response(
+        JSON.stringify({
+          success: true,
+          feed: "private",
+          posts: [],
+          pagination: createPaginationMeta(0, page, limit),
+          user: user.username
+        }),
+        { status: 200, headers }
+      );
     }
 
+    // Load posts and filter for user's private posts
+    const postPromises = blobs.map(async (blob) => {
+      try {
+        const post = await blogStore.get(blob.key, { type: "json" });
+        // Only include user's private posts
+        return (post && post.isPrivate && post.author === user.username) ? post : null;
+      } catch (error) {
+        console.error(`Error loading post ${blob.key}:`, error);
+        return null;
+      }
+    });
+    
+    const loadedPosts = await Promise.all(postPromises);
+    const privatePosts = loadedPosts.filter(Boolean);
+
     // Sort posts by timestamp (newest first)
-    const sortedPosts = posts.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    const sortedPosts = sortPostsByTimestamp(privatePosts);
     
     // Apply pagination
     const paginatedPosts = sortedPosts.slice(skip, skip + limit);
-    const totalPosts = sortedPosts.length;
-    const totalPages = Math.ceil(totalPosts / limit);
-    const hasMore = page < totalPages;
+    const paginationMeta = createPaginationMeta(sortedPosts.length, page, limit);
 
     return new Response(
       JSON.stringify({
         success: true,
         feed: "private",
         posts: paginatedPosts,
-        pagination: {
-          page,
-          limit,
-          total: totalPosts,
-          totalPages,
-          hasMore,
-          nextPage: hasMore ? page + 1 : null,
-          prevPage: page > 1 ? page - 1 : null
-        },
+        pagination: paginationMeta,
         user: user.username
       }),
       { status: 200, headers }
@@ -460,6 +496,20 @@ async function handlePosts(req, blogStore, headers, user) {
       if (!title || !content) {
         return new Response(
           JSON.stringify({ error: "Title and content required" }),
+          { status: 400, headers }
+        );
+      }
+
+      if (title.length > 200) {
+        return new Response(
+          JSON.stringify({ error: "Title must be 200 characters or less" }),
+          { status: 400, headers }
+        );
+      }
+
+      if (content.length > 10000) {
+        return new Response(
+          JSON.stringify({ error: "Content must be 10,000 characters or less" }),
           { status: 400, headers }
         );
       }
@@ -490,6 +540,66 @@ async function handlePosts(req, blogStore, headers, user) {
       console.error("Create post error:", error);
       return new Response(
         JSON.stringify({ error: "Failed to create post" }),
+        { status: 500, headers }
+      );
+    }
+  }
+
+  if (req.method === 'GET') {
+    // Get user's posts with pagination
+    try {
+      const url = new URL(req.url);
+      const { page, limit, skip } = getPaginationParams(url);
+
+      const { blobs } = await blogStore.list({ prefix: "post_" });
+      
+      if (blobs.length === 0) {
+        return new Response(
+          JSON.stringify({
+            success: true,
+            posts: [],
+            pagination: createPaginationMeta(0, page, limit),
+            user: user.username
+          }),
+          { status: 200, headers }
+        );
+      }
+
+      // Load user's posts
+      const postPromises = blobs.map(async (blob) => {
+        try {
+          const post = await blogStore.get(blob.key, { type: "json" });
+          return (post && post.author === user.username) ? post : null;
+        } catch (error) {
+          console.error(`Error loading post ${blob.key}:`, error);
+          return null;
+        }
+      });
+      
+      const loadedPosts = await Promise.all(postPromises);
+      const userPosts = loadedPosts.filter(Boolean);
+
+      // Sort posts by timestamp (newest first)
+      const sortedPosts = sortPostsByTimestamp(userPosts);
+      
+      // Apply pagination
+      const paginatedPosts = sortedPosts.slice(skip, skip + limit);
+      const paginationMeta = createPaginationMeta(sortedPosts.length, page, limit);
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          posts: paginatedPosts,
+          pagination: paginationMeta,
+          user: user.username
+        }),
+        { status: 200, headers }
+      );
+
+    } catch (error) {
+      console.error("Get posts error:", error);
+      return new Response(
+        JSON.stringify({ error: "Failed to retrieve posts" }),
         { status: 500, headers }
       );
     }
@@ -542,9 +652,7 @@ async function handleProfile(req, blogStore, headers, user) {
         privatePosts: privatePosts.length,
         totalReplies: totalReplies
       },
-      recentPosts: userPosts
-        .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
-        .slice(0, 5)
+      recentPosts: sortPostsByTimestamp(userPosts).slice(0, 5)
     };
 
     return new Response(
@@ -615,19 +723,20 @@ async function handleProfileUpdate(req, blogStore, headers, user) {
 // Default documentation endpoint
 async function handleDefault(req, headers) {
   const docs = {
-    message: "Blog API v2.1 - Now with Pagination Support!",
+    message: "Blog API v2.2 - Enhanced Pagination & Error Handling",
     endpoints: {
       // Authentication
       "POST /api/auth/login": "Login with username/password",
       "POST /api/auth/register": "Register new account",
       "POST /api/auth/logout": "Logout (invalidate session)",
       
-      // Feeds (requires auth) - Now with pagination
+      // Feeds (requires auth) - Enhanced pagination
       "GET /api/feeds/public": "Get public posts feed (supports ?page=N&limit=N)",
       "GET /api/feeds/private": "Get user's private posts (supports ?page=N&limit=N)",
       
       // Posts (requires auth)
       "POST /api/posts": "Create new post",
+      "GET /api/posts": "Get user's posts with pagination",
       
       // Profile (requires auth)
       "GET /api/profile": "Get user profile with stats",
@@ -650,9 +759,11 @@ async function handleDefault(req, headers) {
           prevPage: "Previous page number (null if first page)"
         }
       },
-      examples: [
-        "GET /api/feeds/public?page=1&limit=5",
-        "GET /api/feeds/private?page=2&limit=20"
+      improvements: [
+        "Better handling of empty result sets",
+        "Consistent sorting by timestamp (newest first)",
+        "Proper validation of pagination parameters",
+        "Enhanced error handling for invalid requests"
       ]
     },
     authentication: {
@@ -667,6 +778,17 @@ async function handleDefault(req, headers) {
         header: "X-API-Key: <your-api-key>"
       }
     },
+    validation: {
+      posts: {
+        title: "Max 200 characters",
+        content: "Max 10,000 characters"
+      },
+      profile: {
+        bio: "Max 500 characters"
+      },
+      username: "Min 3 characters",
+      password: "Min 6 characters"
+    },
     usage: {
       "1. Register": "POST /api/auth/register {username, password, bio?}",
       "2. Login": "POST /api/auth/login {username, password}",
@@ -676,7 +798,7 @@ async function handleDefault(req, headers) {
   };
 
   return new Response(
-    JSON.stringify(docs),
+    JSON.stringify(docs, null, 2),
     { status: 200, headers }
   );
 }
