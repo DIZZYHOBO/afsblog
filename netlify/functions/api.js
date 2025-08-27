@@ -77,7 +77,7 @@ export default async (req, context) => {
       default:
         // Handle dynamic routes like /posts/{postId}
         if (path.startsWith('posts/') && path !== 'posts/create') {
-          return await handlePosts(req, blogStore, headers, authResult.user);
+          return await handlePostOperations(req, blogStore, headers, authResult.user, path);
         }
         return await handleDefault(req, headers);
     }
@@ -90,6 +90,102 @@ export default async (req, context) => {
     );
   }
 };
+
+// NEW: Handle individual post operations (GET, DELETE)
+async function handlePostOperations(req, blogStore, headers, user, path) {
+  const postId = path.split('/')[1];
+  
+  if (!postId) {
+    return new Response(
+      JSON.stringify({ error: "Post ID required" }),
+      { status: 400, headers }
+    );
+  }
+
+  if (req.method === 'GET') {
+    // Get specific post
+    try {
+      const post = await blogStore.get(postId, { type: "json" });
+      
+      if (!post) {
+        return new Response(
+          JSON.stringify({ error: "Post not found" }),
+          { status: 404, headers }
+        );
+      }
+
+      // Check permissions for private posts
+      if (post.isPrivate && post.author !== user.username && !user.isAdmin) {
+        return new Response(
+          JSON.stringify({ error: "Access denied" }),
+          { status: 403, headers }
+        );
+      }
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          post: post
+        }),
+        { status: 200, headers }
+      );
+
+    } catch (error) {
+      console.error("Get post error:", error);
+      return new Response(
+        JSON.stringify({ error: "Failed to retrieve post" }),
+        { status: 500, headers }
+      );
+    }
+  }
+
+  if (req.method === 'DELETE') {
+    // Delete specific post
+    try {
+      const post = await blogStore.get(postId, { type: "json" });
+      
+      if (!post) {
+        return new Response(
+          JSON.stringify({ error: "Post not found" }),
+          { status: 404, headers }
+        );
+      }
+
+      // Check permissions (only author or admin can delete)
+      if (post.author !== user.username && !user.isAdmin) {
+        return new Response(
+          JSON.stringify({ error: "Only the author or admin can delete this post" }),
+          { status: 403, headers }
+        );
+      }
+
+      // Delete the post
+      await blogStore.delete(postId);
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: "Post deleted successfully",
+          postId: postId,
+          deletedBy: user.username
+        }),
+        { status: 200, headers }
+      );
+
+    } catch (error) {
+      console.error("Delete post error:", error);
+      return new Response(
+        JSON.stringify({ error: "Failed to delete post" }),
+        { status: 500, headers }
+      );
+    }
+  }
+
+  return new Response(
+    JSON.stringify({ error: "Method not allowed" }),
+    { status: 405, headers }
+  );
+}
 
 // NEW: Media detection helper for any frontend
 async function handleMediaDetection(req, headers) {
@@ -1131,7 +1227,7 @@ async function handleProfileUpdate(req, blogStore, headers, user) {
 // UPDATED: Default documentation endpoint
 async function handleDefault(req, headers) {
   const docs = {
-    message: "Blog API v3.0 - Media Posts Support",
+    message: "Blog API v3.1 - Complete CRUD Support",
     endpoints: {
       // Authentication
       "POST /api/auth/login": "Login with username/password",
@@ -1145,9 +1241,10 @@ async function handleDefault(req, headers) {
       "GET /api/feeds/public": "Get public posts feed (supports ?page=N&limit=N&includeReplies=true/false)",
       "GET /api/feeds/private": "Get user's private posts (supports ?page=N&limit=N&includeReplies=true/false)",
       
-      // Posts (requires auth)
+      // Posts (requires auth) - COMPLETE CRUD
       "POST /api/posts/create": "Create new post (text or link)",
       "GET /api/posts": "Get user's posts with pagination (supports ?includeReplies=true/false)",
+      "GET /api/posts/{postId}": "Get specific post by ID",
       "DELETE /api/posts/{postId}": "Delete specific post (owner or admin only)",
       
       // Replies/Comments (requires auth) - NEW
@@ -1158,65 +1255,21 @@ async function handleDefault(req, headers) {
       "PUT /api/profile/update": "Update user profile"
     },
     newFeatures: {
+      deletePost: {
+        description: "Delete posts with proper authorization",
+        endpoint: "DELETE /api/posts/{postId}",
+        authorization: "Only the post owner or admin can delete posts",
+        response: {
+          success: true,
+          message: "Post deleted successfully",
+          postId: "post_id_here",
+          deletedBy: "username"
+        }
+      },
       mediaSupport: {
         description: "Full support for text and link posts with media embedding",
         supportedTypes: ["youtube", "vimeo", "image", "video", "audio", "twitter", "instagram", "tiktok", "link"],
         embeddableTypes: ["youtube", "vimeo", "image", "video", "audio"]
-      },
-      mediaDetectionAPI: {
-        endpoint: "POST /api/media/detect",
-        input: { url: "https://youtube.com/watch?v=dQw4w9WgXcQ" },
-        output: {
-          success: true,
-          url: "https://youtube.com/watch?v=dQw4w9WgXcQ",
-          mediaType: "youtube",
-          canEmbed: true,
-          embedHtml: "<iframe src='...' />",
-          metadata: {
-            type: "youtube",
-            embed: true,
-            videoId: "dQw4w9WgXcQ",
-            platform: "YouTube",
-            title: "YouTube Video: dQw4w9WgXcQ"
-          }
-        }
-      },
-      postTypes: {
-        text: {
-          required: ["title", "content"],
-          optional: ["isPrivate"],
-          validation: {
-            title: "Max 200 characters",
-            content: "Max 10,000 characters"
-          }
-        },
-        link: {
-          required: ["title", "url"],
-          optional: ["description", "isPrivate"],
-          validation: {
-            title: "Max 200 characters",
-            url: "Valid URL format required",
-            description: "Max 2,000 characters"
-          }
-        }
-      }
-    },
-    pagination: {
-      parameters: {
-        page: "Page number (default: 1, min: 1)",
-        limit: "Items per page (default: 10, min: 1, max: 50)"
-      },
-      response: {
-        posts: "Array of posts for current page",
-        pagination: {
-          page: "Current page number",
-          limit: "Items per page",
-          total: "Total number of posts",
-          totalPages: "Total number of pages",
-          hasMore: "Whether there are more pages",
-          nextPage: "Next page number (null if last page)",
-          prevPage: "Previous page number (null if first page)"
-        }
       }
     },
     authentication: {
@@ -1235,12 +1288,9 @@ async function handleDefault(req, headers) {
       "1. Register": "POST /api/auth/register {username, password, bio?}",
       "2. Login": "POST /api/auth/login {username, password}",
       "3. Use token": "Include 'Authorization: Bearer <token>' header",
-      "4. Create text post": "POST /api/posts/create {title, content, type: 'text'}",
-      "5. Create link post": "POST /api/posts/create {title, url, type: 'link', description?}",
-      "6. Create reply": "POST /api/replies/create {postId, content}",
-      "7. Delete post": "DELETE /api/posts/{postId} (requires ownership or admin)",
-      "8. Detect media": "POST /api/media/detect {url}",
-      "9. Access feeds": "GET /api/feeds/public?page=1&limit=10&includeReplies=true"
+      "4. Create post": "POST /api/posts/create {title, content, type: 'text'}",
+      "5. Delete post": "DELETE /api/posts/{postId} (requires ownership or admin)",
+      "6. Access feeds": "GET /api/feeds/public?page=1&limit=10&includeReplies=true"
     }
   };
 
