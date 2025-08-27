@@ -393,44 +393,6 @@
             object-fit: cover;
         }
 
-        .avatar-upload-overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0,0,0,0.7);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            opacity: 0;
-            transition: opacity 0.2s;
-            font-size: 12px;
-            text-align: center;
-            color: white;
-            cursor: pointer;
-        }
-
-        .profile-avatar:hover .avatar-upload-overlay {
-            opacity: 1;
-        }
-
-        .uploading-overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0,0,0,0.8);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 12px;
-            text-align: center;
-            color: white;
-            border-radius: 50%;
-        }
-
         .page-header {
             background: #1a1a1b;
             padding: 12px 16px;
@@ -491,7 +453,7 @@
             font-size: 1.2rem;
         }
 
-        .pending-user {
+        .pending-user, .user-item {
             background: #1f2937;
             border: 1px solid #374151;
             border-radius: 6px;
@@ -538,6 +500,16 @@
         }
 
         .btn-reject:hover {
+            background: #b91c1c;
+        }
+
+        .btn-delete {
+            background: #dc2626;
+            color: white;
+            border: 1px solid #ef4444;
+        }
+
+        .btn-delete:hover {
             background: #b91c1c;
         }
 
@@ -726,10 +698,6 @@
             font-weight: 600; 
         }
 
-        .file-input {
-            display: none;
-        }
-
         .profile-info {
             flex: 1;
         }
@@ -839,10 +807,43 @@
             cursor: not-allowed;
         }
 
+        .url-input-group {
+            position: relative;
+        }
+
+        .url-preview {
+            margin-top: 8px;
+            padding: 8px;
+            background: #1f2937;
+            border: 1px solid #374151;
+            border-radius: 4px;
+            color: #d7dadc;
+            font-size: 12px;
+        }
+
+        .url-preview.valid {
+            border-color: #10b981;
+            color: #10b981;
+        }
+
+        .url-preview.invalid {
+            border-color: #ef4444;
+            color: #ef4444;
+        }
+
         @media (max-width: 768px) {
             .modal-content {
                 margin: 10px;
                 margin-top: 40px;
+            }
+
+            .profile-stats {
+                flex-wrap: wrap;
+                gap: 10px;
+            }
+
+            .admin-stats {
+                grid-template-columns: 1fr;
             }
         }
     </style>
@@ -914,11 +915,14 @@
                     <label for="bio">Bio (Optional)</label>
                     <textarea id="bio" placeholder="Tell us about yourself..." maxlength="500"></textarea>
                 </div>
-                <div class="form-group">
-                    <label for="profilePicture">Profile Picture (Optional)</label>
-                    <input type="file" id="profilePicture" accept="image/*">
+                <div class="form-group" id="profilePictureGroup">
+                    <label for="profilePictureUrl">Profile Picture URL (Optional)</label>
+                    <div class="url-input-group">
+                        <input type="url" id="profilePictureUrl" placeholder="https://example.com/image.png">
+                        <div id="profilePicturePreview" class="url-preview" style="display: none;"></div>
+                    </div>
                     <div style="font-size: 12px; color: #818384; margin-top: 4px;">
-                        Max size: 1MB. Formats: JPG, PNG, GIF
+                        Must be a PNG or GIF image with a valid URL
                     </div>
                 </div>
                 <button type="submit" class="btn" id="authSubmitBtn">Sign Up</button>
@@ -1010,7 +1014,33 @@
         </div>
     </div>
 
-    <input type="file" id="hiddenFileInput" class="file-input" accept="image/*">
+    <!-- Edit Profile Modal -->
+    <div class="modal" id="editProfileModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Edit Profile</h3>
+                <button class="close-btn" onclick="closeModal('editProfileModal')">&times;</button>
+            </div>
+            <div id="editProfileError"></div>
+            <form id="editProfileForm">
+                <div class="form-group">
+                    <label for="editBio">Bio</label>
+                    <textarea id="editBio" placeholder="Tell us about yourself..." maxlength="500"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="editProfilePictureUrl">Profile Picture URL</label>
+                    <div class="url-input-group">
+                        <input type="url" id="editProfilePictureUrl" placeholder="https://example.com/image.png">
+                        <div id="editProfilePicturePreview" class="url-preview" style="display: none;"></div>
+                    </div>
+                    <div style="font-size: 12px; color: #818384; margin-top: 4px;">
+                        Must be a PNG or GIF image with a valid URL (leave empty to remove)
+                    </div>
+                </div>
+                <button type="submit" class="btn" id="editProfileSubmitBtn">Update Profile</button>
+            </form>
+        </div>
+    </div>
 
     <script>
         // App state
@@ -1019,6 +1049,8 @@
         let posts = [];
         let users = {};
         let pendingUsers = [];
+        let allUsers = [];
+        let adminStats = {};
         let isLoading = false;
         let currentPage = 'feed'; // 'feed', 'profile', or 'admin'
         let currentProfileUser = null;
@@ -1117,15 +1149,57 @@
             }
         };
 
+        // Profile picture URL validation
+        function validateProfilePictureUrl(url) {
+            if (!url) return { valid: true, message: 'No image will be displayed' };
+            
+            try {
+                const urlObj = new URL(url);
+                const pathname = urlObj.pathname.toLowerCase();
+                
+                if (!pathname.endsWith('.png') && !pathname.endsWith('.gif')) {
+                    return { valid: false, message: 'Must be a PNG or GIF file' };
+                }
+                
+                if (urlObj.protocol !== 'http:' && urlObj.protocol !== 'https:') {
+                    return { valid: false, message: 'Must use HTTP or HTTPS' };
+                }
+                
+                return { valid: true, message: 'Valid image URL' };
+            } catch (error) {
+                return { valid: false, message: 'Invalid URL format' };
+            }
+        }
+
+        // Profile picture URL preview handlers
+        function setupProfilePicturePreview(inputId, previewId) {
+            const input = document.getElementById(inputId);
+            const preview = document.getElementById(previewId);
+            
+            if (input && preview) {
+                input.addEventListener('input', () => {
+                    const url = input.value.trim();
+                    const validation = validateProfilePictureUrl(url);
+                    
+                    if (url) {
+                        preview.style.display = 'block';
+                        preview.textContent = validation.message;
+                        preview.className = `url-preview ${validation.valid ? 'valid' : 'invalid'}`;
+                    } else {
+                        preview.style.display = 'none';
+                    }
+                });
+            }
+        }
+
         // Initialize app
         document.addEventListener('DOMContentLoaded', async () => {
             await loadUser();
             await loadPosts();
             updateUI();
             setupEventListeners();
-            
-            // Load profile pictures after initial render
-            setTimeout(loadVisibleProfilePictures, 500);
+            setupProfilePicturePreview('profilePictureUrl', 'profilePicturePreview');
+            setupProfilePicturePreview('editProfilePictureUrl', 'editProfilePicturePreview');
         });
 
         function setupEventListeners() {
@@ -1137,6 +1211,9 @@
             document.getElementById('composeForm').addEventListener('submit', handleCreatePost);
             document.getElementById('composeBtn').addEventListener('click', () => openModal('composeModal'));
             
+            // Edit profile form
+            document.getElementById('editProfileForm').addEventListener('submit', handleEditProfile);
+            
             // Feed toggle
             document.getElementById('publicFeedBtn').addEventListener('click', () => switchFeed('public'));
             document.getElementById('privateFeedBtn').addEventListener('click', () => switchFeed('private'));
@@ -1146,7 +1223,7 @@
             document.getElementById('backToFeedFromAdmin').addEventListener('click', () => showPage('feed'));
         }
 
-        // Markdown editor functions
+        // Markdown editor functions (unchanged)
         function switchEditorMode(mode) {
             const writeTab = document.getElementById('writeTab');
             const previewTab = document.getElementById('previewTab');
@@ -1164,7 +1241,6 @@
                 textarea.style.display = 'none';
                 preview.style.display = 'block';
                 
-                // Update preview
                 const content = textarea.value;
                 preview.innerHTML = renderMarkdown(content);
             }
@@ -1187,11 +1263,10 @@
 
             textarea.value = newText;
             
-            // Set cursor position
             if (selectedText) {
                 textarea.setSelectionRange(start + before.length, start + before.length + selectedText.length);
             } else {
-                textarea.setSelectionRange(start + before.length, start + before.length + 4); // select "text"
+                textarea.setSelectionRange(start + before.length, start + before.length + 4);
             }
             
             textarea.focus();
@@ -1213,73 +1288,46 @@
             textarea.focus();
         }
 
-        // Simple markdown renderer
+        // Simple markdown renderer (unchanged)
         function renderMarkdown(text) {
             if (!text) return '';
             
-            // Escape HTML first
             text = text.replace(/&/g, '&amp;')
                           .replace(/</g, '&lt;')
                           .replace(/>/g, '&gt;');
 
-            // Code blocks (must be processed first)
             text = text.replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
-            
-            // Inline code (after code blocks)
             text = text.replace(/`([^`]+)`/g, '<code>$1</code>');
-            
-            // Headers
             text = text.replace(/^### (.*$)/gim, '<h3>$1</h3>');
             text = text.replace(/^## (.*$)/gim, '<h2>$1</h2>');
             text = text.replace(/^# (.*$)/gim, '<h1>$1</h1>');
-            
-            // Bold and italic (order matters)
             text = text.replace(/\*\*\*(.*?)\*\*\*/g, '<strong><em>$1</em></strong>');
             text = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
             text = text.replace(/\*(.*?)\*/g, '<em>$1</em>');
-            
-            // Strikethrough
             text = text.replace(/~~(.*?)~~/g, '<s>$1</s>');
-            
-            // Links
             text = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
-            
-            // Images
             text = text.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" style="max-width: 100%; height: auto; border-radius: 4px; margin: 8px 0;">');
-            
-            // Blockquotes
             text = text.replace(/^> (.*$)/gim, '<blockquote>$1</blockquote>');
-            
-            // Horizontal rules
             text = text.replace(/^---$/gim, '<hr>');
-            
-            // Lists
             text = text.replace(/^\* (.*$)/gim, '<ul><li>$1</li></ul>');
             text = text.replace(/^- (.*$)/gim, '<ul><li>$1</li></ul>');
             text = text.replace(/^\d+\. (.*$)/gim, '<ol><li>$1</li></ol>');
-            
-            // Fix list formatting (merge consecutive list items)
             text = text.replace(/<\/ul>\s*<ul>/g, '');
             text = text.replace(/<\/ol>\s*<ol>/g, '');
             
-            // Tables (basic support)
             text = text.replace(/\|(.+)\|/g, function(match, content) {
                 const cells = content.split('|').map(cell => cell.trim());
                 const isHeader = match.includes('---');
-                if (isHeader) return ''; // Skip separator rows
+                if (isHeader) return '';
                 
                 const cellTags = cells.map(cell => `<td>${cell}</td>`).join('');
                 return `<tr>${cellTags}</tr>`;
             });
             
-            // Wrap tables
             text = text.replace(/(<tr>.*<\/tr>)/gs, '<table>$1</table>');
-            
-            // Line breaks
             text = text.replace(/\n\n/g, '</p><p>');
             text = text.replace(/\n/g, '<br>');
             
-            // Wrap in paragraphs
             if (text && !text.startsWith('<')) {
                 text = '<p>' + text + '</p>';
             }
@@ -1292,7 +1340,6 @@
                 const userData = await blobAPI.get('current_user');
                 if (userData) {
                     currentUser = userData;
-                    // Load full user profile
                     const fullProfile = await blobAPI.get(`user_${userData.username}`);
                     if (fullProfile) {
                         currentUser.profile = fullProfile;
@@ -1310,7 +1357,6 @@
                     document.getElementById('feed').innerHTML = '<div class="loading">Loading...</div>';
                 } else {
                     isLoadingMore = true;
-                    // Show loading indicator at bottom
                     const loadMoreBtn = document.getElementById('loadMoreBtn');
                     if (loadMoreBtn) {
                         loadMoreBtn.textContent = 'Loading...';
@@ -1326,7 +1372,6 @@
                     return;
                 }
                 
-                // Load all posts first (since we're using blob storage)
                 const postPromises = postKeys.map(async (key) => {
                     try {
                         return await blobAPI.get(key);
@@ -1341,26 +1386,21 @@
                     .filter(Boolean)
                     .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
-                // Implement client-side pagination
                 const postsPerPage = 10;
                 const startIndex = (page - 1) * postsPerPage;
                 const endIndex = startIndex + postsPerPage;
                 const pagePosts = allPosts.slice(startIndex, endIndex);
                 
-                // Update pagination state
                 currentPostPage = page;
                 totalPages = Math.ceil(allPosts.length / postsPerPage);
                 hasMorePosts = page < totalPages;
                 
                 if (append) {
-                    // Append new posts to existing ones
                     posts = [...posts, ...pagePosts];
                 } else {
-                    // Replace all posts
                     posts = pagePosts;
                 }
 
-                // Load user data for all post authors
                 const allAuthors = [...new Set([...posts.map(post => post.author)])];
                 const authorPromises = allAuthors.map(async (author) => {
                     if (!users[author]) {
@@ -1389,7 +1429,6 @@
             }
         }
 
-        // Add this new function for loading more posts
         async function loadMorePosts() {
             if (isLoadingMore || !hasMorePosts) return;
             
@@ -1406,61 +1445,6 @@
             loadVisibleProfilePictures();
         }
 
-        // Profile picture upload function with better error handling
-        async function uploadProfilePicture(file, username) {
-            try {
-                // Validate file size
-                if (file.size > 1024 * 1024) { // 1MB limit
-                    return { success: false, error: 'File size must be less than 1MB' };
-                }
-
-                // Validate file type
-                if (!file.type.startsWith('image/')) {
-                    return { success: false, error: 'File must be an image (JPG, PNG, GIF)' };
-                }
-
-                // Additional file type check
-                const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
-                if (!validTypes.includes(file.type)) {
-                    return { success: false, error: 'Supported formats: JPG, PNG, GIF, WebP' };
-                }
-
-                // Convert to base64
-                const base64 = await new Promise((resolve, reject) => {
-                    const reader = new FileReader();
-                    reader.onload = () => resolve(reader.result);
-                    reader.onerror = () => reject(new Error('Failed to read file'));
-                    reader.readAsDataURL(file);
-                });
-
-                // Delete old profile picture if it exists
-                if (currentUser.profile.profilePicture) {
-                    try {
-                        await blobAPI.delete(currentUser.profile.profilePicture);
-                    } catch (error) {
-                        // Don't fail upload if old picture deletion fails
-                        console.warn('Could not delete old profile picture:', error);
-                    }
-                }
-
-                // Store new image in blobs
-                const imageKey = `profile_pic_${username}_${Date.now()}`;
-                await blobAPI.set(imageKey, { 
-                    data: base64,
-                    type: file.type,
-                    size: file.size,
-                    uploadedAt: new Date().toISOString(),
-                    username: username
-                });
-
-                return { success: true, url: imageKey };
-            } catch (error) {
-                console.error('Profile picture upload error:', error);
-                return { success: false, error: 'Upload failed. Please try again.' };
-            }
-        }
-
-        // Get user avatar HTML with proper image handling
         function getUserAvatar(userProfile, size = 'normal') {
             const sizeClass = size === 'small' ? 'profile-avatar-small' : 'profile-avatar';
             
@@ -1470,16 +1454,13 @@
 
             const initial = userProfile.username ? userProfile.username.charAt(0).toUpperCase() : '?';
 
-            if (userProfile.profilePicture) {
+            if (userProfile.profilePictureUrl) {
                 return `
                     <div class="${sizeClass}">
-                        <img src="#" 
-                             data-pic-key="${userProfile.profilePicture}" 
+                        <img src="${userProfile.profilePictureUrl}" 
                              alt="${userProfile.username}" 
-                             style="display: none;"
-                             onload="this.style.display='block'"
+                             style="display: block;"
                              onerror="this.style.display='none'; this.parentNode.innerHTML='${initial}';">
-                        <span style="display: block;">${initial}</span>
                     </div>
                 `;
             }
@@ -1487,42 +1468,8 @@
             return `<div class="${sizeClass}">${initial}</div>`;
         }
 
-        // Load profile pictures with better error handling
-        async function loadProfilePicture(imgElement, picKey) {
-            if (!imgElement || !picKey) return;
-            
-            try {
-                const picData = await blobAPI.get(picKey);
-                if (picData && picData.data) {
-                    imgElement.src = picData.data;
-                    imgElement.style.display = 'block';
-                    
-                    // Hide the text initial when image loads
-                    const textSpan = imgElement.nextElementSibling;
-                    if (textSpan && textSpan.tagName === 'SPAN') {
-                        textSpan.style.display = 'block';
-                    }
-                }
-            } catch (error) {
-                console.error('Error loading profile picture:', error);
-                imgElement.style.display = 'none';
-                // Show initials instead
-                const textSpan = imgElement.nextElementSibling;
-                if (textSpan && textSpan.tagName === 'SPAN') {
-                    textSpan.style.display = 'block';
-                }
-            }
-        }
-
-        // Load all visible profile pictures
         function loadVisibleProfilePictures() {
-            const images = document.querySelectorAll('img[data-pic-key]');
-            images.forEach(img => {
-                const picKey = img.getAttribute('data-pic-key');
-                if (picKey && img.src === '#') {
-                    loadProfilePicture(img, picKey);
-                }
-            });
+            // Profile pictures are now loaded directly from URLs, no additional loading needed
         }
 
         // Page navigation
@@ -1534,7 +1481,6 @@
             const adminPage = document.getElementById('adminPage');
             const feedToggle = document.getElementById('feedToggle');
 
-            // Hide all pages
             mainFeed.style.display = 'none';
             profilePage.style.display = 'none';
             adminPage.style.display = 'none';
@@ -1563,7 +1509,6 @@
             profileContent.innerHTML = '<div class="loading">Loading profile...</div>';
 
             try {
-                // Load user data if not already loaded
                 if (!users[username]) {
                     const userData = await blobAPI.get(`user_${username}`);
                     if (userData) {
@@ -1593,18 +1538,7 @@
             profileContent.innerHTML = `
                 <div class="profile-card">
                     <div class="profile-header">
-                        <div class="profile-avatar" ${isOwnProfile ? 'onclick="uploadNewProfilePicture()"' : ''}>
-                            ${user.profilePicture ? `
-                                <img src="#" 
-                                     data-pic-key="${user.profilePicture}" 
-                                     alt="${user.username}" 
-                                     style="display: none;"
-                                     onload="this.style.display='block'; this.nextElementSibling.style.display='none';"
-                                     onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
-                                <span style="display: block;">${user.username.charAt(0).toUpperCase()}</span>
-                            ` : user.username.charAt(0).toUpperCase()}
-                            ${isOwnProfile ? '<div class="avatar-upload-overlay">Change<br>Photo</div>' : ''}
-                        </div>
+                        ${getUserAvatar(user)}
                         <div class="profile-info">
                             <div class="profile-username">@${escapeHtml(user.username)}</div>
                             <div class="profile-joined">Joined ${formatDate(user.createdAt)}</div>
@@ -1662,7 +1596,7 @@
                                     <span class="timestamp">${formatTimestamp(post.timestamp)}</span>
                                     ${post.isPrivate ? '<span class="private-badge">Private</span>' : ''}
                                 </div>
-                                <div class="post-content markdown-content">${renderMarkdown(post.content.substring(0, 200)) + (post.content.length > 200 ? '...' : '')}</div>
+                                <div class="post-content markdown-content">${renderMarkdown(post.content ? post.content.substring(0, 200) : '') + (post.content && post.content.length > 200 ? '...' : '')}</div>
                                 <div class="post-actions">
                                     <span class="action-btn">💬 ${post.replies ? post.replies.length : 0} replies</span>
                                     ${isOwnProfile ? `<button class="action-btn" onclick="deletePost('${post.id}')">🗑 Delete</button>` : ''}
@@ -1677,107 +1611,74 @@
                 `}
             `;
 
-            // Load profile pictures after rendering
             setTimeout(loadVisibleProfilePictures, 100);
         }
 
-        // Upload new profile picture with auto-save
-        function uploadNewProfilePicture() {
-            const input = document.createElement('input');
-            input.type = 'file';
-            input.accept = 'image/*';
-            input.onchange = async (e) => {
-                const file = e.target.files[0];
-                if (!file) return;
+        function editProfile() {
+            const editBio = document.getElementById('editBio');
+            const editProfilePictureUrl = document.getElementById('editProfilePictureUrl');
+            
+            editBio.value = currentUser.profile.bio || '';
+            editProfilePictureUrl.value = currentUser.profile.profilePictureUrl || '';
+            
+            openModal('editProfileModal');
+        }
 
-                // Show uploading state
-                const avatarElement = document.querySelector('.profile-avatar');
-                if (avatarElement) {
-                    const uploadingDiv = document.createElement('div');
-                    uploadingDiv.className = 'uploading-overlay';
-                    uploadingDiv.innerHTML = 'Uploading...';
-                    avatarElement.appendChild(uploadingDiv);
-                }
+        async function handleEditProfile(e) {
+            e.preventDefault();
+            
+            const bio = document.getElementById('editBio').value.trim();
+            const profilePictureUrl = document.getElementById('editProfilePictureUrl').value.trim();
+            const errorDiv = document.getElementById('editProfileError');
+            const submitBtn = document.getElementById('editProfileSubmitBtn');
+            
+            errorDiv.innerHTML = '';
+            
+            if (bio && bio.length > 500) {
+                showError('editProfileError', 'Bio must be 500 characters or less');
+                return;
+            }
 
-                try {
-                    const result = await uploadProfilePicture(file, currentUser.username);
-                    if (result.success) {
-                        // Auto-save: Update user profile immediately
-                        const updatedUser = { 
-                            ...currentUser.profile, 
-                            profilePicture: result.url,
-                            updatedAt: new Date().toISOString()
-                        };
-                        
-                        // Save to database
-                        await blobAPI.set(`user_${currentUser.username}`, updatedUser);
-                        
-                        // Update local state
-                        currentUser.profile = updatedUser;
-                        users[currentUser.username] = updatedUser;
-                        
-                        // Remove uploading overlay
-                        const uploadingOverlay = document.querySelector('.uploading-overlay');
-                        if (uploadingOverlay) {
-                            uploadingOverlay.remove();
-                        }
-                        
-                        // Force immediate update of profile avatar
-                        const profileAvatar = document.querySelector('.profile-avatar');
-                        if (profileAvatar && result.url) {
-                            // Get the image data immediately
-                            const picData = await blobAPI.get(result.url);
-                            if (picData && picData.data) {
-                                profileAvatar.innerHTML = `
-                                    <img src="${picData.data}" 
-                                         alt="${currentUser.username}" 
-                                         style="width: 100%; height: 100%; object-fit: cover;">
-                                    <div class="avatar-upload-overlay">Change<br>Photo</div>
-                                `;
-                            }
-                        }
-                        
-                        // Update header and re-render profile if needed
-                        updateAuthSection();
-                        if (currentPage === 'profile' && currentProfileUser === currentUser.username) {
-                            // Wait a bit for the data to be saved, then re-render
-                            setTimeout(() => renderUserProfile(updatedUser), 500);
-                        }
-                        
-                        // Show success message
-                        const successDiv = document.createElement('div');
-                        successDiv.className = 'success-message';
-                        successDiv.textContent = 'Profile picture updated!';
-                        successDiv.style.position = 'fixed';
-                        successDiv.style.top = '80px';
-                        successDiv.style.right = '20px';
-                        successDiv.style.zIndex = '1000';
-                        document.body.appendChild(successDiv);
-                        
-                        setTimeout(() => {
-                            successDiv.remove();
-                        }, 3000);
-                        
-                    } else {
-                        // Remove uploading overlay on error
-                        const uploadingOverlay = document.querySelector('.uploading-overlay');
-                        if (uploadingOverlay) {
-                            uploadingOverlay.remove();
-                        }
-                        alert(result.error);
-                    }
-                } catch (error) {
-                    console.error('Error uploading profile picture:', error);
-                    
-                    // Remove uploading overlay on error
-                    const uploadingOverlay = document.querySelector('.uploading-overlay');
-                    if (uploadingOverlay) {
-                        uploadingOverlay.remove();
-                    }
-                    alert('Failed to upload profile picture. Please try again.');
+            if (profilePictureUrl) {
+                const validation = validateProfilePictureUrl(profilePictureUrl);
+                if (!validation.valid) {
+                    showError('editProfileError', validation.message);
+                    return;
                 }
-            };
-            input.click();
+            }
+            
+            try {
+                submitBtn.disabled = true;
+                submitBtn.textContent = 'Updating...';
+                
+                const updatedUser = { 
+                    ...currentUser.profile, 
+                    bio: bio || currentUser.profile.bio,
+                    profilePictureUrl: profilePictureUrl || null,
+                    updatedAt: new Date().toISOString()
+                };
+                
+                await blobAPI.set(`user_${currentUser.username}`, updatedUser);
+                
+                currentUser.profile = updatedUser;
+                users[currentUser.username] = updatedUser;
+                
+                closeModal('editProfileModal');
+                updateAuthSection();
+                
+                if (currentPage === 'profile' && currentProfileUser === currentUser.username) {
+                    renderUserProfile(updatedUser);
+                }
+                
+                showSuccessMessage('Profile updated successfully!');
+                
+            } catch (error) {
+                console.error('Error updating profile:', error);
+                showError('editProfileError', 'Failed to update profile. Please try again.');
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Update Profile';
+            }
         }
 
         // Admin functions
@@ -1794,13 +1695,46 @@
 
         async function loadAdminData() {
             try {
+                const [pendingKeys, userKeys, postKeys] = await Promise.all([
+                    blobAPI.list('pending_user_'),
+                    blobAPI.list('user_'),
+                    blobAPI.list('post_')
+                ]);
+                
                 // Load pending users
-                const pendingKeys = await blobAPI.list('pending_user_');
                 const pendingPromises = pendingKeys.map(key => blobAPI.get(key));
                 const loadedPending = await Promise.all(pendingPromises);
                 pendingUsers = loadedPending.filter(Boolean);
                 
-                console.log('Loaded pending users:', pendingUsers.length);
+                // Load all users
+                const userPromises = userKeys.map(key => blobAPI.get(key));
+                const loadedUsers = await Promise.all(userPromises);
+                allUsers = loadedUsers.filter(Boolean);
+                
+                // Calculate stats
+                const totalPosts = postKeys.length;
+                let publicPosts = 0;
+                let privatePosts = 0;
+                
+                const postPromises = postKeys.map(key => blobAPI.get(key));
+                const loadedPosts = await Promise.all(postPromises);
+                
+                loadedPosts.filter(Boolean).forEach(post => {
+                    if (post.isPrivate) {
+                        privatePosts++;
+                    } else {
+                        publicPosts++;
+                    }
+                });
+                
+                adminStats = {
+                    totalUsers: allUsers.length,
+                    pendingUsers: pendingUsers.length,
+                    totalPosts,
+                    publicPosts,
+                    privatePosts
+                };
+                
             } catch (error) {
                 console.error('Error loading admin data:', error);
             }
@@ -1808,10 +1742,6 @@
 
         function renderAdminPanel() {
             const adminContent = document.getElementById('adminContent');
-            
-            const totalUsers = Object.keys(users).length;
-            const totalPosts = posts.length;
-            const totalPending = pendingUsers.length;
             
             adminContent.innerHTML = `
                 <div class="admin-card">
@@ -1822,21 +1752,25 @@
                 <div class="admin-stats">
                     <div class="stat-card">
                         <h4>Total Users</h4>
-                        <div class="number">${totalUsers}</div>
-                    </div>
-                    <div class="stat-card">
-                        <h4>Total Posts</h4>
-                        <div class="number">${totalPosts}</div>
+                        <div class="number">${adminStats.totalUsers}</div>
                     </div>
                     <div class="stat-card">
                         <h4>Pending Approval</h4>
-                        <div class="number">${totalPending}</div>
+                        <div class="number">${adminStats.pendingUsers}</div>
+                    </div>
+                    <div class="stat-card">
+                        <h4>Total Posts</h4>
+                        <div class="number">${adminStats.totalPosts}</div>
+                    </div>
+                    <div class="stat-card">
+                        <h4>Public Posts</h4>
+                        <div class="number">${adminStats.publicPosts}</div>
                     </div>
                 </div>
 
                 <div class="admin-section">
                     <h3>📋 Pending User Approvals</h3>
-                    ${totalPending === 0 ? 
+                    ${pendingUsers.length === 0 ? 
                         '<p style="color: #9ca3af;">No pending users at this time.</p>' :
                         pendingUsers.map(user => `
                             <div class="pending-user">
@@ -1845,6 +1779,7 @@
                                     <div class="user-meta">
                                         <p><strong>Bio:</strong> ${escapeHtml(user.bio || 'No bio provided')}</p>
                                         <p><strong>Registered:</strong> ${formatDate(user.createdAt)}</p>
+                                        ${user.profilePictureUrl ? `<p><strong>Profile Picture:</strong> <a href="${user.profilePictureUrl}" target="_blank">View</a></p>` : ''}
                                     </div>
                                 </div>
                                 <div class="admin-actions">
@@ -1861,18 +1796,32 @@
                 </div>
 
                 <div class="admin-section">
-                    <h3>👥 Active Users</h3>
-                    ${Object.values(users).map(user => `
-                        <div class="pending-user">
-                            <div class="user-info-admin">
-                                <h4>@${escapeHtml(user.username)} ${user.isAdmin ? '<span style="color: #fbbf24;">👑 Admin</span>' : ''}</h4>
-                                <div class="user-meta">
-                                    <p><strong>Bio:</strong> ${escapeHtml(user.bio || 'No bio')}</p>
-                                    <p><strong>Joined:</strong> ${formatDate(user.createdAt)} | <strong>Posts:</strong> ${posts.filter(p => p.author === user.username).length}</p>
+                    <h3>👥 All Users</h3>
+                    ${allUsers.map(user => {
+                        const userPosts = posts.filter(p => p.author === user.username);
+                        const publicPostCount = userPosts.filter(p => !p.isPrivate).length;
+                        const privatePostCount = userPosts.filter(p => p.isPrivate).length;
+                        
+                        return `
+                            <div class="user-item">
+                                <div class="user-info-admin">
+                                    <h4>@${escapeHtml(user.username)} ${user.isAdmin ? '<span style="color: #fbbf24;">👑 Admin</span>' : ''}</h4>
+                                    <div class="user-meta">
+                                        <p><strong>Bio:</strong> ${escapeHtml(user.bio || 'No bio')}</p>
+                                        <p><strong>Joined:</strong> ${formatDate(user.createdAt)} | <strong>Posts:</strong> ${userPosts.length} (${publicPostCount} public, ${privatePostCount} private)</p>
+                                        ${user.profilePictureUrl ? `<p><strong>Profile Picture:</strong> <a href="${user.profilePictureUrl}" target="_blank">View</a></p>` : ''}
+                                    </div>
                                 </div>
+                                ${!user.isAdmin ? `
+                                    <div class="admin-actions">
+                                        <button class="btn btn-small btn-delete" onclick="deleteUser('${user.username}', ${userPosts.length})">
+                                            🗑 Delete User
+                                        </button>
+                                    </div>
+                                ` : ''}
                             </div>
-                        </div>
-                    `).join('')}
+                        `;
+                    }).join('')}
                 </div>
             `;
         }
@@ -1885,7 +1834,6 @@
                     return;
                 }
 
-                // Move from pending to approved
                 const approvedUser = {
                     ...pendingUser,
                     status: 'approved',
@@ -1893,19 +1841,16 @@
                     approvedBy: currentUser.username
                 };
 
-                // Save as regular user
                 await blobAPI.set(`user_${username}`, approvedUser);
                 users[username] = approvedUser;
+                allUsers.push(approvedUser);
 
-                // Remove from pending
                 await blobAPI.delete(`pending_user_${username}`);
                 pendingUsers = pendingUsers.filter(u => u.username !== username);
 
-                // Re-render admin panel
                 renderAdminPanel();
                 
-                // Show success message
-                alert(`✅ User @${username} has been approved and can now log in.`);
+                showSuccessMessage(`✅ User @${username} has been approved and can now log in.`);
             } catch (error) {
                 console.error('Error approving user:', error);
                 alert('Failed to approve user. Please try again.');
@@ -1918,17 +1863,55 @@
             }
 
             try {
-                // Remove from pending users
                 await blobAPI.delete(`pending_user_${username}`);
                 pendingUsers = pendingUsers.filter(u => u.username !== username);
 
-                // Re-render admin panel
                 renderAdminPanel();
                 
-                alert(`❌ User @${username} has been rejected.`);
+                showSuccessMessage(`❌ User @${username} has been rejected.`);
             } catch (error) {
                 console.error('Error rejecting user:', error);
                 alert('Failed to reject user. Please try again.');
+            }
+        }
+
+        async function deleteUser(username, postCount) {
+            if (!confirm(`Are you sure you want to delete user @${username} and all ${postCount} of their posts? This cannot be undone.`)) {
+                return;
+            }
+
+            try {
+                // Delete all posts by this user
+                const postKeys = await blobAPI.list('post_');
+                let deletedPosts = 0;
+
+                for (const key of postKeys) {
+                    try {
+                        const post = await blobAPI.get(key);
+                        if (post && post.author === username) {
+                            await blobAPI.delete(key);
+                            deletedPosts++;
+                        }
+                    } catch (error) {
+                        console.error(`Error deleting post ${key}:`, error);
+                    }
+                }
+
+                // Delete user account
+                await blobAPI.delete(`user_${username}`);
+                
+                // Remove from local arrays
+                allUsers = allUsers.filter(u => u.username !== username);
+                delete users[username];
+                posts = posts.filter(p => p.author !== username);
+
+                renderAdminPanel();
+                
+                showSuccessMessage(`🗑 User @${username} and ${deletedPosts} posts have been deleted.`);
+                
+            } catch (error) {
+                console.error('Error deleting user:', error);
+                alert('Failed to delete user. Please try again.');
             }
         }
 
@@ -2000,7 +1983,7 @@
                         ${post.isPrivate ? '<span class="private-badge">Private</span>' : ''}
                     </div>
                     <h3 class="post-title">${escapeHtml(post.title)}</h3>
-                    <div class="post-content markdown-content">${renderMarkdown(post.content)}</div>
+                    <div class="post-content markdown-content">${renderMarkdown(post.content || '')}</div>
                     <div class="post-actions">
                         <button class="action-btn" onclick="toggleReplyForm('${post.id}')">
                             💬 Reply (${post.replies ? post.replies.length : 0})
@@ -2036,7 +2019,6 @@
                 </div>
             `).join('');
 
-            // Add pagination controls
             const paginationHTML = `
                 <div class="pagination-controls" style="text-align: center; padding: 20px; margin-top: 20px;">
                     ${hasMorePosts ? `
@@ -2066,8 +2048,8 @@
             const toggleBtn = document.getElementById('authToggleBtn');
             const submitBtn = document.getElementById('authSubmitBtn');
             const form = document.getElementById('authForm');
+            const profilePictureGroup = document.getElementById('profilePictureGroup');
             
-            // Clear any previous errors
             document.getElementById('authError').innerHTML = '';
             
             if (mode === 'signup') {
@@ -2076,12 +2058,14 @@
                 toggleBtn.textContent = 'Sign In';
                 submitBtn.textContent = 'Sign Up';
                 form.dataset.mode = 'signup';
+                profilePictureGroup.style.display = 'block';
             } else {
                 title.textContent = 'Sign In';
                 toggleText.textContent = "Don't have an account?";
                 toggleBtn.textContent = 'Sign Up';
                 submitBtn.textContent = 'Sign In';
                 form.dataset.mode = 'signin';
+                profilePictureGroup.style.display = 'none';
             }
             
             modal.style.display = 'block';
@@ -2100,14 +2084,12 @@
             const username = document.getElementById('username').value.trim();
             const password = document.getElementById('password').value;
             const bio = document.getElementById('bio').value.trim();
-            const profilePicture = document.getElementById('profilePicture').files[0];
+            const profilePictureUrl = document.getElementById('profilePictureUrl').value.trim();
             const errorDiv = document.getElementById('authError');
             const submitBtn = document.getElementById('authSubmitBtn');
 
-            // Clear previous errors
             errorDiv.innerHTML = '';
             
-            // Basic validation
             if (username.length < 3) {
                 showError('authError', 'Username must be at least 3 characters long');
                 return;
@@ -2118,64 +2100,56 @@
                 return;
             }
 
+            if (mode === 'signup' && profilePictureUrl) {
+                const validation = validateProfilePictureUrl(profilePictureUrl);
+                if (!validation.valid) {
+                    showError('authError', validation.message);
+                    return;
+                }
+            }
+
             try {
                 submitBtn.disabled = true;
                 submitBtn.textContent = 'Loading...';
 
                 if (mode === 'signup') {
-                    // Check if user already exists
                     const existingUser = await blobAPI.get(`user_${username}`);
-                    if (existingUser) {
-                        showError('authError', 'Username already exists!');
+                    const pendingUser = await blobAPI.get(`pending_user_${username}`);
+                    
+                    if (existingUser || pendingUser) {
+                        showError('authError', 'Username already exists or is pending approval!');
                         return;
                     }
                     
-                    // Handle profile picture upload
-                    let profilePictureUrl = null;
-                    if (profilePicture) {
-                        const result = await uploadProfilePicture(profilePicture, username);
-                        if (result.success) {
-                            profilePictureUrl = result.url;
-                        } else {
-                            showError('authError', result.error);
-                            return;
-                        }
-                    }
-                    
-                    // Create pending user (requires admin approval)
-                    const pendingUser = { 
+                    const newPendingUser = { 
                         username, 
                         password,
                         bio: bio || `Hello! I'm ${username}`,
-                        profilePicture: profilePictureUrl,
+                        profilePictureUrl: profilePictureUrl || null,
                         createdAt: new Date().toISOString(),
-                        postCount: 0,
-                        replyCount: 0,
                         status: 'pending',
                         isAdmin: false
                     };
                     
-                    await blobAPI.set(`pending_user_${username}`, pendingUser);
+                    await blobAPI.set(`pending_user_${username}`, newPendingUser);
                     
                     closeModal('authModal');
                     
-                    // Show approval pending message
                     document.getElementById('feed').innerHTML = `
                         <div class="approval-pending">
                             <h3>📋 Account Pending Approval</h3>
                             <p>Your account has been created and is waiting for admin approval.</p>
                             <p>You'll be able to log in once an administrator approves your account.</p>
                             <p><strong>Username:</strong> ${escapeHtml(username)}</p>
+                            <p>Please check back later or contact an admin if you have questions.</p>
                         </div>
                     `;
                     updateUI();
                     
                 } else {
-                    // Sign in - check if user exists and is approved
                     const user = await blobAPI.get(`user_${username}`);
                     
                     if (!user) {
-                        // Check if user is still pending
                         const pendingUser = await blobAPI.get(`pending_user_${username}`);
                         if (pendingUser) {
                             showError('authError', 'Your account is still pending admin approval.');
@@ -2214,11 +2188,11 @@
                 currentUser = null;
                 await blobAPI.delete('current_user');
                 currentFeed = 'public';
-                // Reset pagination state
                 currentPostPage = 1;
                 hasMorePosts = true;
                 posts = [];
                 updateUI();
+                showPage('feed');
             } catch (error) {
                 console.error('Logout error:', error);
             }
@@ -2238,7 +2212,6 @@
             const submitBtn = document.getElementById('composeSubmitBtn');
             const errorDiv = document.getElementById('composeError');
             
-            // Clear previous errors
             errorDiv.innerHTML = '';
             
             if (!title || !content) {
@@ -2265,7 +2238,6 @@
                 closeModal('composeModal');
                 document.getElementById('composeForm').reset();
                 
-                // Refresh the feed to show the new post
                 currentPostPage = 1;
                 hasMorePosts = true;
                 await loadPosts(1, false);
@@ -2289,40 +2261,11 @@
             document.getElementById('publicFeedBtn').classList.toggle('active', feedType === 'public');
             document.getElementById('privateFeedBtn').classList.toggle('active', feedType === 'private');
             
-            // Reset posts and reload
             posts = [];
             loadPosts(1, false).then(() => {
                 renderFeed();
                 loadVisibleProfilePictures();
             });
-        }
-
-        function editProfile() {
-            // Simple prompt-based editing for now
-            const newBio = prompt('Edit your bio:', currentUser.profile.bio);
-            if (newBio !== null && newBio !== currentUser.profile.bio) {
-                updateUserProfile({ bio: newBio });
-            }
-        }
-
-        async function updateUserProfile(updates) {
-            try {
-                const updatedUser = { ...currentUser.profile, ...updates };
-                await blobAPI.set(`user_${currentUser.username}`, updatedUser);
-                currentUser.profile = updatedUser;
-                users[currentUser.username] = updatedUser;
-                
-                // Re-render the current profile if we're on the profile page
-                if (currentPage === 'profile' && currentProfileUser === currentUser.username) {
-                    renderUserProfile(updatedUser);
-                }
-                
-                // Update auth section in case username display changed
-                updateAuthSection();
-            } catch (error) {
-                console.error('Error updating profile:', error);
-                alert('Failed to update profile. Please try again.');
-            }
         }
 
         function toggleReplyForm(postId) {
@@ -2402,6 +2345,21 @@
             document.getElementById(elementId).innerHTML = `<div class="error-message">${escapeHtml(message)}</div>`;
         }
 
+        function showSuccessMessage(message) {
+            const successDiv = document.createElement('div');
+            successDiv.className = 'success-message';
+            successDiv.textContent = message;
+            successDiv.style.position = 'fixed';
+            successDiv.style.top = '80px';
+            successDiv.style.right = '20px';
+            successDiv.style.zIndex = '1000';
+            document.body.appendChild(successDiv);
+            
+            setTimeout(() => {
+                successDiv.remove();
+            }, 3000);
+        }
+
         function formatTimestamp(timestamp) {
             const date = new Date(timestamp);
             const now = new Date();
@@ -2444,8 +2402,7 @@
                     console.error('Error auto-saving user:', error);
                 }
             }
-        }, 30000); // Save every 30 seconds
+        }, 30000);
     </script>
 </body>
 </html>
-    
