@@ -68,6 +68,8 @@ export default async (req, context) => {
         return await handlePosts(req, blogStore, headers, authResult.user);
       case 'posts/create':
         return await handleCreatePost(req, blogStore, headers, authResult.user);
+      case 'replies/create':
+        return await handleCreateReply(req, blogStore, headers, authResult.user);
       case 'profile':
         return await handleProfile(req, blogStore, headers, authResult.user);
       case 'profile/update':
@@ -584,7 +586,7 @@ async function validateAuth(req, store, blogStore) {
   return { valid: false, error: "Authentication required", status: 401 };
 }
 
-// Feed handlers with improved pagination
+// Feed handlers with improved pagination and REPLIES INCLUDED
 async function handlePublicFeed(req, blogStore, headers, user) {
   if (req.method !== 'GET') {
     return new Response(
@@ -596,6 +598,7 @@ async function handlePublicFeed(req, blogStore, headers, user) {
   try {
     const url = new URL(req.url);
     const { page, limit, skip } = getPaginationParams(url);
+    const includeReplies = url.searchParams.get('includeReplies') !== 'false'; // Default true
 
     // Get all post keys
     const { blobs } = await blogStore.list({ prefix: "post_" });
@@ -618,7 +621,21 @@ async function handlePublicFeed(req, blogStore, headers, user) {
       try {
         const post = await blogStore.get(blob.key, { type: "json" });
         // Only include public posts
-        return (post && !post.isPrivate) ? post : null;
+        if (post && !post.isPrivate) {
+          // Ensure replies array exists and add reply count
+          post.replies = post.replies || [];
+          post.replyCount = post.replies.length;
+          
+          // If includeReplies is false, don't send the full replies array
+          if (!includeReplies) {
+            const replyCount = post.replies.length;
+            delete post.replies;
+            post.replyCount = replyCount;
+          }
+          
+          return post;
+        }
+        return null;
       } catch (error) {
         console.error(`Error loading post ${blob.key}:`, error);
         return null;
@@ -641,7 +658,8 @@ async function handlePublicFeed(req, blogStore, headers, user) {
         feed: "public",
         posts: paginatedPosts,
         pagination: paginationMeta,
-        user: user.username
+        user: user.username,
+        includeReplies: includeReplies
       }),
       { status: 200, headers }
     );
@@ -666,6 +684,7 @@ async function handlePrivateFeed(req, blogStore, headers, user) {
   try {
     const url = new URL(req.url);
     const { page, limit, skip } = getPaginationParams(url);
+    const includeReplies = url.searchParams.get('includeReplies') !== 'false'; // Default true
 
     // Get all post keys
     const { blobs } = await blogStore.list({ prefix: "post_" });
@@ -688,7 +707,21 @@ async function handlePrivateFeed(req, blogStore, headers, user) {
       try {
         const post = await blogStore.get(blob.key, { type: "json" });
         // Only include user's private posts
-        return (post && post.isPrivate && post.author === user.username) ? post : null;
+        if (post && post.isPrivate && post.author === user.username) {
+          // Ensure replies array exists and add reply count
+          post.replies = post.replies || [];
+          post.replyCount = post.replies.length;
+          
+          // If includeReplies is false, don't send the full replies array
+          if (!includeReplies) {
+            const replyCount = post.replies.length;
+            delete post.replies;
+            post.replyCount = replyCount;
+          }
+          
+          return post;
+        }
+        return null;
       } catch (error) {
         console.error(`Error loading post ${blob.key}:`, error);
         return null;
@@ -711,7 +744,8 @@ async function handlePrivateFeed(req, blogStore, headers, user) {
         feed: "private",
         posts: paginatedPosts,
         pagination: paginationMeta,
-        user: user.username
+        user: user.username,
+        includeReplies: includeReplies
       }),
       { status: 200, headers }
     );
@@ -793,7 +827,77 @@ async function handlePosts(req, blogStore, headers, user) {
   );
 }
 
-// NEW: Dedicated create post handler with media support
+// NEW: Create reply/comment handler
+async function handleCreateReply(req, blogStore, headers, user) {
+  if (req.method !== 'POST') {
+    return new Response(
+      JSON.stringify({ error: "Method not allowed" }),
+      { status: 405, headers }
+    );
+  }
+
+  try {
+    const { postId, content } = await req.json();
+
+    if (!postId || !content) {
+      return new Response(
+        JSON.stringify({ error: "Post ID and content are required" }),
+        { status: 400, headers }
+      );
+    }
+
+    if (content.length > 2000) {
+      return new Response(
+        JSON.stringify({ error: "Reply content must be 2,000 characters or less" }),
+        { status: 400, headers }
+      );
+    }
+
+    // Get the original post
+    const post = await blogStore.get(postId, { type: "json" });
+    
+    if (!post) {
+      return new Response(
+        JSON.stringify({ error: "Post not found" }),
+        { status: 404, headers }
+      );
+    }
+
+    // Create the reply
+    const reply = {
+      id: `reply_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      content: content.trim(),
+      author: user.username,
+      timestamp: new Date().toISOString(),
+      postId: postId
+    };
+
+    // Add reply to post
+    post.replies = post.replies || [];
+    post.replies.push(reply);
+
+    // Update post in database
+    await blogStore.set(postId, JSON.stringify(post));
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        message: "Reply created successfully",
+        reply: reply,
+        postId: postId,
+        totalReplies: post.replies.length
+      }),
+      { status: 201, headers }
+    );
+
+  } catch (error) {
+    console.error("Create reply error:", error);
+    return new Response(
+      JSON.stringify({ error: "Failed to create reply" }),
+      { status: 500, headers }
+    );
+  }
+}
 async function handleCreatePost(req, blogStore, headers, user) {
   if (req.method !== 'POST') {
     return new Response(
@@ -1038,13 +1142,16 @@ async function handleDefault(req, headers) {
       "POST /api/media/detect": "Detect media type and generate embed HTML",
       
       // Feeds (requires auth) - Enhanced pagination
-      "GET /api/feeds/public": "Get public posts feed (supports ?page=N&limit=N)",
-      "GET /api/feeds/private": "Get user's private posts (supports ?page=N&limit=N)",
+      "GET /api/feeds/public": "Get public posts feed (supports ?page=N&limit=N&includeReplies=true/false)",
+      "GET /api/feeds/private": "Get user's private posts (supports ?page=N&limit=N&includeReplies=true/false)",
       
       // Posts (requires auth)
       "POST /api/posts/create": "Create new post (text or link)",
-      "GET /api/posts": "Get user's posts with pagination",
+      "GET /api/posts": "Get user's posts with pagination (supports ?includeReplies=true/false)",
       "DELETE /api/posts/{postId}": "Delete specific post (owner or admin only)",
+      
+      // Replies/Comments (requires auth) - NEW
+      "POST /api/replies/create": "Create reply to a post",
       
       // Profile (requires auth)
       "GET /api/profile": "Get user profile with stats",
@@ -1130,9 +1237,10 @@ async function handleDefault(req, headers) {
       "3. Use token": "Include 'Authorization: Bearer <token>' header",
       "4. Create text post": "POST /api/posts/create {title, content, type: 'text'}",
       "5. Create link post": "POST /api/posts/create {title, url, type: 'link', description?}",
-      "6. Delete post": "DELETE /api/posts/{postId} (requires ownership or admin)",
-      "7. Detect media": "POST /api/media/detect {url}",
-      "8. Access feeds": "GET /api/feeds/public?page=1&limit=10"
+      "6. Create reply": "POST /api/replies/create {postId, content}",
+      "7. Delete post": "DELETE /api/posts/{postId} (requires ownership or admin)",
+      "8. Detect media": "POST /api/media/detect {url}",
+      "9. Access feeds": "GET /api/feeds/public?page=1&limit=10&includeReplies=true"
     }
   };
 
