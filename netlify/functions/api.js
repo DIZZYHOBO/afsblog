@@ -44,6 +44,11 @@ export default async (req, context) => {
       return await handleLogout(req, store, headers);
     }
 
+    // NEW: Media detection endpoint for frontends
+    if (path === 'media/detect') {
+      return await handleMediaDetection(req, headers);
+    }
+
     // Validate authentication for protected endpoints
     const authResult = await validateAuth(req, store, blogStore);
     if (!authResult.valid) {
@@ -61,11 +66,17 @@ export default async (req, context) => {
         return await handlePrivateFeed(req, blogStore, headers, authResult.user);
       case 'posts':
         return await handlePosts(req, blogStore, headers, authResult.user);
+      case 'posts/create':
+        return await handleCreatePost(req, blogStore, headers, authResult.user);
       case 'profile':
         return await handleProfile(req, blogStore, headers, authResult.user);
       case 'profile/update':
         return await handleProfileUpdate(req, blogStore, headers, authResult.user);
       default:
+        // Handle dynamic routes like /posts/{postId}
+        if (path.startsWith('posts/') && path !== 'posts/create') {
+          return await handlePosts(req, blogStore, headers, authResult.user);
+        }
         return await handleDefault(req, headers);
     }
 
@@ -77,6 +88,234 @@ export default async (req, context) => {
     );
   }
 };
+
+// NEW: Media detection helper for any frontend
+async function handleMediaDetection(req, headers) {
+  if (req.method !== 'POST') {
+    return new Response(
+      JSON.stringify({ error: "Method not allowed" }),
+      { status: 405, headers }
+    );
+  }
+
+  try {
+    const { url } = await req.json();
+    
+    if (!url) {
+      return new Response(
+        JSON.stringify({ error: "URL required" }),
+        { status: 400, headers }
+      );
+    }
+
+    const mediaInfo = detectMediaType(url);
+    const embedHtml = mediaInfo.embed ? createMediaEmbed(url, mediaInfo.type) : null;
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        url: url,
+        mediaType: mediaInfo.type,
+        canEmbed: mediaInfo.embed,
+        embedHtml: embedHtml,
+        metadata: mediaInfo
+      }),
+      { status: 200, headers }
+    );
+
+  } catch (error) {
+    console.error("Media detection error:", error);
+    return new Response(
+      JSON.stringify({ 
+        error: "Invalid URL or detection failed",
+        url: req.body?.url || null,
+        canEmbed: false 
+      }),
+      { status: 400, headers }
+    );
+  }
+}
+
+// NEW: Detect media type from URL (reusable for any frontend)
+function detectMediaType(url) {
+  try {
+    const urlObj = new URL(url);
+    const hostname = urlObj.hostname.toLowerCase();
+    const pathname = urlObj.pathname.toLowerCase();
+    
+    // YouTube
+    if (hostname.includes('youtube.com') || hostname.includes('youtu.be')) {
+      let videoId = '';
+      if (hostname.includes('youtu.be')) {
+        videoId = urlObj.pathname.substring(1);
+      } else {
+        videoId = urlObj.searchParams.get('v');
+      }
+      return { 
+        type: 'youtube', 
+        embed: true, 
+        videoId: videoId,
+        platform: 'YouTube',
+        title: `YouTube Video: ${videoId}`
+      };
+    }
+    
+    // Vimeo
+    if (hostname.includes('vimeo.com')) {
+      const videoId = pathname.split('/')[1];
+      return { 
+        type: 'vimeo', 
+        embed: true, 
+        videoId: videoId,
+        platform: 'Vimeo',
+        title: `Vimeo Video: ${videoId}`
+      };
+    }
+    
+    // Image extensions
+    const imageExts = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg'];
+    const imageExt = imageExts.find(ext => pathname.endsWith(ext));
+    if (imageExt) {
+      return { 
+        type: 'image', 
+        embed: true, 
+        format: imageExt.substring(1),
+        platform: 'Direct Image',
+        title: `Image (${imageExt.substring(1).toUpperCase()})`
+      };
+    }
+    
+    // Video extensions
+    const videoExts = ['.mp4', '.webm', '.ogg', '.mov', '.avi'];
+    const videoExt = videoExts.find(ext => pathname.endsWith(ext));
+    if (videoExt) {
+      return { 
+        type: 'video', 
+        embed: true, 
+        format: videoExt.substring(1),
+        platform: 'Direct Video',
+        title: `Video (${videoExt.substring(1).toUpperCase()})`
+      };
+    }
+    
+    // Audio extensions
+    const audioExts = ['.mp3', '.wav', '.ogg', '.m4a', '.flac'];
+    const audioExt = audioExts.find(ext => pathname.endsWith(ext));
+    if (audioExt) {
+      return { 
+        type: 'audio', 
+        embed: true, 
+        format: audioExt.substring(1),
+        platform: 'Direct Audio',
+        title: `Audio (${audioExt.substring(1).toUpperCase()})`
+      };
+    }
+    
+    // Twitter/X
+    if (hostname.includes('twitter.com') || hostname.includes('x.com')) {
+      return { 
+        type: 'twitter', 
+        embed: false, // Could be implemented with Twitter API
+        platform: 'Twitter/X',
+        title: 'Twitter/X Post'
+      };
+    }
+
+    // Instagram
+    if (hostname.includes('instagram.com')) {
+      return { 
+        type: 'instagram', 
+        embed: false,
+        platform: 'Instagram',
+        title: 'Instagram Post'
+      };
+    }
+
+    // TikTok
+    if (hostname.includes('tiktok.com')) {
+      return { 
+        type: 'tiktok', 
+        embed: false,
+        platform: 'TikTok',
+        title: 'TikTok Video'
+      };
+    }
+    
+    // Default web link
+    return { 
+      type: 'link', 
+      embed: false, 
+      platform: hostname,
+      title: `Link to ${hostname}`
+    };
+    
+  } catch (error) {
+    return { 
+      type: 'invalid', 
+      embed: false, 
+      error: 'Invalid URL format',
+      title: 'Invalid URL'
+    };
+  }
+}
+
+// NEW: Create media embed HTML (for any frontend)
+function createMediaEmbed(url, mediaType) {
+  if (!url) return null;
+  
+  try {
+    const urlObj = new URL(url);
+    const hostname = urlObj.hostname.toLowerCase();
+    const pathname = urlObj.pathname.toLowerCase();
+    
+    // YouTube
+    if (hostname.includes('youtube.com') || hostname.includes('youtu.be')) {
+      let videoId = '';
+      if (hostname.includes('youtu.be')) {
+        videoId = urlObj.pathname.substring(1);
+      } else {
+        videoId = urlObj.searchParams.get('v');
+      }
+      
+      if (videoId) {
+        return `<iframe src="https://www.youtube.com/embed/${videoId}" width="100%" height="315" frameborder="0" allowfullscreen loading="lazy"></iframe>`;
+      }
+    }
+    
+    // Vimeo
+    if (hostname.includes('vimeo.com')) {
+      const videoId = pathname.split('/')[1];
+      if (videoId) {
+        return `<iframe src="https://player.vimeo.com/video/${videoId}" width="100%" height="315" frameborder="0" allowfullscreen loading="lazy"></iframe>`;
+      }
+    }
+    
+    // Direct images
+    const imageExts = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp'];
+    if (imageExts.some(ext => pathname.endsWith(ext))) {
+      return `<img src="${url}" alt="Linked image" style="max-width: 100%; height: auto; border-radius: 4px; margin: 8px 0;" loading="lazy" onerror="this.style.display='none';">`;
+    }
+    
+    // Direct videos
+    const videoExts = ['.mp4', '.webm', '.ogg'];
+    if (videoExts.some(ext => pathname.endsWith(ext))) {
+      const format = pathname.split('.').pop();
+      return `<video controls style="width: 100%; height: auto;" loading="lazy"><source src="${url}" type="video/${format}">Your browser does not support the video tag.</video>`;
+    }
+    
+    // Direct audio
+    const audioExts = ['.mp3', '.wav', '.ogg', '.m4a'];
+    if (audioExts.some(ext => pathname.endsWith(ext))) {
+      const format = pathname.split('.').pop();
+      return `<audio controls style="width: 100%; margin: 8px 0;"><source src="${url}" type="audio/${format}">Your browser does not support the audio element.</audio>`;
+    }
+    
+    return null; // No embed available
+    
+  } catch (error) {
+    return null;
+  }
+}
 
 // Helper function to get pagination parameters with validation
 function getPaginationParams(url) {
@@ -108,7 +347,7 @@ function createPaginationMeta(totalItems, page, limit) {
   };
 }
 
-// Authentication handlers
+// Authentication handlers (unchanged)
 async function handleLogin(req, blogStore, headers) {
   if (req.method !== 'POST') {
     return new Response(
@@ -486,65 +725,8 @@ async function handlePrivateFeed(req, blogStore, headers, user) {
   }
 }
 
-// Post handlers
+// UPDATED: Post handlers with media support
 async function handlePosts(req, blogStore, headers, user) {
-  if (req.method === 'POST') {
-    // Create new post
-    try {
-      const { title, content, isPrivate = false } = await req.json();
-
-      if (!title || !content) {
-        return new Response(
-          JSON.stringify({ error: "Title and content required" }),
-          { status: 400, headers }
-        );
-      }
-
-      if (title.length > 200) {
-        return new Response(
-          JSON.stringify({ error: "Title must be 200 characters or less" }),
-          { status: 400, headers }
-        );
-      }
-
-      if (content.length > 10000) {
-        return new Response(
-          JSON.stringify({ error: "Content must be 10,000 characters or less" }),
-          { status: 400, headers }
-        );
-      }
-
-      const post = {
-        id: `post_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        title: title.trim(),
-        content: content.trim(),
-        author: user.username,
-        timestamp: new Date().toISOString(),
-        isPrivate: Boolean(isPrivate),
-        replies: [],
-        createdViaAPI: true
-      };
-
-      await blogStore.set(post.id, JSON.stringify(post));
-
-      return new Response(
-        JSON.stringify({
-          success: true,
-          message: "Post created successfully",
-          post: post
-        }),
-        { status: 201, headers }
-      );
-
-    } catch (error) {
-      console.error("Create post error:", error);
-      return new Response(
-        JSON.stringify({ error: "Failed to create post" }),
-        { status: 500, headers }
-      );
-    }
-  }
-
   if (req.method === 'GET') {
     // Get user's posts with pagination
     try {
@@ -611,7 +793,125 @@ async function handlePosts(req, blogStore, headers, user) {
   );
 }
 
-// Profile handlers
+// NEW: Dedicated create post handler with media support
+async function handleCreatePost(req, blogStore, headers, user) {
+  if (req.method !== 'POST') {
+    return new Response(
+      JSON.stringify({ error: "Method not allowed" }),
+      { status: 405, headers }
+    );
+  }
+
+  try {
+    const { title, content, type = "text", url, description, isPrivate = false } = await req.json();
+
+    if (!title) {
+      return new Response(
+        JSON.stringify({ error: "Title is required" }),
+        { status: 400, headers }
+      );
+    }
+
+    if (title.length > 200) {
+      return new Response(
+        JSON.stringify({ error: "Title must be 200 characters or less" }),
+        { status: 400, headers }
+      );
+    }
+
+    // Validate based on post type
+    if (type === "text") {
+      if (!content) {
+        return new Response(
+          JSON.stringify({ error: "Content is required for text posts" }),
+          { status: 400, headers }
+        );
+      }
+      if (content.length > 10000) {
+        return new Response(
+          JSON.stringify({ error: "Content must be 10,000 characters or less" }),
+          { status: 400, headers }
+        );
+      }
+    } else if (type === "link") {
+      if (!url) {
+        return new Response(
+          JSON.stringify({ error: "URL is required for link posts" }),
+          { status: 400, headers }
+        );
+      }
+      
+      // Validate URL format
+      try {
+        new URL(url);
+      } catch {
+        return new Response(
+          JSON.stringify({ error: "Invalid URL format" }),
+          { status: 400, headers }
+        );
+      }
+      
+      if (description && description.length > 2000) {
+        return new Response(
+          JSON.stringify({ error: "Description must be 2,000 characters or less" }),
+          { status: 400, headers }
+        );
+      }
+    } else {
+      return new Response(
+        JSON.stringify({ error: "Post type must be 'text' or 'link'" }),
+        { status: 400, headers }
+      );
+    }
+
+    const post = {
+      id: `post_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      type: type,
+      title: title.trim(),
+      author: user.username,
+      timestamp: new Date().toISOString(),
+      isPrivate: Boolean(isPrivate),
+      replies: [],
+      createdViaAPI: true
+    };
+
+    // Add type-specific fields
+    if (type === "text") {
+      post.content = content.trim();
+    } else if (type === "link") {
+      post.url = url.trim();
+      if (description) {
+        post.description = description.trim();
+      }
+      
+      // Add media detection metadata
+      const mediaInfo = detectMediaType(url);
+      post.mediaType = mediaInfo.type;
+      post.canEmbed = mediaInfo.embed;
+      post.platform = mediaInfo.platform;
+    }
+
+    await blogStore.set(post.id, JSON.stringify(post));
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        message: "Post created successfully",
+        post: post
+      }),
+      { status: 201, headers }
+    );
+
+  } catch (error) {
+    console.error("Create post error:", error);
+    return new Response(
+      JSON.stringify({ error: "Failed to create post" }),
+      { status: 500, headers }
+    );
+  }
+}
+
+// Profile handlers (unchanged)
 async function handleProfile(req, blogStore, headers, user) {
   if (req.method !== 'GET') {
     return new Response(
@@ -640,6 +940,8 @@ async function handleProfile(req, blogStore, headers, user) {
 
     const publicPosts = userPosts.filter(post => !post.isPrivate);
     const privatePosts = userPosts.filter(post => post.isPrivate);
+    const textPosts = userPosts.filter(post => (post.type || 'text') === 'text');
+    const linkPosts = userPosts.filter(post => post.type === 'link');
 
     // Remove password from user data
     const { password: _, ...profileData } = user;
@@ -650,6 +952,8 @@ async function handleProfile(req, blogStore, headers, user) {
         totalPosts: userPosts.length,
         publicPosts: publicPosts.length,
         privatePosts: privatePosts.length,
+        textPosts: textPosts.length,
+        linkPosts: linkPosts.length,
         totalReplies: totalReplies
       },
       recentPosts: sortPostsByTimestamp(userPosts).slice(0, 5)
@@ -720,27 +1024,75 @@ async function handleProfileUpdate(req, blogStore, headers, user) {
   }
 }
 
-// Default documentation endpoint
+// UPDATED: Default documentation endpoint
 async function handleDefault(req, headers) {
   const docs = {
-    message: "Blog API v2.2 - Enhanced Pagination & Error Handling",
+    message: "Blog API v3.0 - Media Posts Support",
     endpoints: {
       // Authentication
       "POST /api/auth/login": "Login with username/password",
       "POST /api/auth/register": "Register new account",
       "POST /api/auth/logout": "Logout (invalidate session)",
       
+      // Media Detection (NEW)
+      "POST /api/media/detect": "Detect media type and generate embed HTML",
+      
       // Feeds (requires auth) - Enhanced pagination
       "GET /api/feeds/public": "Get public posts feed (supports ?page=N&limit=N)",
       "GET /api/feeds/private": "Get user's private posts (supports ?page=N&limit=N)",
       
       // Posts (requires auth)
-      "POST /api/posts": "Create new post",
+      "POST /api/posts/create": "Create new post (text or link)",
       "GET /api/posts": "Get user's posts with pagination",
+      "DELETE /api/posts/{postId}": "Delete specific post (owner or admin only)",
       
       // Profile (requires auth)
       "GET /api/profile": "Get user profile with stats",
       "PUT /api/profile/update": "Update user profile"
+    },
+    newFeatures: {
+      mediaSupport: {
+        description: "Full support for text and link posts with media embedding",
+        supportedTypes: ["youtube", "vimeo", "image", "video", "audio", "twitter", "instagram", "tiktok", "link"],
+        embeddableTypes: ["youtube", "vimeo", "image", "video", "audio"]
+      },
+      mediaDetectionAPI: {
+        endpoint: "POST /api/media/detect",
+        input: { url: "https://youtube.com/watch?v=dQw4w9WgXcQ" },
+        output: {
+          success: true,
+          url: "https://youtube.com/watch?v=dQw4w9WgXcQ",
+          mediaType: "youtube",
+          canEmbed: true,
+          embedHtml: "<iframe src='...' />",
+          metadata: {
+            type: "youtube",
+            embed: true,
+            videoId: "dQw4w9WgXcQ",
+            platform: "YouTube",
+            title: "YouTube Video: dQw4w9WgXcQ"
+          }
+        }
+      },
+      postTypes: {
+        text: {
+          required: ["title", "content"],
+          optional: ["isPrivate"],
+          validation: {
+            title: "Max 200 characters",
+            content: "Max 10,000 characters"
+          }
+        },
+        link: {
+          required: ["title", "url"],
+          optional: ["description", "isPrivate"],
+          validation: {
+            title: "Max 200 characters",
+            url: "Valid URL format required",
+            description: "Max 2,000 characters"
+          }
+        }
+      }
     },
     pagination: {
       parameters: {
@@ -758,13 +1110,7 @@ async function handleDefault(req, headers) {
           nextPage: "Next page number (null if last page)",
           prevPage: "Previous page number (null if first page)"
         }
-      },
-      improvements: [
-        "Better handling of empty result sets",
-        "Consistent sorting by timestamp (newest first)",
-        "Proper validation of pagination parameters",
-        "Enhanced error handling for invalid requests"
-      ]
+      }
     },
     authentication: {
       session: {
@@ -778,22 +1124,15 @@ async function handleDefault(req, headers) {
         header: "X-API-Key: <your-api-key>"
       }
     },
-    validation: {
-      posts: {
-        title: "Max 200 characters",
-        content: "Max 10,000 characters"
-      },
-      profile: {
-        bio: "Max 500 characters"
-      },
-      username: "Min 3 characters",
-      password: "Min 6 characters"
-    },
     usage: {
       "1. Register": "POST /api/auth/register {username, password, bio?}",
       "2. Login": "POST /api/auth/login {username, password}",
       "3. Use token": "Include 'Authorization: Bearer <token>' header",
-      "4. Access feeds": "GET /api/feeds/public?page=1&limit=10"
+      "4. Create text post": "POST /api/posts/create {title, content, type: 'text'}",
+      "5. Create link post": "POST /api/posts/create {title, url, type: 'link', description?}",
+      "6. Delete post": "DELETE /api/posts/{postId} (requires ownership or admin)",
+      "7. Detect media": "POST /api/media/detect {url}",
+      "8. Access feeds": "GET /api/feeds/public?page=1&limit=10"
     }
   };
 
