@@ -49,6 +49,18 @@ export default async (req, context) => {
       return await handleMediaDetection(req, headers);
     }
 
+    // NEW: Search endpoint (requires authentication)
+    if (path === 'search/posts') {
+      const authResult = await validateAuth(req, store, blogStore);
+      if (!authResult.valid) {
+        return new Response(
+          JSON.stringify({ error: authResult.error }),
+          { status: authResult.status, headers }
+        );
+      }
+      return await handleSearchPosts(req, blogStore, headers, authResult.user);
+    }
+
     // Validate authentication for protected endpoints
     const authResult = await validateAuth(req, store, blogStore);
     if (!authResult.valid) {
@@ -95,7 +107,7 @@ export default async (req, context) => {
         return await handleCreatePost(req, blogStore, headers, authResult.user);
       case 'replies/create':
         return await handleCreateReply(req, blogStore, headers, authResult.user);
-      // NEW: Like endpoints
+      // Like endpoints
       case 'likes/toggle':
         return await handleToggleLike(req, blogStore, headers, authResult.user);
       case 'profile':
@@ -122,7 +134,247 @@ export default async (req, context) => {
   }
 };
 
-// NEW LIKE FUNCTIONALITY
+// NEW SEARCH FUNCTIONALITY
+
+async function handleSearchPosts(req, blogStore, headers, user) {
+  if (req.method !== 'GET') {
+    return new Response(
+      JSON.stringify({ error: "Method not allowed" }),
+      { status: 405, headers }
+    );
+  }
+
+  try {
+    const url = new URL(req.url);
+    const searchTerm = url.searchParams.get('q');
+    const { page, limit, skip } = getPaginationParams(url);
+    const includeReplies = url.searchParams.get('includeReplies') !== 'false';
+
+    if (!searchTerm) {
+      return new Response(
+        JSON.stringify({ error: "Search term 'q' parameter is required" }),
+        { status: 400, headers }
+      );
+    }
+
+    if (searchTerm.length < 2) {
+      return new Response(
+        JSON.stringify({ error: "Search term must be at least 2 characters long" }),
+        { status: 400, headers }
+      );
+    }
+
+    // Get all posts
+    const { blobs } = await blogStore.list({ prefix: "post_" });
+    
+    if (blobs.length === 0) {
+      return new Response(
+        JSON.stringify({
+          success: true,
+          searchTerm: searchTerm,
+          posts: [],
+          pagination: createPaginationMeta(0, page, limit),
+          user: user.username,
+          searchStats: {
+            totalResults: 0,
+            searchTime: 0
+          }
+        }),
+        { status: 200, headers }
+      );
+    }
+
+    const searchStartTime = Date.now();
+    const normalizedSearchTerm = searchTerm.toLowerCase().trim();
+
+    // Load and search through posts
+    const searchResults = [];
+    const postPromises = blobs.map(async (blob) => {
+      try {
+        const post = await blogStore.get(blob.key, { type: "json" });
+        
+        // Only search public posts
+        if (!post || post.isPrivate) {
+          return null;
+        }
+
+        const searchResult = searchInPost(post, normalizedSearchTerm, user.username);
+        if (searchResult.matches) {
+          return searchResult;
+        }
+        
+        return null;
+      } catch (error) {
+        console.error(`Error loading post ${blob.key}:`, error);
+        return null;
+      }
+    });
+    
+    const loadedResults = await Promise.all(postPromises);
+    const validResults = loadedResults.filter(Boolean);
+    
+    // Sort by relevance score (descending) then by timestamp (newest first)
+    const sortedResults = validResults.sort((a, b) => {
+      if (b.relevanceScore !== a.relevanceScore) {
+        return b.relevanceScore - a.relevanceScore;
+      }
+      return new Date(b.post.timestamp) - new Date(a.post.timestamp);
+    });
+
+    // Apply pagination
+    const paginatedResults = sortedResults.slice(skip, skip + limit);
+    
+    // Prepare posts for response
+    const resultPosts = paginatedResults.map(result => {
+      const post = result.post;
+      
+      // Add like information
+      post.likes = post.likes || [];
+      post.likesCount = post.likes.length;
+      post.userLiked = post.likes.some(like => like.username === user.username);
+      
+      // Handle replies
+      post.replies = post.replies || [];
+      post.replyCount = post.replies.length;
+      
+      if (!includeReplies) {
+        const replyCount = post.replies.length;
+        delete post.replies;
+        post.replyCount = replyCount;
+      }
+      
+      // Add search metadata
+      post.searchMetadata = {
+        relevanceScore: result.relevanceScore,
+        matchedFields: result.matchedFields,
+        totalMatches: result.totalMatches
+      };
+      
+      return post;
+    });
+
+    const searchTime = Date.now() - searchStartTime;
+    const paginationMeta = createPaginationMeta(sortedResults.length, page, limit);
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        searchTerm: searchTerm,
+        posts: resultPosts,
+        pagination: paginationMeta,
+        user: user.username,
+        includeReplies: includeReplies,
+        searchStats: {
+          totalResults: sortedResults.length,
+          searchTime: searchTime,
+          page: page,
+          resultsOnPage: resultPosts.length
+        }
+      }),
+      { status: 200, headers }
+    );
+
+  } catch (error) {
+    console.error("Search posts error:", error);
+    return new Response(
+      JSON.stringify({ error: "Failed to search posts" }),
+      { status: 500, headers }
+    );
+  }
+}
+
+function searchInPost(post, searchTerm, currentUsername) {
+  const result = {
+    post: post,
+    matches: false,
+    relevanceScore: 0,
+    matchedFields: [],
+    totalMatches: 0
+  };
+
+  let titleMatches = 0;
+  let contentMatches = 0;
+  let replyMatches = 0;
+
+  // Search in title
+  if (post.title) {
+    const titleText = post.title.toLowerCase();
+    titleMatches = countMatches(titleText, searchTerm);
+    if (titleMatches > 0) {
+      result.matchedFields.push('title');
+      result.relevanceScore += titleMatches * 3; // Title matches are weighted higher
+    }
+  }
+
+  // Search in content (for text posts)
+  if (post.content) {
+    const contentText = post.content.toLowerCase();
+    contentMatches = countMatches(contentText, searchTerm);
+    if (contentMatches > 0) {
+      result.matchedFields.push('content');
+      result.relevanceScore += contentMatches * 2; // Content matches are weighted medium
+    }
+  }
+
+  // Search in description (for link posts)
+  if (post.description) {
+    const descriptionText = post.description.toLowerCase();
+    const descriptionMatches = countMatches(descriptionText, searchTerm);
+    if (descriptionMatches > 0) {
+      result.matchedFields.push('description');
+      result.relevanceScore += descriptionMatches * 2; // Description matches are weighted medium
+    }
+  }
+
+  // Search in replies/comments
+  if (post.replies && Array.isArray(post.replies)) {
+    for (const reply of post.replies) {
+      if (reply.content) {
+        const replyText = reply.content.toLowerCase();
+        const replyMatchCount = countMatches(replyText, searchTerm);
+        if (replyMatchCount > 0) {
+          replyMatches += replyMatchCount;
+        }
+      }
+    }
+    if (replyMatches > 0) {
+      result.matchedFields.push('replies');
+      result.relevanceScore += replyMatches * 1; // Reply matches are weighted lower
+    }
+  }
+
+  result.totalMatches = titleMatches + contentMatches + replyMatches;
+  result.matches = result.totalMatches > 0;
+
+  return result;
+}
+
+function countMatches(text, searchTerm) {
+  if (!text || !searchTerm) return 0;
+  
+  // Count exact phrase matches (higher priority)
+  const exactMatches = (text.match(new RegExp(escapeRegExp(searchTerm), 'gi')) || []).length;
+  
+  // Count individual word matches if search term has multiple words
+  const words = searchTerm.split(/\s+/).filter(word => word.length > 1);
+  let wordMatches = 0;
+  
+  if (words.length > 1) {
+    for (const word of words) {
+      const wordMatchCount = (text.match(new RegExp(`\\b${escapeRegExp(word)}\\b`, 'gi')) || []).length;
+      wordMatches += wordMatchCount;
+    }
+  }
+  
+  // Return exact matches with higher weight + individual word matches
+  return exactMatches * 2 + wordMatches;
+}
+
+function escapeRegExp(string) {
+  return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+// LIKE FUNCTIONALITY
 
 // Toggle like/unlike on a post
 async function handleToggleLike(req, blogStore, headers, user) {
@@ -898,7 +1150,7 @@ async function handleAdminStats(req, blogStore, headers, admin) {
 // UPDATED DOCUMENTATION
 async function handleDefault(req, headers) {
   const docs = {
-    message: "Blog API v4.1 - Now with Post Likes! ❤️",
+    message: "Blog API v4.2 - Now with Post Search! 🔍",
     endpoints: {
       // Authentication
       "POST /api/auth/login": "Login with username/password",
@@ -911,78 +1163,81 @@ async function handleDefault(req, headers) {
       "POST /api/admin/approve-user": "Approve a pending user",
       "POST /api/admin/reject-user": "Reject a pending user",
       "POST /api/admin/delete-user": "Delete user and all their posts",
-      "GET /api/admin/stats": "Get admin dashboard statistics (now includes like stats!)",
+      "GET /api/admin/stats": "Get admin dashboard statistics (includes like stats)",
       
       // Media Detection
       "POST /api/media/detect": "Detect media type and generate embed HTML",
       
-      // Feeds (requires auth) - now include like info
+      // NEW: Search endpoint
+      "GET /api/search/posts": "Search public posts (query params: q, page, limit, includeReplies)",
+      
+      // Feeds (requires auth) - include like info
       "GET /api/feeds/public": "Get public posts feed with likes",
       "GET /api/feeds/private": "Get user's private posts with likes",
       
-      // Posts (requires auth) - now include like info
+      // Posts (requires auth) - include like info
       "POST /api/posts/create": "Create new post (text or link)",
       "GET /api/posts": "Get user's posts with pagination and likes",
       "GET /api/posts/{postId}": "Get specific post by ID with likes",
       "DELETE /api/posts/{postId}": "Delete specific post",
       
-      // NEW: Like endpoints
+      // Like endpoints
       "POST /api/likes/toggle": "Like or unlike a post (body: {postId})",
       "GET /api/posts/{postId}/likes": "Get all likes for a specific post",
       
       // Replies/Comments (requires auth)
       "POST /api/replies/create": "Create reply to a post",
       
-      // Profile (requires auth) - now includes like stats
+      // Profile (requires auth) - includes like stats
       "GET /api/profile": "Get user profile with stats (includes like statistics)",
       "PUT /api/profile/update": "Update user profile (bio, profilePictureUrl)"
     },
     newFeatures: {
-      postLikes: {
-        description: "Users can now like and unlike posts! ❤️",
+      postSearch: {
+        description: "Comprehensive search through public posts! 🔍",
+        endpoint: "GET /api/search/posts",
+        queryParameters: {
+          q: "Search term (required, min 2 characters)",
+          page: "Page number for pagination (default: 1)",
+          limit: "Results per page (default: 10, max: 50)",
+          includeReplies: "Include replies in response (default: true)"
+        },
+        searchScope: [
+          "Post titles (weighted 3x)",
+          "Post content/description (weighted 2x)", 
+          "Replies/comments (weighted 1x)"
+        ],
         features: [
-          "Toggle like/unlike with POST /api/likes/toggle",
-          "All posts now include likesCount and userLiked fields", 
-          "View all likes for a post with GET /api/posts/{postId}/likes",
-          "Like statistics in user profiles and admin dashboard",
-          "Likes are stored with username and timestamp"
+          "Exact phrase matching with higher priority",
+          "Individual word matching for multi-word searches",
+          "Relevance scoring and sorting",
+          "Search metadata in results (relevanceScore, matchedFields)",
+          "Pagination support",
+          "Search statistics (totalResults, searchTime)",
+          "Only searches public posts (respects privacy)"
         ],
         responseFields: {
-          likesCount: "Number of likes on the post",
-          userLiked: "Boolean indicating if current user liked the post", 
-          likes: "Array of like objects with username and timestamp"
+          searchTerm: "The search query used",
+          posts: "Array of matching posts with search metadata",
+          searchStats: "Statistics about the search (totalResults, searchTime)",
+          searchMetadata: "Per-post metadata (relevanceScore, matchedFields, totalMatches)"
         }
       },
-      adminApproval: {
-        description: "All new user registrations require admin approval",
-        workflow: "Register → Pending → Admin approves/rejects → Active user"
-      },
-      userManagement: {
-        description: "Complete user management for admins",
-        features: ["View all users", "Delete users", "Delete user's posts", "User statistics"]
-      },
-      urlProfilePictures: {
-        description: "Profile pictures now use URLs instead of file uploads",
-        validation: "Must be PNG or GIF files with valid HTTP/HTTPS URLs",
-        apiField: "profilePictureUrl"
+      postLikes: {
+        description: "Users can like and unlike posts! ❤️",
+        features: [
+          "Toggle like/unlike with POST /api/likes/toggle",
+          "All posts include likesCount and userLiked fields", 
+          "View all likes for a post with GET /api/posts/{postId}/likes",
+          "Like statistics in user profiles and admin dashboard"
+        ]
       }
     },
-    authentication: {
-      session: {
-        method: "Bearer token",
-        header: "Authorization: Bearer <session-token>",
-        obtain: "POST /api/auth/login",
-        duration: "7 days"
-      },
-      admin: {
-        note: "Admin endpoints require isAdmin: true in user profile"
-      }
-    },
-    likeSystem: {
-      howItWorks: "Users can like/unlike any post they can view (public posts + their own private posts)",
-      storage: "Likes are stored in the post object as an array of {username, timestamp} objects",
-      privacy: "Users can only see who liked a post, not who they follow/etc",
-      restrictions: "Users cannot like private posts of other users"
+    searchExamples: {
+      basicSearch: "GET /api/search/posts?q=javascript",
+      phraseSearch: "GET /api/search/posts?q=machine learning",
+      paginatedSearch: "GET /api/search/posts?q=tutorial&page=2&limit=5",
+      withoutReplies: "GET /api/search/posts?q=nodejs&includeReplies=false"
     }
   };
 
@@ -993,7 +1248,6 @@ async function handleDefault(req, headers) {
 }
 
 // Keep all existing utility functions and handlers...
-// (All the existing functions remain the same: validateProfilePictureUrl, handleRegister, handleLogin, handleLogout, validateAuth, etc.)
 
 // Utility function to validate profile picture URL
 function validateProfilePictureUrl(url) {
