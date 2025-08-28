@@ -193,6 +193,29 @@
             width: auto;
         }
 
+        /* Container for posts with responsive padding */
+        .feed-container {
+            max-width: 100%;
+            margin: 0 auto;
+            padding: 0 16px;
+        }
+
+        /* Desktop responsive layout */
+        @media (min-width: 769px) {
+            .feed-container {
+                max-width: 500px;
+                padding: 0 20px;
+            }
+        }
+
+        /* Large desktop screens */
+        @media (min-width: 1200px) {
+            .feed-container {
+                max-width: 550px;
+                padding: 0 40px;
+            }
+        }
+
         .post-card {
             background: #1a1a1b;
             margin: 8px 0;
@@ -388,7 +411,7 @@
 
         .profile-card {
             background: #1a1a1b;
-            margin: 8px 16px;
+            margin: 8px 0;
             border-radius: 8px;
             padding: 16px;
             border: 1px solid #ff4500;
@@ -490,7 +513,7 @@
 
         .admin-card {
             background: #1a1a1b;
-            margin: 8px 16px;
+            margin: 8px 0;
             border-radius: 8px;
             padding: 16px;
             border-left: 4px solid #fbbf24;
@@ -918,8 +941,10 @@
 
     <!-- Main Feed -->
     <main id="mainFeed" class="main-feed">
-        <div id="feed" class="loading">
-            Loading...
+        <div class="feed-container">
+            <div id="feed" class="loading">
+                Loading...
+            </div>
         </div>
     </main>
 
@@ -929,8 +954,10 @@
             <button class="back-btn" id="backToFeedFromAdmin">←</button>
             <div class="page-title">Admin Panel</div>
         </div>
-        <div id="adminContent" class="loading">
-            Loading admin panel...
+        <div class="feed-container">
+            <div id="adminContent" class="loading">
+                Loading admin panel...
+            </div>
         </div>
     </main>
 
@@ -940,8 +967,10 @@
             <button class="back-btn" id="backToFeed">←</button>
             <div class="page-title" id="profilePageTitle">Profile</div>
         </div>
-        <div id="profileContent" class="loading">
-            Loading profile...
+        <div class="feed-container">
+            <div id="profileContent" class="loading">
+                Loading profile...
+            </div>
         </div>
     </main>
 
