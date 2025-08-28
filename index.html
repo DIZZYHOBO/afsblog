@@ -81,7 +81,7 @@
         .feed-toggle {
             display: flex;
             background: #1a1a1b;
-            margin: 12px 16px;
+            margin: 12px 0;
             border-radius: 20px;
             overflow: hidden;
         }
@@ -195,44 +195,44 @@
 
         .post-card {
             background: #1a1a1b;
-            margin: 8px 16px;
-            border-radius: 8px;
-            padding: 12px;
-            border-left: 4px solid transparent;
-            display: flex;
-            gap: 12px;
-        }
-
-        .post-left {
-            flex-shrink: 0;
-            width: 200px;
-        }
-
-        .post-right {
-            flex: 1;
-            min-width: 0;
+            margin: 8px 0;
+            border-radius: 12px;
+            border: 1px solid #343536;
+            overflow: hidden;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
 
         .post-card.private {
-            border-left-color: #ff4500;
+            border-left: 4px solid #ff4500;
         }
 
         .post-header {
+            background: #272729;
+            padding: 12px 16px;
+            border-bottom: 1px solid #343536;
             display: flex;
             align-items: center;
             gap: 8px;
-            margin-bottom: 8px;
         }
 
-        .username {
+        .post-header .username {
             color: #0079d3;
-            font-size: 12px;
-            font-weight: 500;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
         }
 
-        .timestamp {
+        .post-header .username:hover {
+            text-decoration: underline;
+        }
+
+        .post-header .timestamp {
             color: #818384;
             font-size: 12px;
+            margin-left: auto;
         }
 
         .private-badge {
@@ -241,12 +241,18 @@
             font-size: 10px;
             padding: 2px 6px;
             border-radius: 12px;
+            margin-left: 8px;
+        }
+
+        .post-body {
+            padding: 16px;
         }
 
         .post-title {
-            font-size: 16px;
-            font-weight: 500;
-            margin-bottom: 8px;
+            font-size: 18px;
+            font-weight: 600;
+            color: #fff;
+            margin-bottom: 12px;
             line-height: 1.3;
             word-wrap: break-word;
         }
@@ -254,31 +260,77 @@
         .post-content {
             color: #d7dadc;
             font-size: 14px;
-            line-height: 1.4;
-            margin-bottom: 12px;
+            line-height: 1.5;
+            margin-bottom: 16px;
         }
 
         .post-actions {
+            background: #272729;
+            border-top: 1px solid #343536;
+            padding: 8px 16px;
             display: flex;
-            gap: 16px;
             align-items: center;
+            gap: 0;
         }
 
         .action-btn {
             background: none;
             border: none;
             color: #818384;
-            font-size: 12px;
+            font-size: 13px;
+            font-weight: 500;
             cursor: pointer;
             display: flex;
             align-items: center;
-            gap: 4px;
-            padding: 4px 8px;
-            border-radius: 4px;
+            justify-content: center;
+            gap: 6px;
+            padding: 8px 12px;
+            border-radius: 6px;
+            flex: 1;
+            transition: all 0.2s ease;
+            min-width: 0;
+            position: relative;
         }
 
         .action-btn:hover {
-            background: #272729;
+            background: #343536;
+            color: #fff;
+        }
+
+        .action-btn:active {
+            transform: scale(0.95);
+        }
+
+        .action-btn.upvote:hover {
+            background: rgba(255, 69, 0, 0.1);
+            color: #ff4500;
+        }
+
+        .action-btn.reply:hover {
+            background: rgba(0, 121, 211, 0.1);
+            color: #0079d3;
+        }
+
+        .action-btn.edit:hover {
+            background: rgba(251, 191, 36, 0.1);
+            color: #fbbf24;
+        }
+
+        .action-btn.delete:hover {
+            background: rgba(239, 68, 68, 0.1);
+            color: #ef4444;
+        }
+
+        /* Dividers between action buttons */
+        .action-btn:not(:last-child)::after {
+            content: '';
+            position: absolute;
+            right: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            height: 20px;
+            width: 1px;
+            background: #343536;
         }
 
         .replies {
@@ -385,6 +437,7 @@
             overflow: hidden;
             margin-right: 6px;
             vertical-align: middle;
+            position: relative;
         }
 
         .profile-avatar-small img {
@@ -1453,19 +1506,29 @@
             }
 
             const initial = userProfile.username ? userProfile.username.charAt(0).toUpperCase() : '?';
+            const avatarId = `avatar_${Math.random().toString(36).substr(2, 9)}`;
 
             if (userProfile.profilePictureUrl) {
                 return `
-                    <div class="${sizeClass}">
+                    <div class="${sizeClass}" id="${avatarId}">
                         <img src="${userProfile.profilePictureUrl}" 
                              alt="${userProfile.username}" 
-                             style="display: block;"
-                             onerror="this.style.display='none'; this.parentNode.innerHTML='${initial}';">
+                             style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;"
+                             onload="this.style.display='block';"
+                             onerror="handleImageError('${avatarId}', '${initial}');">
+                        <span style="display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);">${initial}</span>
                     </div>
                 `;
             }
 
             return `<div class="${sizeClass}">${initial}</div>`;
+        }
+
+        function handleImageError(avatarId, initial) {
+            const avatar = document.getElementById(avatarId);
+            if (avatar) {
+                avatar.innerHTML = initial;
+            }
         }
 
         function loadVisibleProfilePictures() {
@@ -1979,18 +2042,36 @@
                             ${getUserAvatar(users[post.author], 'small')}
                             @${escapeHtml(post.author)}
                         </span>
-                        <span class="timestamp">${formatTimestamp(post.timestamp)}</span>
                         ${post.isPrivate ? '<span class="private-badge">Private</span>' : ''}
+                        <span class="timestamp">${formatTimestamp(post.timestamp)}</span>
                     </div>
-                    <h3 class="post-title">${escapeHtml(post.title)}</h3>
-                    <div class="post-content markdown-content">${renderMarkdown(post.content || '')}</div>
+                    
+                    <div class="post-body">
+                        <h3 class="post-title">${escapeHtml(post.title)}</h3>
+                        <div class="post-content markdown-content">${renderMarkdown(post.content || '')}</div>
+                    </div>
+                    
                     <div class="post-actions">
-                        <button class="action-btn" onclick="toggleReplyForm('${post.id}')">
-                            💬 Reply (${post.replies ? post.replies.length : 0})
+                        <button class="action-btn upvote">
+                            <span>⬆️</span>
+                            <span>Vote</span>
                         </button>
-                        ${currentUser && currentUser.username === post.author ? 
-                            `<button class="action-btn" onclick="deletePost('${post.id}')">🗑 Delete</button>` : ''}
+                        <button class="action-btn reply" onclick="toggleReplyForm('${post.id}')">
+                            <span>💬</span>
+                            <span>${post.replies ? post.replies.length : 0}</span>
+                        </button>
+                        ${currentUser && currentUser.username === post.author ? `
+                            <button class="action-btn edit">
+                                <span>✏️</span>
+                                <span>Edit</span>
+                            </button>
+                            <button class="action-btn delete" onclick="deletePost('${post.id}')">
+                                <span>🗑️</span>
+                                <span>Delete</span>
+                            </button>
+                        ` : ''}
                     </div>
+                    
                     ${currentUser ? `
                         <div class="reply-form" id="replyForm_${post.id}">
                             <textarea placeholder="Write a reply..." id="replyText_${post.id}"></textarea>
