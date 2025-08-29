@@ -49,7 +49,7 @@ export default async (req, context) => {
       return await handleMediaDetection(req, headers);
     }
 
-    // NEW: Search endpoint (requires authentication)
+    // Search endpoint (requires authentication)
     if (path === 'search/posts') {
       const authResult = await validateAuth(req, store, blogStore);
       if (!authResult.valid) {
@@ -115,10 +115,13 @@ export default async (req, context) => {
       case 'profile/update':
         return await handleProfileUpdate(req, blogStore, headers, authResult.user);
       default:
-        // Handle dynamic routes like /posts/{postId} and /posts/{postId}/likes
+        // Handle dynamic routes like /posts/{postId}, /posts/{postId}/edit, and /posts/{postId}/likes
         if (path.startsWith('posts/') && path !== 'posts/create') {
           if (path.endsWith('/likes')) {
             return await handlePostLikes(req, blogStore, headers, authResult.user, path);
+          }
+          if (path.endsWith('/edit')) {
+            return await handleEditPost(req, blogStore, headers, authResult.user, path);
           }
           return await handlePostOperations(req, blogStore, headers, authResult.user, path);
         }
@@ -134,7 +137,258 @@ export default async (req, context) => {
   }
 };
 
-// NEW SEARCH FUNCTIONALITY
+// NEW: POST EDITING FUNCTIONALITY
+
+async function handleEditPost(req, blogStore, headers, user, path) {
+  const postId = path.split('/')[1];
+  
+  if (!postId) {
+    return new Response(
+      JSON.stringify({ error: "Post ID required" }),
+      { status: 400, headers }
+    );
+  }
+
+  if (req.method !== 'PUT') {
+    return new Response(
+      JSON.stringify({ error: "Method not allowed - use PUT to edit posts" }),
+      { status: 405, headers }
+    );
+  }
+
+  try {
+    const { title, content, type, url, description, isPrivate } = await req.json();
+
+    // Get the existing post
+    const existingPost = await blogStore.get(postId, { type: "json" });
+    
+    if (!existingPost) {
+      return new Response(
+        JSON.stringify({ error: "Post not found" }),
+        { status: 404, headers }
+      );
+    }
+
+    // Check if user can edit this post (author or admin)
+    if (existingPost.author !== user.username && !user.isAdmin) {
+      return new Response(
+        JSON.stringify({ error: "Only the author or admin can edit this post" }),
+        { status: 403, headers }
+      );
+    }
+
+    // Validation - at least one field must be provided for update
+    if (title === undefined && content === undefined && type === undefined && 
+        url === undefined && description === undefined && isPrivate === undefined) {
+      return new Response(
+        JSON.stringify({ error: "At least one field must be provided for update" }),
+        { status: 400, headers }
+      );
+    }
+
+    // Prepare the updated post object
+    const updatedPost = { ...existingPost };
+
+    // Update title if provided
+    if (title !== undefined) {
+      if (!title || title.trim().length === 0) {
+        return new Response(
+          JSON.stringify({ error: "Title cannot be empty" }),
+          { status: 400, headers }
+        );
+      }
+      if (title.length > 200) {
+        return new Response(
+          JSON.stringify({ error: "Title must be 200 characters or less" }),
+          { status: 400, headers }
+        );
+      }
+      updatedPost.title = title.trim();
+    }
+
+    // Update post type if provided
+    if (type !== undefined) {
+      if (type !== 'text' && type !== 'link') {
+        return new Response(
+          JSON.stringify({ error: "Post type must be 'text' or 'link'" }),
+          { status: 400, headers }
+        );
+      }
+      updatedPost.type = type;
+    }
+
+    // Update privacy setting if provided
+    if (isPrivate !== undefined) {
+      updatedPost.isPrivate = Boolean(isPrivate);
+    }
+
+    // Handle content updates based on post type
+    const finalType = type !== undefined ? type : (updatedPost.type || 'text');
+
+    if (finalType === 'text') {
+      // For text posts, update content if provided
+      if (content !== undefined) {
+        if (!content || content.trim().length === 0) {
+          return new Response(
+            JSON.stringify({ error: "Content cannot be empty for text posts" }),
+            { status: 400, headers }
+          );
+        }
+        if (content.length > 10000) {
+          return new Response(
+            JSON.stringify({ error: "Content must be 10,000 characters or less" }),
+            { status: 400, headers }
+          );
+        }
+        updatedPost.content = content.trim();
+      }
+      
+      // Remove link-specific fields if switching to text
+      if (type === 'text') {
+        delete updatedPost.url;
+        delete updatedPost.description;
+        delete updatedPost.mediaType;
+        delete updatedPost.canEmbed;
+        delete updatedPost.platform;
+      }
+      
+    } else if (finalType === 'link') {
+      // For link posts, update URL if provided
+      if (url !== undefined) {
+        if (!url || url.trim().length === 0) {
+          return new Response(
+            JSON.stringify({ error: "URL cannot be empty for link posts" }),
+            { status: 400, headers }
+          );
+        }
+        
+        try {
+          new URL(url.trim());
+        } catch {
+          return new Response(
+            JSON.stringify({ error: "Invalid URL format" }),
+            { status: 400, headers }
+          );
+        }
+        
+        updatedPost.url = url.trim();
+        
+        // Update media information when URL changes
+        const mediaInfo = detectMediaType(url.trim());
+        updatedPost.mediaType = mediaInfo.type;
+        updatedPost.canEmbed = mediaInfo.embed;
+        updatedPost.platform = mediaInfo.platform;
+      }
+      
+      // Update description if provided
+      if (description !== undefined) {
+        if (description && description.length > 2000) {
+          return new Response(
+            JSON.stringify({ error: "Description must be 2,000 characters or less" }),
+            { status: 400, headers }
+          );
+        }
+        updatedPost.description = description ? description.trim() : '';
+      }
+      
+      // Remove text-specific content field if switching to link
+      if (type === 'link') {
+        delete updatedPost.content;
+      }
+    }
+
+    // Add edit metadata
+    updatedPost.editedAt = new Date().toISOString();
+    updatedPost.editedBy = user.username;
+    updatedPost.editHistory = updatedPost.editHistory || [];
+    
+    // Store edit history (keep last 10 edits)
+    const editRecord = {
+      editedAt: updatedPost.editedAt,
+      editedBy: user.username,
+      changes: []
+    };
+
+    // Track what fields were changed
+    if (title !== undefined && title.trim() !== existingPost.title) {
+      editRecord.changes.push({
+        field: 'title',
+        oldValue: existingPost.title,
+        newValue: title.trim()
+      });
+    }
+    if (content !== undefined && content.trim() !== existingPost.content) {
+      editRecord.changes.push({
+        field: 'content',
+        oldValue: existingPost.content?.substring(0, 100) + (existingPost.content?.length > 100 ? '...' : ''),
+        newValue: content.trim().substring(0, 100) + (content.trim().length > 100 ? '...' : '')
+      });
+    }
+    if (type !== undefined && type !== existingPost.type) {
+      editRecord.changes.push({
+        field: 'type',
+        oldValue: existingPost.type || 'text',
+        newValue: type
+      });
+    }
+    if (url !== undefined && url.trim() !== existingPost.url) {
+      editRecord.changes.push({
+        field: 'url',
+        oldValue: existingPost.url,
+        newValue: url.trim()
+      });
+    }
+    if (description !== undefined && description !== existingPost.description) {
+      editRecord.changes.push({
+        field: 'description',
+        oldValue: existingPost.description,
+        newValue: description
+      });
+    }
+    if (isPrivate !== undefined && Boolean(isPrivate) !== existingPost.isPrivate) {
+      editRecord.changes.push({
+        field: 'isPrivate',
+        oldValue: existingPost.isPrivate,
+        newValue: Boolean(isPrivate)
+      });
+    }
+
+    // Only add to history if there were actual changes
+    if (editRecord.changes.length > 0) {
+      updatedPost.editHistory.unshift(editRecord);
+      // Keep only last 10 edits
+      updatedPost.editHistory = updatedPost.editHistory.slice(0, 10);
+    }
+
+    // Save the updated post
+    await blogStore.set(postId, JSON.stringify(updatedPost));
+
+    // Add like information for response
+    updatedPost.likes = updatedPost.likes || [];
+    updatedPost.likesCount = updatedPost.likes.length;
+    updatedPost.userLiked = updatedPost.likes.some(like => like.username === user.username);
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        message: "Post updated successfully",
+        post: updatedPost,
+        changesCount: editRecord.changes.length,
+        editedBy: user.username
+      }),
+      { status: 200, headers }
+    );
+
+  } catch (error) {
+    console.error("Edit post error:", error);
+    return new Response(
+      JSON.stringify({ error: "Failed to update post" }),
+      { status: 500, headers }
+    );
+  }
+}
+
+// SEARCH FUNCTIONALITY
 
 async function handleSearchPosts(req, blogStore, headers, user) {
   if (req.method !== 'GET') {
@@ -1150,7 +1404,7 @@ async function handleAdminStats(req, blogStore, headers, admin) {
 // UPDATED DOCUMENTATION
 async function handleDefault(req, headers) {
   const docs = {
-    message: "Blog API v4.2 - Now with Post Search! 🔍",
+    message: "Blog API v4.3 - Now with Post Editing! ✏️",
     endpoints: {
       // Authentication
       "POST /api/auth/login": "Login with username/password",
@@ -1168,7 +1422,7 @@ async function handleDefault(req, headers) {
       // Media Detection
       "POST /api/media/detect": "Detect media type and generate embed HTML",
       
-      // NEW: Search endpoint
+      // Search endpoint
       "GET /api/search/posts": "Search public posts (query params: q, page, limit, includeReplies)",
       
       // Feeds (requires auth) - include like info
@@ -1179,6 +1433,7 @@ async function handleDefault(req, headers) {
       "POST /api/posts/create": "Create new post (text or link)",
       "GET /api/posts": "Get user's posts with pagination and likes",
       "GET /api/posts/{postId}": "Get specific post by ID with likes",
+      "PUT /api/posts/{postId}/edit": "Edit specific post (NEW!)",
       "DELETE /api/posts/{postId}": "Delete specific post",
       
       // Like endpoints
@@ -1193,6 +1448,46 @@ async function handleDefault(req, headers) {
       "PUT /api/profile/update": "Update user profile (bio, profilePictureUrl)"
     },
     newFeatures: {
+      postEditing: {
+        description: "Edit your posts after publishing! ✏️",
+        endpoint: "PUT /api/posts/{postId}/edit",
+        permissions: "Only post author or admin can edit posts",
+        requestBody: {
+          title: "New title (optional)",
+          content: "New content for text posts (optional)",
+          type: "Change post type: 'text' or 'link' (optional)",
+          url: "New URL for link posts (optional)",
+          description: "New description for link posts (optional)",
+          isPrivate: "Change privacy setting (optional)"
+        },
+        features: [
+          "Partial updates - only send fields you want to change",
+          "Automatic validation based on post type",
+          "Edit history tracking (last 10 edits)",
+          "Automatic media detection for URL changes",
+          "Type conversion between text and link posts",
+          "Privacy setting changes",
+          "Maintains likes, replies, and other metadata"
+        ],
+        editHistory: {
+          description: "Every edit is tracked with metadata",
+          fields: ["editedAt", "editedBy", "editHistory[]"],
+          tracking: [
+            "What fields were changed",
+            "Previous and new values (truncated for content)",
+            "Timestamp and user who made the edit",
+            "Maximum 10 edit records stored per post"
+          ]
+        },
+        validation: [
+          "Title required and max 200 characters",
+          "Content required for text posts (max 10,000 chars)",
+          "URL required for link posts (must be valid URL)",
+          "Description optional for link posts (max 2,000 chars)",
+          "Type must be 'text' or 'link'",
+          "isPrivate must be boolean"
+        ]
+      },
       postSearch: {
         description: "Comprehensive search through public posts! 🔍",
         endpoint: "GET /api/search/posts",
@@ -1215,13 +1510,7 @@ async function handleDefault(req, headers) {
           "Pagination support",
           "Search statistics (totalResults, searchTime)",
           "Only searches public posts (respects privacy)"
-        ],
-        responseFields: {
-          searchTerm: "The search query used",
-          posts: "Array of matching posts with search metadata",
-          searchStats: "Statistics about the search (totalResults, searchTime)",
-          searchMetadata: "Per-post metadata (relevanceScore, matchedFields, totalMatches)"
-        }
+        ]
       },
       postLikes: {
         description: "Users can like and unlike posts! ❤️",
@@ -1231,6 +1520,46 @@ async function handleDefault(req, headers) {
           "View all likes for a post with GET /api/posts/{postId}/likes",
           "Like statistics in user profiles and admin dashboard"
         ]
+      }
+    },
+    postEditingExamples: {
+      editTitle: {
+        method: "PUT",
+        url: "/api/posts/{postId}/edit",
+        body: { "title": "Updated Post Title" }
+      },
+      editContent: {
+        method: "PUT", 
+        url: "/api/posts/{postId}/edit",
+        body: { 
+          "title": "My Updated Text Post",
+          "content": "This is the new content for my text post."
+        }
+      },
+      convertToLink: {
+        method: "PUT",
+        url: "/api/posts/{postId}/edit", 
+        body: {
+          "type": "link",
+          "url": "https://example.com",
+          "description": "Check out this cool website!"
+        }
+      },
+      changePrivacy: {
+        method: "PUT",
+        url: "/api/posts/{postId}/edit",
+        body: { "isPrivate": true }
+      },
+      fullEdit: {
+        method: "PUT",
+        url: "/api/posts/{postId}/edit",
+        body: {
+          "title": "Completely Updated Post",
+          "type": "link", 
+          "url": "https://newsite.com",
+          "description": "Brand new description",
+          "isPrivate": false
+        }
       }
     },
     searchExamples: {
