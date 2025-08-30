@@ -137,7 +137,56 @@ export default async (req, context) => {
   }
 };
 
-// NEW: POST EDITING FUNCTIONALITY
+// UTILITY FUNCTION: Enrich posts with author profile data
+async function enrichPostWithAuthorProfile(post, blogStore) {
+  if (!post || !post.author) {
+    return post;
+  }
+
+  try {
+    const authorProfile = await blogStore.get(`user_${post.author}`, { type: "json" });
+    
+    if (authorProfile) {
+      post.authorProfile = {
+        username: authorProfile.username,
+        bio: authorProfile.bio,
+        profilePictureUrl: authorProfile.profilePictureUrl,
+        isAdmin: authorProfile.isAdmin || false
+      };
+    } else {
+      // Fallback if author profile not found
+      post.authorProfile = {
+        username: post.author,
+        bio: null,
+        profilePictureUrl: null,
+        isAdmin: false
+      };
+    }
+  } catch (error) {
+    console.error(`Error loading author profile for ${post.author}:`, error);
+    // Fallback on error
+    post.authorProfile = {
+      username: post.author,
+      bio: null,
+      profilePictureUrl: null,
+      isAdmin: false
+    };
+  }
+
+  return post;
+}
+
+// UTILITY FUNCTION: Enrich multiple posts with author profiles
+async function enrichPostsWithAuthorProfiles(posts, blogStore) {
+  if (!posts || !Array.isArray(posts)) {
+    return posts;
+  }
+
+  const enrichmentPromises = posts.map(post => enrichPostWithAuthorProfile(post, blogStore));
+  return await Promise.all(enrichmentPromises);
+}
+
+// POST EDITING FUNCTIONALITY
 
 async function handleEditPost(req, blogStore, headers, user, path) {
   const postId = path.split('/')[1];
@@ -368,11 +417,14 @@ async function handleEditPost(req, blogStore, headers, user, path) {
     updatedPost.likesCount = updatedPost.likes.length;
     updatedPost.userLiked = updatedPost.likes.some(like => like.username === user.username);
 
+    // Enrich with author profile data
+    const enrichedPost = await enrichPostWithAuthorProfile(updatedPost, blogStore);
+
     return new Response(
       JSON.stringify({
         success: true,
         message: "Post updated successfully",
-        post: updatedPost,
+        post: enrichedPost,
         changesCount: editRecord.changes.length,
         editedBy: user.username
       }),
@@ -479,7 +531,7 @@ async function handleSearchPosts(req, blogStore, headers, user) {
     const paginatedResults = sortedResults.slice(skip, skip + limit);
     
     // Prepare posts for response
-    const resultPosts = paginatedResults.map(result => {
+    const resultPosts = await Promise.all(paginatedResults.map(async (result) => {
       const post = result.post;
       
       // Add like information
@@ -504,8 +556,9 @@ async function handleSearchPosts(req, blogStore, headers, user) {
         totalMatches: result.totalMatches
       };
       
-      return post;
-    });
+      // Enrich with author profile data
+      return await enrichPostWithAuthorProfile(post, blogStore);
+    }));
 
     const searchTime = Date.now() - searchStartTime;
     const paginationMeta = createPaginationMeta(sortedResults.length, page, limit);
@@ -774,7 +827,7 @@ async function handlePostLikes(req, blogStore, headers, user, path) {
   );
 }
 
-// ENHANCED FEED HANDLERS (now include like info)
+// ENHANCED FEED HANDLERS (now include like info and author profiles)
 
 async function handlePublicFeed(req, blogStore, headers, user) {
   if (req.method !== 'GET') {
@@ -835,13 +888,17 @@ async function handlePublicFeed(req, blogStore, headers, user) {
     const publicPosts = loadedPosts.filter(Boolean);
     const sortedPosts = sortPostsByTimestamp(publicPosts);
     const paginatedPosts = sortedPosts.slice(skip, skip + limit);
+    
+    // Enrich posts with author profile data
+    const enrichedPosts = await enrichPostsWithAuthorProfiles(paginatedPosts, blogStore);
+    
     const paginationMeta = createPaginationMeta(sortedPosts.length, page, limit);
 
     return new Response(
       JSON.stringify({
         success: true,
         feed: "public",
-        posts: paginatedPosts,
+        posts: enrichedPosts,
         pagination: paginationMeta,
         user: user.username,
         includeReplies: includeReplies
@@ -917,13 +974,17 @@ async function handlePrivateFeed(req, blogStore, headers, user) {
     const privatePosts = loadedPosts.filter(Boolean);
     const sortedPosts = sortPostsByTimestamp(privatePosts);
     const paginatedPosts = sortedPosts.slice(skip, skip + limit);
+    
+    // Enrich posts with author profile data
+    const enrichedPosts = await enrichPostsWithAuthorProfiles(paginatedPosts, blogStore);
+    
     const paginationMeta = createPaginationMeta(sortedPosts.length, page, limit);
 
     return new Response(
       JSON.stringify({
         success: true,
         feed: "private",
-        posts: paginatedPosts,
+        posts: enrichedPosts,
         pagination: paginationMeta,
         user: user.username,
         includeReplies: includeReplies
@@ -940,7 +1001,7 @@ async function handlePrivateFeed(req, blogStore, headers, user) {
   }
 }
 
-// ENHANCED POST HANDLERS (now include like info)
+// ENHANCED POST HANDLERS (now include like info and author profiles)
 
 async function handlePosts(req, blogStore, headers, user) {
   if (req.method === 'GET') {
@@ -984,12 +1045,16 @@ async function handlePosts(req, blogStore, headers, user) {
       const userPosts = loadedPosts.filter(Boolean);
       const sortedPosts = sortPostsByTimestamp(userPosts);
       const paginatedPosts = sortedPosts.slice(skip, skip + limit);
+      
+      // Enrich posts with author profile data
+      const enrichedPosts = await enrichPostsWithAuthorProfiles(paginatedPosts, blogStore);
+      
       const paginationMeta = createPaginationMeta(sortedPosts.length, page, limit);
 
       return new Response(
         JSON.stringify({
           success: true,
-          posts: paginatedPosts,
+          posts: enrichedPosts,
           pagination: paginationMeta,
           user: user.username
         }),
@@ -1044,10 +1109,13 @@ async function handlePostOperations(req, blogStore, headers, user, path) {
       post.likesCount = post.likes.length;
       post.userLiked = post.likes.some(like => like.username === user.username);
 
+      // Enrich with author profile data
+      const enrichedPost = await enrichPostWithAuthorProfile(post, blogStore);
+
       return new Response(
         JSON.stringify({
           success: true,
-          post: post
+          post: enrichedPost
         }),
         { status: 200, headers }
       );
@@ -1106,7 +1174,7 @@ async function handlePostOperations(req, blogStore, headers, user, path) {
   );
 }
 
-// ENHANCED CREATE POST (initialize likes)
+// ENHANCED CREATE POST (initialize likes and include author profile in response)
 async function handleCreatePost(req, blogStore, headers, user) {
   if (req.method !== 'POST') {
     return new Response(
@@ -1207,11 +1275,14 @@ async function handleCreatePost(req, blogStore, headers, user) {
     post.likesCount = 0;
     post.userLiked = false;
 
+    // Enrich with author profile data
+    const enrichedPost = await enrichPostWithAuthorProfile(post, blogStore);
+
     return new Response(
       JSON.stringify({
         success: true,
         message: "Post created successfully",
-        post: post
+        post: enrichedPost
       }),
       { status: 201, headers }
     );
@@ -1277,6 +1348,16 @@ async function handleProfile(req, blogStore, headers, user) {
 
     const { password: _, ...profileData } = user;
 
+    // Enrich recent posts with author profile data
+    const recentPosts = await enrichPostsWithAuthorProfiles(
+      sortPostsByTimestamp(userPosts).slice(0, 5).map(post => ({
+        ...post,
+        likesCount: post.likes ? post.likes.length : 0,
+        userLiked: post.likes ? post.likes.some(like => like.username === user.username) : false
+      })), 
+      blogStore
+    );
+
     const profile = {
       ...profileData,
       stats: {
@@ -1290,11 +1371,7 @@ async function handleProfile(req, blogStore, headers, user) {
         totalLikesGiven: totalLikesGiven,
         averageLikesPerPost: userPosts.length > 0 ? (totalLikesReceived / userPosts.length).toFixed(1) : 0
       },
-      recentPosts: sortPostsByTimestamp(userPosts).slice(0, 5).map(post => ({
-        ...post,
-        likesCount: post.likes ? post.likes.length : 0,
-        userLiked: post.likes ? post.likes.some(like => like.username === user.username) : false
-      }))
+      recentPosts: recentPosts
     };
 
     return new Response(
@@ -1404,7 +1481,7 @@ async function handleAdminStats(req, blogStore, headers, admin) {
 // UPDATED DOCUMENTATION
 async function handleDefault(req, headers) {
   const docs = {
-    message: "Blog API v4.3 - Now with Post Editing! ✏️",
+    message: "Blog API v4.4 - Now with Author Profiles! 👤",
     endpoints: {
       // Authentication
       "POST /api/auth/login": "Login with username/password",
@@ -1425,15 +1502,15 @@ async function handleDefault(req, headers) {
       // Search endpoint
       "GET /api/search/posts": "Search public posts (query params: q, page, limit, includeReplies)",
       
-      // Feeds (requires auth) - include like info
-      "GET /api/feeds/public": "Get public posts feed with likes",
-      "GET /api/feeds/private": "Get user's private posts with likes",
+      // Feeds (requires auth) - include like info and author profiles
+      "GET /api/feeds/public": "Get public posts feed with likes and author profiles",
+      "GET /api/feeds/private": "Get user's private posts with likes and author profiles",
       
-      // Posts (requires auth) - include like info
+      // Posts (requires auth) - include like info and author profiles
       "POST /api/posts/create": "Create new post (text or link)",
-      "GET /api/posts": "Get user's posts with pagination and likes",
-      "GET /api/posts/{postId}": "Get specific post by ID with likes",
-      "PUT /api/posts/{postId}/edit": "Edit specific post (NEW!)",
+      "GET /api/posts": "Get user's posts with pagination, likes, and author profiles",
+      "GET /api/posts/{postId}": "Get specific post by ID with likes and author profile",
+      "PUT /api/posts/{postId}/edit": "Edit specific post",
       "DELETE /api/posts/{postId}": "Delete specific post",
       
       // Like endpoints
@@ -1448,6 +1525,17 @@ async function handleDefault(req, headers) {
       "PUT /api/profile/update": "Update user profile (bio, profilePictureUrl)"
     },
     newFeatures: {
+      authorProfiles: {
+        description: "All posts now include author profile information! 👤",
+        includedFields: [
+          "authorProfile.username",
+          "authorProfile.bio", 
+          "authorProfile.profilePictureUrl",
+          "authorProfile.isAdmin"
+        ],
+        availability: "Available in all post responses (feeds, individual posts, search results)",
+        fallback: "If author profile not found, provides basic info with null values"
+      },
       postEditing: {
         description: "Edit your posts after publishing! ✏️",
         endpoint: "PUT /api/posts/{postId}/edit",
@@ -1468,24 +1556,6 @@ async function handleDefault(req, headers) {
           "Type conversion between text and link posts",
           "Privacy setting changes",
           "Maintains likes, replies, and other metadata"
-        ],
-        editHistory: {
-          description: "Every edit is tracked with metadata",
-          fields: ["editedAt", "editedBy", "editHistory[]"],
-          tracking: [
-            "What fields were changed",
-            "Previous and new values (truncated for content)",
-            "Timestamp and user who made the edit",
-            "Maximum 10 edit records stored per post"
-          ]
-        },
-        validation: [
-          "Title required and max 200 characters",
-          "Content required for text posts (max 10,000 chars)",
-          "URL required for link posts (must be valid URL)",
-          "Description optional for link posts (max 2,000 chars)",
-          "Type must be 'text' or 'link'",
-          "isPrivate must be boolean"
         ]
       },
       postSearch: {
@@ -1497,19 +1567,11 @@ async function handleDefault(req, headers) {
           limit: "Results per page (default: 10, max: 50)",
           includeReplies: "Include replies in response (default: true)"
         },
-        searchScope: [
-          "Post titles (weighted 3x)",
-          "Post content/description (weighted 2x)", 
-          "Replies/comments (weighted 1x)"
-        ],
         features: [
-          "Exact phrase matching with higher priority",
-          "Individual word matching for multi-word searches",
           "Relevance scoring and sorting",
-          "Search metadata in results (relevanceScore, matchedFields)",
-          "Pagination support",
-          "Search statistics (totalResults, searchTime)",
-          "Only searches public posts (respects privacy)"
+          "Search metadata in results",
+          "Author profiles included in search results",
+          "Only searches public posts"
         ]
       },
       postLikes: {
@@ -1522,51 +1584,29 @@ async function handleDefault(req, headers) {
         ]
       }
     },
-    postEditingExamples: {
-      editTitle: {
-        method: "PUT",
-        url: "/api/posts/{postId}/edit",
-        body: { "title": "Updated Post Title" }
-      },
-      editContent: {
-        method: "PUT", 
-        url: "/api/posts/{postId}/edit",
-        body: { 
-          "title": "My Updated Text Post",
-          "content": "This is the new content for my text post."
-        }
-      },
-      convertToLink: {
-        method: "PUT",
-        url: "/api/posts/{postId}/edit", 
-        body: {
-          "type": "link",
-          "url": "https://example.com",
-          "description": "Check out this cool website!"
-        }
-      },
-      changePrivacy: {
-        method: "PUT",
-        url: "/api/posts/{postId}/edit",
-        body: { "isPrivate": true }
-      },
-      fullEdit: {
-        method: "PUT",
-        url: "/api/posts/{postId}/edit",
-        body: {
-          "title": "Completely Updated Post",
-          "type": "link", 
-          "url": "https://newsite.com",
-          "description": "Brand new description",
-          "isPrivate": false
+    authorProfileExample: {
+      description: "Example of how author profiles appear in post responses",
+      examplePost: {
+        "id": "post_1234567890_abc123",
+        "title": "My Blog Post",
+        "content": "Post content here...",
+        "author": "johndoe",
+        "timestamp": "2024-01-01T12:00:00.000Z",
+        "likesCount": 5,
+        "userLiked": false,
+        "authorProfile": {
+          "username": "johndoe",
+          "bio": "Hello! I'm johndoe",
+          "profilePictureUrl": "https://example.com/avatar.png",
+          "isAdmin": false
         }
       }
     },
-    searchExamples: {
-      basicSearch: "GET /api/search/posts?q=javascript",
-      phraseSearch: "GET /api/search/posts?q=machine learning",
-      paginatedSearch: "GET /api/search/posts?q=tutorial&page=2&limit=5",
-      withoutReplies: "GET /api/search/posts?q=nodejs&includeReplies=false"
+    profilePictureRequirements: {
+      supportedFormats: ["PNG (.png)", "GIF (.gif)"],
+      protocols: ["HTTP", "HTTPS"],
+      validation: "URLs must be valid and publicly accessible",
+      fallback: "null if no profile picture set"
     }
   };
 
