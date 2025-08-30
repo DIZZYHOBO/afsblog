@@ -44,6 +44,7 @@
         .auth-section {
             display: flex;
             gap: 8px;
+            align-items: center;
         }
 
         .btn {
@@ -86,6 +87,26 @@
 
         .btn-community:hover {
             background: #ff6b35;
+        }
+
+        .btn-admin {
+            background: #e11d48;
+            color: white;
+            font-size: 11px;
+        }
+
+        .btn-admin:hover {
+            background: #be123c;
+        }
+
+        .admin-badge {
+            background: #e11d48;
+            color: white;
+            padding: 2px 6px;
+            border-radius: 12px;
+            font-size: 10px;
+            font-weight: 500;
+            margin-left: 4px;
         }
 
         .nav-menu {
@@ -187,6 +208,109 @@
 
         .post-community-link:hover {
             background: rgba(255, 69, 0, 0.2);
+        }
+
+        /* Admin Panel Styles */
+        .admin-panel {
+            background: #1a1a1b;
+            border: 1px solid #e11d48;
+            border-radius: 8px;
+            padding: 16px;
+            margin: 16px 0;
+        }
+
+        .admin-panel-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 16px;
+            color: #e11d48;
+            font-weight: bold;
+        }
+
+        .admin-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .admin-stat-card {
+            background: #272729;
+            padding: 12px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .admin-stat-number {
+            font-size: 24px;
+            font-weight: bold;
+            color: #e11d48;
+        }
+
+        .admin-stat-label {
+            font-size: 12px;
+            color: #818384;
+            margin-top: 4px;
+        }
+
+        .admin-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .admin-section {
+            margin-top: 16px;
+            padding-top: 16px;
+            border-top: 1px solid #343536;
+        }
+
+        .admin-section h4 {
+            color: #e11d48;
+            margin-bottom: 12px;
+        }
+
+        .user-card {
+            background: #272729;
+            border: 1px solid #343536;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 8px;
+        }
+
+        .user-card.pending {
+            border-color: #f59e0b;
+        }
+
+        .user-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .user-info {
+            color: #d7dadc;
+            font-size: 14px;
+        }
+
+        .user-actions {
+            display: flex;
+            gap: 4px;
+        }
+
+        .btn-small {
+            padding: 4px 8px;
+            font-size: 11px;
+        }
+
+        .btn-approve {
+            background: #059669;
+        }
+
+        .btn-reject, .btn-delete {
+            background: #dc2626;
         }
 
         /* Modal styles */
@@ -534,7 +658,7 @@
         }
 
         /* User info */
-        .user-info {
+        .user-info-display {
             color: #d7dadc;
             font-size: 14px;
             cursor: pointer;
@@ -545,7 +669,7 @@
             align-items: center;
         }
 
-        .user-info:hover {
+        .user-info-display:hover {
             background: #272729;
         }
     </style>
@@ -564,6 +688,58 @@
         <button id="feedBtn" class="active" onclick="showFeed()">Feed</button>
         <button id="communitiesBtn" onclick="showCommunities()">Communities</button>
         <button id="privateBtn" onclick="showPrivateFeed()">Private</button>
+        <button id="adminBtn" style="display: none;" onclick="showAdminPanel()">Admin</button>
+    </div>
+
+    <!-- Admin Panel -->
+    <div id="adminPanel" class="admin-panel" style="display: none;">
+        <div class="admin-panel-header">
+            <span>🔧 Admin Panel</span>
+        </div>
+        
+        <div class="admin-stats" id="adminStats">
+            <div class="admin-stat-card">
+                <div class="admin-stat-number" id="totalUsers">0</div>
+                <div class="admin-stat-label">Total Users</div>
+            </div>
+            <div class="admin-stat-card">
+                <div class="admin-stat-number" id="pendingUsers">0</div>
+                <div class="admin-stat-label">Pending Users</div>
+            </div>
+            <div class="admin-stat-card">
+                <div class="admin-stat-number" id="totalPosts">0</div>
+                <div class="admin-stat-label">Total Posts</div>
+            </div>
+            <div class="admin-stat-card">
+                <div class="admin-stat-number" id="totalCommunities">0</div>
+                <div class="admin-stat-label">Communities</div>
+            </div>
+        </div>
+
+        <div class="admin-actions">
+            <button class="btn btn-admin" onclick="loadPendingUsers()">Pending Users</button>
+            <button class="btn btn-admin" onclick="loadAllUsers()">All Users</button>
+            <button class="btn btn-admin" onclick="loadAdminCommunities()">Manage Communities</button>
+            <button class="btn btn-admin" onclick="refreshAdminStats()">Refresh Stats</button>
+        </div>
+
+        <!-- Pending Users Section -->
+        <div id="pendingUsersSection" class="admin-section" style="display: none;">
+            <h4>Pending User Approvals</h4>
+            <div id="pendingUsersList"></div>
+        </div>
+
+        <!-- All Users Section -->
+        <div id="allUsersSection" class="admin-section" style="display: none;">
+            <h4>All Users</h4>
+            <div id="allUsersList"></div>
+        </div>
+
+        <!-- Communities Management Section -->
+        <div id="adminCommunitiesSection" class="admin-section" style="display: none;">
+            <h4>Community Management</h4>
+            <div id="adminCommunitiesList"></div>
+        </div>
     </div>
 
     <!-- Main Feed -->
@@ -703,6 +879,7 @@
         let posts = [];
         let currentCommunity = null;
         let isLoading = false;
+        let adminData = null;
 
         // Netlify Blobs API implementation
         const blobAPI = {
@@ -791,6 +968,11 @@
             await loadPosts();
             updateUI();
             setupEventListeners();
+            
+            // Load admin stats if user is admin
+            if (currentUser?.profile?.isAdmin) {
+                await loadAdminStats();
+            }
         });
 
         function setupEventListeners() {
@@ -875,6 +1057,271 @@
             }
         }
 
+        // Admin Functions
+        async function loadAdminStats() {
+            try {
+                const userKeys = await blobAPI.list('user_');
+                const pendingUserKeys = await blobAPI.list('pending_user_');
+                const postKeys = await blobAPI.list('post_');
+                const communityKeys = await blobAPI.list('community_');
+
+                document.getElementById('totalUsers').textContent = userKeys.length;
+                document.getElementById('pendingUsers').textContent = pendingUserKeys.length;
+                document.getElementById('totalPosts').textContent = postKeys.length;
+                document.getElementById('totalCommunities').textContent = communityKeys.length;
+            } catch (error) {
+                console.error('Error loading admin stats:', error);
+            }
+        }
+
+        async function loadPendingUsers() {
+            try {
+                const pendingUserKeys = await blobAPI.list('pending_user_');
+                const pendingPromises = pendingUserKeys.map(key => blobAPI.get(key));
+                const pendingUsers = (await Promise.all(pendingPromises)).filter(Boolean);
+
+                const container = document.getElementById('pendingUsersList');
+                const section = document.getElementById('pendingUsersSection');
+
+                if (pendingUsers.length === 0) {
+                    container.innerHTML = '<p style="color: #818384;">No pending users</p>';
+                } else {
+                    container.innerHTML = pendingUsers.map(user => `
+                        <div class="user-card pending">
+                            <div class="user-card-header">
+                                <div>
+                                    <strong>${escapeHtml(user.username)}</strong>
+                                    <div class="user-info">${escapeHtml(user.bio || 'No bio provided')}</div>
+                                    <div class="user-info" style="font-size: 12px; color: #818384;">
+                                        Registered: ${formatDate(user.createdAt)}
+                                    </div>
+                                </div>
+                                <div class="user-actions">
+                                    <button class="btn btn-approve btn-small" onclick="approveUser('${user.username}')">
+                                        Approve
+                                    </button>
+                                    <button class="btn btn-reject btn-small" onclick="rejectUser('${user.username}')">
+                                        Reject
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    `).join('');
+                }
+
+                section.style.display = 'block';
+                document.getElementById('allUsersSection').style.display = 'none';
+                document.getElementById('adminCommunitiesSection').style.display = 'none';
+            } catch (error) {
+                console.error('Error loading pending users:', error);
+            }
+        }
+
+        async function loadAllUsers() {
+            try {
+                const userKeys = await blobAPI.list('user_');
+                const userPromises = userKeys.map(key => blobAPI.get(key));
+                const users = (await Promise.all(userPromises)).filter(Boolean);
+
+                const container = document.getElementById('allUsersList');
+                const section = document.getElementById('allUsersSection');
+
+                if (users.length === 0) {
+                    container.innerHTML = '<p style="color: #818384;">No users found</p>';
+                } else {
+                    container.innerHTML = users.map(user => {
+                        const userPosts = posts.filter(p => p.author === user.username).length;
+                        return `
+                            <div class="user-card">
+                                <div class="user-card-header">
+                                    <div>
+                                        <strong>${escapeHtml(user.username)}</strong>
+                                        ${user.isAdmin ? '<span class="admin-badge">Admin</span>' : ''}
+                                        <div class="user-info">${escapeHtml(user.bio || 'No bio provided')}</div>
+                                        <div class="user-info" style="font-size: 12px; color: #818384;">
+                                            Posts: ${userPosts} | Joined: ${formatDate(user.createdAt)}
+                                        </div>
+                                    </div>
+                                    <div class="user-actions">
+                                        ${!user.isAdmin && user.username !== currentUser?.username ? `
+                                            <button class="btn btn-delete btn-small" onclick="deleteUser('${user.username}')">
+                                                Delete
+                                            </button>
+                                        ` : ''}
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+                }
+
+                section.style.display = 'block';
+                document.getElementById('pendingUsersSection').style.display = 'none';
+                document.getElementById('adminCommunitiesSection').style.display = 'none';
+            } catch (error) {
+                console.error('Error loading all users:', error);
+            }
+        }
+
+        async function loadAdminCommunities() {
+            try {
+                const container = document.getElementById('adminCommunitiesList');
+                const section = document.getElementById('adminCommunitiesSection');
+
+                if (communities.length === 0) {
+                    container.innerHTML = '<p style="color: #818384;">No communities found</p>';
+                } else {
+                    container.innerHTML = communities.map(community => {
+                        const communityPosts = posts.filter(p => p.communityName === community.name).length;
+                        return `
+                            <div class="user-card">
+                                <div class="user-card-header">
+                                    <div>
+                                        <strong>${escapeHtml(community.displayName)}</strong>
+                                        <div class="user-info">c/${escapeHtml(community.name)}</div>
+                                        <div class="user-info">${escapeHtml(community.description || 'No description')}</div>
+                                        <div class="user-info" style="font-size: 12px; color: #818384;">
+                                            Posts: ${communityPosts} | Members: ${community.members?.length || 0} | 
+                                            Created by: ${escapeHtml(community.createdBy)} | ${formatDate(community.createdAt)}
+                                        </div>
+                                    </div>
+                                    <div class="user-actions">
+                                        <button class="btn btn-delete btn-small" onclick="deleteCommunity('${community.name}')">
+                                            Delete Community
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+                }
+
+                section.style.display = 'block';
+                document.getElementById('pendingUsersSection').style.display = 'none';
+                document.getElementById('allUsersSection').style.display = 'none';
+            } catch (error) {
+                console.error('Error loading admin communities:', error);
+            }
+        }
+
+        async function approveUser(username) {
+            if (!confirm(`Approve user "${username}"?`)) return;
+
+            try {
+                const pendingUser = await blobAPI.get(`pending_user_${username}`);
+                if (!pendingUser) {
+                    showError('general', 'Pending user not found');
+                    return;
+                }
+
+                // Create approved user
+                const approvedUser = {
+                    username: pendingUser.username,
+                    password: pendingUser.password,
+                    bio: pendingUser.bio,
+                    createdAt: pendingUser.createdAt,
+                    approvedAt: new Date().toISOString(),
+                    isAdmin: false
+                };
+
+                await blobAPI.set(`user_${username}`, approvedUser);
+                await blobAPI.delete(`pending_user_${username}`);
+
+                showSuccessMessage(`User "${username}" approved successfully!`);
+                await loadAdminStats();
+                await loadPendingUsers();
+            } catch (error) {
+                console.error('Error approving user:', error);
+                showError('general', 'Failed to approve user');
+            }
+        }
+
+        async function rejectUser(username) {
+            if (!confirm(`Reject and delete user "${username}"? This cannot be undone.`)) return;
+
+            try {
+                await blobAPI.delete(`pending_user_${username}`);
+                showSuccessMessage(`User "${username}" rejected and removed.`);
+                await loadAdminStats();
+                await loadPendingUsers();
+            } catch (error) {
+                console.error('Error rejecting user:', error);
+                showError('general', 'Failed to reject user');
+            }
+        }
+
+        async function deleteUser(username) {
+            if (!confirm(`Delete user "${username}" and all their posts? This cannot be undone.`)) return;
+
+            try {
+                // Delete user
+                await blobAPI.delete(`user_${username}`);
+
+                // Delete user's posts
+                const userPostKeys = posts.filter(p => p.author === username).map(p => p.id);
+                for (const postId of userPostKeys) {
+                    await blobAPI.delete(postId);
+                }
+
+                // Update local data
+                posts = posts.filter(p => p.author !== username);
+
+                showSuccessMessage(`User "${username}" and all their posts deleted.`);
+                await loadAdminStats();
+                await loadAllUsers();
+                updateUI();
+            } catch (error) {
+                console.error('Error deleting user:', error);
+                showError('general', 'Failed to delete user');
+            }
+        }
+
+        async function deleteCommunity(communityName) {
+            if (!confirm(`Delete community "${communityName}" and all its posts? This cannot be undone.`)) return;
+
+            try {
+                // Delete community
+                await blobAPI.delete(`community_${communityName}`);
+
+                // Delete community posts
+                const communityPostKeys = posts.filter(p => p.communityName === communityName).map(p => p.id);
+                for (const postId of communityPostKeys) {
+                    await blobAPI.delete(postId);
+                }
+
+                // Update local data
+                communities = communities.filter(c => c.name !== communityName);
+                posts = posts.filter(p => p.communityName !== communityName);
+
+                showSuccessMessage(`Community "${communityName}" and all its posts deleted.`);
+                await loadAdminStats();
+                await loadAdminCommunities();
+                updateCommunityDropdown();
+                updateUI();
+            } catch (error) {
+                console.error('Error deleting community:', error);
+                showError('general', 'Failed to delete community');
+            }
+        }
+
+        function refreshAdminStats() {
+            loadAdminStats();
+            showSuccessMessage('Admin stats refreshed!');
+        }
+
+        function showAdminPanel() {
+            const adminPanel = document.getElementById('adminPanel');
+            const isVisible = adminPanel.style.display !== 'none';
+            adminPanel.style.display = isVisible ? 'none' : 'block';
+
+            // Hide admin sections when toggling panel
+            if (isVisible) {
+                document.getElementById('pendingUsersSection').style.display = 'none';
+                document.getElementById('allUsersSection').style.display = 'none';
+                document.getElementById('adminCommunitiesSection').style.display = 'none';
+            }
+        }
+
         function updateUI() {
             updateAuthSection();
             updateNavMenu();
@@ -896,10 +1343,12 @@
             
             if (currentUser) {
                 authSection.innerHTML = `
-                    <span class="user-info">
+                    <span class="user-info-display">
                         <div class="profile-avatar-small">${currentUser.username.charAt(0).toUpperCase()}</div>
                         @${escapeHtml(currentUser.username)}
+                        ${currentUser.profile?.isAdmin ? '<span class="admin-badge">Admin</span>' : ''}
                     </span>
+                    ${currentUser.profile?.isAdmin ? '<button class="btn btn-admin" onclick="showAdminPanel()">Admin</button>' : ''}
                     <button class="btn btn-secondary" onclick="logout()">Logout</button>
                 `;
             } else {
@@ -912,7 +1361,10 @@
 
         function updateNavMenu() {
             const navMenu = document.getElementById('navMenu');
+            const adminBtn = document.getElementById('adminBtn');
+            
             navMenu.style.display = currentUser ? 'flex' : 'none';
+            adminBtn.style.display = (currentUser?.profile?.isAdmin) ? 'block' : 'none';
             
             // Update active button
             document.querySelectorAll('.nav-menu button').forEach(btn => btn.classList.remove('active'));
@@ -1108,7 +1560,7 @@
                                 <span>💬</span>
                                 <span>${post.replies ? post.replies.length : 0}</span>
                             </button>
-                            ${currentUser && currentUser.username === post.author ? `
+                            ${currentUser && (currentUser.username === post.author || currentUser.profile?.isAdmin) ? `
                                 <button class="action-btn" onclick="deletePost('${post.id}')">
                                     <span>🗑️</span>
                                     <span>Delete</span>
@@ -1240,6 +1692,11 @@
                     closeModal('authModal');
                     updateUI();
                     showSuccessMessage('Welcome back!');
+
+                    // Load admin stats if user is admin
+                    if (user.isAdmin) {
+                        await loadAdminStats();
+                    }
                 }
                 
                 form.reset();
@@ -1257,6 +1714,10 @@
             try {
                 currentUser = null;
                 await blobAPI.delete('current_user');
+                
+                // Hide admin panel
+                document.getElementById('adminPanel').style.display = 'none';
+                
                 showFeed();
                 updateUI();
                 showSuccessMessage('Logged out successfully!');
@@ -1329,6 +1790,12 @@
                 
                 updateCommunityDropdown();
                 renderCommunities();
+                
+                // Update admin stats if user is admin
+                if (currentUser.profile?.isAdmin) {
+                    await loadAdminStats();
+                }
+                
                 showSuccessMessage(`Community "${displayName}" created successfully!`);
                 
             } catch (error) {
@@ -1385,6 +1852,12 @@
                 document.getElementById('composeForm').reset();
                 
                 updateUI();
+                
+                // Update admin stats if user is admin
+                if (currentUser.profile?.isAdmin) {
+                    await loadAdminStats();
+                }
+                
                 showSuccessMessage('Post created successfully!');
                 
             } catch (error) {
@@ -1405,6 +1878,12 @@
                 await blobAPI.delete(postId);
                 posts = posts.filter(p => p.id !== postId);
                 updateUI();
+                
+                // Update admin stats if user is admin
+                if (currentUser.profile?.isAdmin) {
+                    await loadAdminStats();
+                }
+                
                 showSuccessMessage('Post deleted successfully!');
             } catch (error) {
                 console.error('Error deleting post:', error);
