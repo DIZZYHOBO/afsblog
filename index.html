@@ -5,6 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏘️</text></svg>">
     <title>Blog Feed - Communities</title>
+    <!-- External Libraries for Media and Markdown -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/DOMPurify/3.0.7/purify.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -672,6 +677,320 @@
         .user-info-display:hover {
             background: #272729;
         }
+
+        /* Media Rendering Styles */
+        .post-media {
+            margin: 12px 0;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid #343536;
+        }
+
+        .post-image {
+            width: 100%;
+            max-height: 500px;
+            object-fit: cover;
+            display: block;
+            cursor: pointer;
+            transition: transform 0.2s ease;
+        }
+
+        .post-image:hover {
+            transform: scale(1.02);
+        }
+
+        .post-video {
+            width: 100%;
+            max-height: 400px;
+            background: #000;
+        }
+
+        .post-embed {
+            width: 100%;
+            min-height: 300px;
+            border: none;
+            border-radius: 8px;
+        }
+
+        .youtube-embed {
+            position: relative;
+            width: 100%;
+            height: 0;
+            padding-bottom: 56.25%; /* 16:9 aspect ratio */
+            overflow: hidden;
+            border-radius: 8px;
+        }
+
+        .youtube-embed iframe {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+
+        .media-link {
+            display: block;
+            color: #0079d3;
+            text-decoration: none;
+            padding: 12px;
+            background: rgba(0, 121, 211, 0.1);
+            border: 1px solid #0079d3;
+            border-radius: 8px;
+            margin: 12px 0;
+            transition: all 0.2s ease;
+        }
+
+        .media-link:hover {
+            background: rgba(0, 121, 211, 0.2);
+            text-decoration: underline;
+        }
+
+        .media-link-title {
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .media-link-url {
+            font-size: 12px;
+            color: #818384;
+            word-break: break-all;
+        }
+
+        /* Markdown Rendering Styles */
+        .markdown-content {
+            color: #d7dadc;
+            line-height: 1.6;
+        }
+
+        .markdown-content h1,
+        .markdown-content h2,
+        .markdown-content h3,
+        .markdown-content h4,
+        .markdown-content h5,
+        .markdown-content h6 {
+            color: #fff;
+            margin: 16px 0 8px 0;
+            font-weight: 600;
+        }
+
+        .markdown-content h1 {
+            font-size: 1.8em;
+            border-bottom: 1px solid #343536;
+            padding-bottom: 8px;
+        }
+
+        .markdown-content h2 {
+            font-size: 1.5em;
+        }
+
+        .markdown-content h3 {
+            font-size: 1.3em;
+        }
+
+        .markdown-content p {
+            margin: 12px 0;
+        }
+
+        .markdown-content a {
+            color: #0079d3;
+            text-decoration: none;
+        }
+
+        .markdown-content a:hover {
+            text-decoration: underline;
+        }
+
+        .markdown-content blockquote {
+            border-left: 4px solid #ff4500;
+            padding-left: 16px;
+            margin: 16px 0;
+            color: #818384;
+            font-style: italic;
+        }
+
+        .markdown-content ul,
+        .markdown-content ol {
+            padding-left: 24px;
+            margin: 12px 0;
+        }
+
+        .markdown-content li {
+            margin: 4px 0;
+        }
+
+        .markdown-content code {
+            background: #272729;
+            color: #ff6b35;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-size: 0.9em;
+        }
+
+        .markdown-content pre {
+            background: #1a1a1b;
+            border: 1px solid #343536;
+            border-radius: 8px;
+            padding: 16px;
+            overflow-x: auto;
+            margin: 16px 0;
+        }
+
+        .markdown-content pre code {
+            background: none;
+            color: inherit;
+            padding: 0;
+            font-size: 0.85em;
+        }
+
+        .markdown-content table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 16px 0;
+            border: 1px solid #343536;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .markdown-content th,
+        .markdown-content td {
+            border: 1px solid #343536;
+            padding: 8px 12px;
+            text-align: left;
+        }
+
+        .markdown-content th {
+            background: #272729;
+            font-weight: 600;
+            color: #fff;
+        }
+
+        .markdown-content hr {
+            border: none;
+            border-top: 1px solid #343536;
+            margin: 24px 0;
+        }
+
+        .markdown-content img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 8px;
+            margin: 8px 0;
+        }
+
+        /* Image Modal */
+        .image-modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.9);
+            cursor: pointer;
+        }
+
+        .image-modal-content {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            max-width: 90%;
+            max-height: 90%;
+            object-fit: contain;
+        }
+
+        .image-modal-close {
+            position: absolute;
+            top: 20px;
+            right: 35px;
+            color: #f1f1f1;
+            font-size: 40px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .image-modal-close:hover {
+            color: #ff4500;
+        }
+
+        /* Media Upload Styles */
+        .media-upload-area {
+            border: 2px dashed #343536;
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+            background: #272729;
+            margin: 12px 0;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .media-upload-area:hover {
+            border-color: #ff4500;
+            background: rgba(255, 69, 0, 0.1);
+        }
+
+        .media-upload-area.dragover {
+            border-color: #ff4500;
+            background: rgba(255, 69, 0, 0.2);
+        }
+
+        .media-preview {
+            margin: 12px 0;
+            text-align: center;
+        }
+
+        .media-preview img,
+        .media-preview video {
+            max-width: 100%;
+            max-height: 200px;
+            border-radius: 8px;
+        }
+
+        .media-remove-btn {
+            background: #dc2626;
+            color: white;
+            border: none;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+            margin-top: 8px;
+        }
+
+        /* Post Type Toggle */
+        .post-type-toggle {
+            display: flex;
+            background: #272729;
+            border-radius: 8px;
+            overflow: hidden;
+            margin-bottom: 16px;
+        }
+
+        .post-type-btn {
+            flex: 1;
+            background: transparent;
+            color: #818384;
+            border: none;
+            padding: 8px 16px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s ease;
+        }
+
+        .post-type-btn.active {
+            background: #ff4500;
+            color: white;
+        }
+
+        .post-type-btn:hover:not(.active) {
+            background: #343536;
+            color: #d7dadc;
+        }
     </style>
 </head>
 <body>
@@ -854,14 +1173,55 @@
                         <option value="">General Feed</option>
                     </select>
                 </div>
+
+                <div class="form-group">
+                    <label>Post Type</label>
+                    <div class="post-type-toggle">
+                        <button type="button" class="post-type-btn active" onclick="setPostType('text')">Text Post</button>
+                        <button type="button" class="post-type-btn" onclick="setPostType('link')">Link/Media</button>
+                    </div>
+                </div>
+
                 <div class="form-group">
                     <label for="postTitle">Title</label>
                     <input type="text" id="postTitle" required maxlength="200">
                 </div>
-                <div class="form-group">
-                    <label for="postContent">Content</label>
-                    <textarea id="postContent" required placeholder="Share your thoughts..." maxlength="10000"></textarea>
+
+                <!-- Text Post Fields -->
+                <div id="textPostFields">
+                    <div class="form-group">
+                        <label for="postContent">Content</label>
+                        <textarea id="postContent" required placeholder="Share your thoughts... (Markdown supported)" maxlength="10000"></textarea>
+                        <small>Supports Markdown formatting, including **bold**, *italic*, `code`, links, images, and more!</small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Media Upload (Optional)</label>
+                        <div class="media-upload-area" id="mediaUpload" onclick="document.getElementById('mediaFile').click()">
+                            <input type="file" id="mediaFile" accept="image/*,video/*" style="display: none;" onchange="handleMediaUpload(event)">
+                            <div id="mediaUploadText">
+                                📎 Click to upload image or video<br>
+                                <small>Or drag and drop files here</small>
+                            </div>
+                        </div>
+                        <div id="mediaPreview" class="media-preview" style="display: none;"></div>
+                    </div>
                 </div>
+
+                <!-- Link Post Fields -->
+                <div id="linkPostFields" style="display: none;">
+                    <div class="form-group">
+                        <label for="postUrl">URL</label>
+                        <input type="url" id="postUrl" placeholder="https://example.com">
+                        <small>YouTube, images, videos, and other media will be embedded automatically</small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="postDescription">Description (Optional)</label>
+                        <textarea id="postDescription" placeholder="Describe this link..." maxlength="2000"></textarea>
+                    </div>
+                </div>
+
                 <div class="form-group">
                     <input type="checkbox" id="isPrivate" style="width: auto; margin-right: 8px;">
                     <label for="isPrivate" style="display: inline;">Private post (only you can see this)</label>
@@ -869,6 +1229,12 @@
                 <button type="submit" class="btn" id="composeSubmitBtn">Post</button>
             </form>
         </div>
+    </div>
+
+    <!-- Image Modal -->
+    <div id="imageModal" class="image-modal" onclick="closeImageModal()">
+        <span class="image-modal-close" onclick="closeImageModal()">&times;</span>
+        <img class="image-modal-content" id="modalImage">
     </div>
 
     <script>
@@ -880,6 +1246,300 @@
         let currentCommunity = null;
         let isLoading = false;
         let adminData = null;
+        let currentPostType = 'text';
+        let uploadedMedia = null;
+
+        // Initialize Markdown renderer with custom settings
+        let markdownRenderer;
+        
+        // Initialize app
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Configure marked.js for markdown rendering
+            marked.setOptions({
+                highlight: function(code, lang) {
+                    if (lang && hljs.getLanguage(lang)) {
+                        return hljs.highlight(code, { language: lang }).value;
+                    }
+                    return hljs.highlightAuto(code).value;
+                },
+                breaks: true,
+                gfm: true
+            });
+            
+            // Custom renderer for enhanced features
+            markdownRenderer = new marked.Renderer();
+            
+            // Custom link renderer to handle media embeds
+            markdownRenderer.link = function(href, title, text) {
+                const mediaHtml = renderMediaFromUrl(href);
+                if (mediaHtml) return mediaHtml;
+                
+                return `<a href="${href}" target="_blank" rel="noopener noreferrer" ${title ? `title="${title}"` : ''}>${text}</a>`;
+            };
+            
+            // Custom image renderer
+            markdownRenderer.image = function(href, title, text) {
+                return `<img src="${href}" alt="${text}" ${title ? `title="${title}"` : ''} onclick="openImageModal('${href}')" style="cursor: pointer;">`;
+            };
+
+            await loadUser();
+            await loadCommunities();
+            await loadPosts();
+            updateUI();
+            setupEventListeners();
+            
+            // Load admin stats if user is admin
+            if (currentUser?.profile?.isAdmin) {
+                await loadAdminStats();
+            }
+        });
+
+        function setupEventListeners() {
+            // Auth form
+            document.getElementById('authForm').addEventListener('submit', handleAuth);
+            
+            // Create community form
+            document.getElementById('createCommunityForm').addEventListener('submit', handleCreateCommunity);
+            
+            // Compose form
+            document.getElementById('composeForm').addEventListener('submit', handleCreatePost);
+            
+            // Media upload drag and drop
+            const mediaUpload = document.getElementById('mediaUpload');
+            mediaUpload.addEventListener('dragover', handleDragOver);
+            mediaUpload.addEventListener('drop', handleDrop);
+            mediaUpload.addEventListener('dragleave', handleDragLeave);
+        }
+
+        // Media handling functions
+        function setPostType(type) {
+            currentPostType = type;
+            
+            // Update button states
+            document.querySelectorAll('.post-type-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+            
+            // Show/hide relevant fields
+            const textFields = document.getElementById('textPostFields');
+            const linkFields = document.getElementById('linkPostFields');
+            
+            if (type === 'text') {
+                textFields.style.display = 'block';
+                linkFields.style.display = 'none';
+                document.getElementById('postContent').required = true;
+                document.getElementById('postUrl').required = false;
+            } else {
+                textFields.style.display = 'none';
+                linkFields.style.display = 'block';
+                document.getElementById('postContent').required = false;
+                document.getElementById('postUrl').required = true;
+            }
+        }
+
+        function handleDragOver(e) {
+            e.preventDefault();
+            e.currentTarget.classList.add('dragover');
+        }
+
+        function handleDragLeave(e) {
+            e.currentTarget.classList.remove('dragover');
+        }
+
+        function handleDrop(e) {
+            e.preventDefault();
+            e.currentTarget.classList.remove('dragover');
+            
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleMediaFile(files[0]);
+            }
+        }
+
+        function handleMediaUpload(event) {
+            const file = event.target.files[0];
+            if (file) {
+                handleMediaFile(file);
+            }
+        }
+
+        function handleMediaFile(file) {
+            if (!file.type.startsWith('image/') && !file.type.startsWith('video/')) {
+                showError('composeError', 'Please select an image or video file');
+                return;
+            }
+
+            if (file.size > 10 * 1024 * 1024) { // 10MB limit
+                showError('composeError', 'File size must be less than 10MB');
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                uploadedMedia = {
+                    type: file.type.startsWith('image/') ? 'image' : 'video',
+                    data: e.target.result,
+                    name: file.name
+                };
+                showMediaPreview();
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function showMediaPreview() {
+            const preview = document.getElementById('mediaPreview');
+            const uploadText = document.getElementById('mediaUploadText');
+            
+            if (uploadedMedia) {
+                const mediaElement = uploadedMedia.type === 'image' 
+                    ? `<img src="${uploadedMedia.data}" alt="Preview">`
+                    : `<video src="${uploadedMedia.data}" controls></video>`;
+                
+                preview.innerHTML = `
+                    ${mediaElement}
+                    <br>
+                    <button type="button" class="media-remove-btn" onclick="removeMedia()">Remove</button>
+                `;
+                preview.style.display = 'block';
+                uploadText.innerHTML = '✓ Media uploaded';
+            }
+        }
+
+        function removeMedia() {
+            uploadedMedia = null;
+            const preview = document.getElementById('mediaPreview');
+            const uploadText = document.getElementById('mediaUploadText');
+            
+            preview.style.display = 'none';
+            uploadText.innerHTML = `
+                📎 Click to upload image or video<br>
+                <small>Or drag and drop files here</small>
+            `;
+            document.getElementById('mediaFile').value = '';
+        }
+
+        // Media rendering functions
+        function renderMediaFromUrl(url) {
+            if (!url) return null;
+
+            // YouTube video
+            const youtubeMatch = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]+)/);
+            if (youtubeMatch) {
+                const videoId = youtubeMatch[1];
+                return `
+                    <div class="youtube-embed">
+                        <iframe src="https://www.youtube.com/embed/${videoId}" 
+                                allowfullscreen></iframe>
+                    </div>
+                `;
+            }
+
+            // Vimeo video
+            const vimeoMatch = url.match(/vimeo\.com\/(\d+)/);
+            if (vimeoMatch) {
+                const videoId = vimeoMatch[1];
+                return `
+                    <div class="youtube-embed">
+                        <iframe src="https://player.vimeo.com/video/${videoId}" 
+                                allowfullscreen></iframe>
+                    </div>
+                `;
+            }
+
+            // Direct image links
+            if (url.match(/\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i)) {
+                return `<img src="${url}" class="post-image" onclick="openImageModal('${url}')" alt="Image">`;
+            }
+
+            // Direct video links
+            if (url.match(/\.(mp4|webm|ogg|mov)(\?.*)?$/i)) {
+                return `<video src="${url}" class="post-video" controls></video>`;
+            }
+
+            // Twitter/X posts
+            const twitterMatch = url.match(/(?:twitter\.com|x\.com)\/\w+\/status\/(\d+)/);
+            if (twitterMatch) {
+                return `
+                    <div class="media-link">
+                        <div class="media-link-title">🐦 Twitter/X Post</div>
+                        <div class="media-link-url">${url}</div>
+                    </div>
+                `;
+            }
+
+            // Generic link with preview
+            return null; // Let default link rendering handle it
+        }
+
+        function renderPostContent(post) {
+            let contentHtml = '';
+
+            // Handle different post types
+            if (post.type === 'link' && post.url) {
+                const mediaHtml = renderMediaFromUrl(post.url);
+                if (mediaHtml) {
+                    contentHtml += `<div class="post-media">${mediaHtml}</div>`;
+                } else {
+                    contentHtml += `
+                        <a href="${post.url}" target="_blank" rel="noopener noreferrer" class="media-link">
+                            <div class="media-link-title">🔗 ${post.url}</div>
+                            <div class="media-link-url">${post.url}</div>
+                        </a>
+                    `;
+                }
+                
+                if (post.description) {
+                    contentHtml += `<div class="markdown-content">${renderMarkdown(post.description)}</div>`;
+                }
+            } else if (post.content) {
+                contentHtml += `<div class="markdown-content">${renderMarkdown(post.content)}</div>`;
+            }
+
+            // Handle embedded media from text posts
+            if (post.media) {
+                if (post.media.type === 'image') {
+                    contentHtml += `
+                        <div class="post-media">
+                            <img src="${post.media.data}" class="post-image" onclick="openImageModal('${post.media.data}')" alt="Uploaded image">
+                        </div>
+                    `;
+                } else if (post.media.type === 'video') {
+                    contentHtml += `
+                        <div class="post-media">
+                            <video src="${post.media.data}" class="post-video" controls></video>
+                        </div>
+                    `;
+                }
+            }
+
+            return contentHtml;
+        }
+
+        function renderMarkdown(text) {
+            if (!text) return '';
+            
+            try {
+                // Render markdown with custom renderer
+                const html = marked.parse(text, { renderer: markdownRenderer });
+                
+                // Sanitize the HTML to prevent XSS attacks
+                return DOMPurify.sanitize(html);
+            } catch (error) {
+                console.error('Markdown rendering error:', error);
+                return escapeHtml(text);
+            }
+        }
+
+        // Image modal functions
+        function openImageModal(src) {
+            const modal = document.getElementById('imageModal');
+            const modalImg = document.getElementById('modalImage');
+            modal.style.display = 'block';
+            modalImg.src = src;
+        }
+
+        function closeImageModal() {
+            document.getElementById('imageModal').style.display = 'none';
+        }
 
         // Netlify Blobs API implementation
         const blobAPI = {
@@ -1536,6 +2196,7 @@
                                 @${escapeHtml(post.author)}
                             </span>
                             ${post.isPrivate ? '<span class="private-badge">Private</span>' : ''}
+                            ${post.type === 'link' ? '<span class="private-badge" style="background: #0079d3;">Link</span>' : ''}
                             <span class="timestamp">${formatTimestamp(post.timestamp)}</span>
                         </div>
                         
@@ -1548,7 +2209,7 @@
                                 </div>
                             ` : ''}
                             <h3 class="post-title">${escapeHtml(post.title)}</h3>
-                            <div class="post-content">${escapeHtml(post.content || '').substring(0, 300)}${post.content && post.content.length > 300 ? '...' : ''}</div>
+                            ${renderPostContent(post)}
                         </div>
                         
                         <div class="post-actions">
@@ -1817,16 +2478,41 @@
             }
             
             const title = document.getElementById('postTitle').value.trim();
-            const content = document.getElementById('postContent').value.trim();
             const communityName = document.getElementById('postCommunity').value;
             const isPrivate = document.getElementById('isPrivate').checked;
             const submitBtn = document.getElementById('composeSubmitBtn');
             const errorDiv = document.getElementById('composeError');
             
+            let content = '';
+            let url = '';
+            let description = '';
+            
+            if (currentPostType === 'text') {
+                content = document.getElementById('postContent').value.trim();
+                if (!content && !uploadedMedia) {
+                    showError('composeError', 'Please provide content or upload media');
+                    return;
+                }
+            } else {
+                url = document.getElementById('postUrl').value.trim();
+                description = document.getElementById('postDescription').value.trim();
+                if (!url) {
+                    showError('composeError', 'Please provide a URL');
+                    return;
+                }
+                
+                try {
+                    new URL(url);
+                } catch {
+                    showError('composeError', 'Please provide a valid URL');
+                    return;
+                }
+            }
+            
             errorDiv.innerHTML = '';
             
-            if (!title || !content) {
-                showError('composeError', 'Please fill in both title and content');
+            if (!title) {
+                showError('composeError', 'Please provide a title');
                 return;
             }
             
@@ -1836,20 +2522,34 @@
                 
                 const post = {
                     id: `post_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                    type: currentPostType,
                     title,
-                    content,
                     author: currentUser.username,
                     timestamp: new Date().toISOString(),
                     isPrivate,
                     communityName: communityName || null,
                     replies: []
                 };
+
+                if (currentPostType === 'text') {
+                    if (content) post.content = content;
+                    if (uploadedMedia) post.media = uploadedMedia;
+                } else {
+                    post.url = url;
+                    if (description) post.description = description;
+                }
                 
                 await blobAPI.set(post.id, post);
                 posts.unshift(post);
                 
                 closeModal('composeModal');
                 document.getElementById('composeForm').reset();
+                
+                // Reset post type and media
+                currentPostType = 'text';
+                uploadedMedia = null;
+                setPostType('text');
+                removeMedia();
                 
                 updateUI();
                 
@@ -1941,6 +2641,48 @@
         window.addEventListener('click', (e) => {
             if (e.target.classList.contains('modal')) {
                 e.target.style.display = 'none';
+            }
+        });
+
+        // Initialize app - moved to after all function definitions
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Configure marked.js for markdown rendering
+            marked.setOptions({
+                highlight: function(code, lang) {
+                    if (lang && hljs.getLanguage(lang)) {
+                        return hljs.highlight(code, { language: lang }).value;
+                    }
+                    return hljs.highlightAuto(code).value;
+                },
+                breaks: true,
+                gfm: true
+            });
+            
+            // Custom renderer for enhanced features
+            markdownRenderer = new marked.Renderer();
+            
+            // Custom link renderer to handle media embeds
+            markdownRenderer.link = function(href, title, text) {
+                const mediaHtml = renderMediaFromUrl(href);
+                if (mediaHtml) return mediaHtml;
+                
+                return `<a href="${href}" target="_blank" rel="noopener noreferrer" ${title ? `title="${title}"` : ''}>${text}</a>`;
+            };
+            
+            // Custom image renderer
+            markdownRenderer.image = function(href, title, text) {
+                return `<img src="${href}" alt="${text}" ${title ? `title="${title}"` : ''} onclick="openImageModal('${href}')" style="cursor: pointer;">`;
+            };
+
+            await loadUser();
+            await loadCommunities();
+            await loadPosts();
+            updateUI();
+            setupEventListeners();
+            
+            // Load admin stats if user is admin
+            if (currentUser?.profile?.isAdmin) {
+                await loadAdminStats();
             }
         });
     </script>
