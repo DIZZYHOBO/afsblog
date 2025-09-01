@@ -1694,9 +1694,11 @@
         }
 
         function navigateToCommunity(communityName) {
+            console.log('Navigating to community:', communityName);
             toggleMenu();
             currentPage = 'community';
             currentCommunity = communityName;
+            console.log('Set currentCommunity to:', currentCommunity);
             updateUI();
         }
 
@@ -2213,25 +2215,28 @@
             const communityPosts = posts.filter(post => post.communityName === community.name && !post.isPrivate);
             const communityHeader = `
                 <div style="background-color: var(--bg-default); border: 1px solid var(--border-default); border-radius: 8px; padding: 24px; margin-bottom: 24px;">
-                    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px;">
-                        <div style="flex: 1;">
-                            <h1 style="color: var(--accent-fg); font-size: 28px; margin-bottom: 8px;">${escapeHtml(community.displayName)}</h1>
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; gap: 16px;">
+                        <div style="flex: 1; min-width: 0;">
+                            <h1 style="color: var(--accent-fg); font-size: 28px; margin-bottom: 8px; word-wrap: break-word;">${escapeHtml(community.displayName)}</h1>
                             <p style="color: var(--fg-muted); margin-bottom: 4px;">c/${escapeHtml(community.name)}</p>
-                            ${community.description ? `<p style="color: var(--fg-default); margin-bottom: 16px;">${escapeHtml(community.description)}</p>` : ''}
+                            ${community.description ? `<p style="color: var(--fg-default); margin-bottom: 0;">${escapeHtml(community.description)}</p>` : ''}
                         </div>
-                        ${currentUser ? `
-                            <button class="btn ${isFollowing ? 'btn-secondary' : ''}" 
-                                    onclick="toggleCommunityFollow('${escapeHtml(community.name)}')" 
-                                    id="followBtn-${escapeHtml(community.name)}">
-                                ${isFollowing ? '✓ Following' : '+ Follow'}
-                            </button>
-                        ` : `
-                            <button class="btn" onclick="openAuthModal('signin')">
-                                + Follow
-                            </button>
-                        `}
+                        <div style="flex-shrink: 0;">
+                            ${currentUser && sessionToken ? `
+                                <button class="btn ${isFollowing ? 'btn-secondary' : ''}" 
+                                        onclick="toggleCommunityFollow('${escapeHtml(community.name)}')" 
+                                        id="followBtn-${escapeHtml(community.name)}"
+                                        style="min-width: 100px;">
+                                    ${isFollowing ? '✓ Following' : '+ Follow'}
+                                </button>
+                            ` : `
+                                <button class="btn" onclick="openAuthModal('signin')" style="min-width: 100px;">
+                                    + Follow
+                                </button>
+                            `}
+                        </div>
                     </div>
-                    <div style="display: flex; gap: 20px; color: var(--fg-muted); font-size: 14px;">
+                    <div style="display: flex; gap: 20px; color: var(--fg-muted); font-size: 14px; flex-wrap: wrap;">
                         <span>${communityPosts.length} posts</span>
                         <span>${community.members?.length || 1} members</span>
                         <span>Created by @${escapeHtml(community.createdBy)}</span>
@@ -3021,17 +3026,31 @@
 
         // Community Following Functions
         async function toggleCommunityFollow(communityName) {
+            console.log('toggleCommunityFollow called for:', communityName);
+            console.log('Current user:', currentUser);
+            console.log('Session token:', sessionToken ? 'exists' : 'missing');
+            
             if (!currentUser || !sessionToken) {
+                console.log('Not authenticated, opening auth modal');
                 openAuthModal('signin');
                 return;
             }
 
             const followBtn = document.getElementById(`followBtn-${communityName}`);
+            console.log('Follow button found:', followBtn);
+            
+            if (!followBtn) {
+                console.error('Follow button not found for community:', communityName);
+                return;
+            }
+            
             const originalText = followBtn.textContent;
             
             try {
                 followBtn.disabled = true;
                 followBtn.textContent = 'Loading...';
+                
+                console.log('Making API call to follow/unfollow community');
                 
                 // Use existing API endpoint
                 const response = await fetch('/.netlify/functions/api/communities/follow', {
@@ -3046,11 +3065,16 @@
                     })
                 });
 
+                console.log('API response status:', response.status);
+
                 if (!response.ok) {
-                    throw new Error('Failed to toggle follow status');
+                    const errorData = await response.json();
+                    console.error('API error:', errorData);
+                    throw new Error(errorData.error || 'Failed to toggle follow status');
                 }
 
                 const result = await response.json();
+                console.log('API result:', result);
                 
                 // Update button appearance
                 if (result.following) {
@@ -3066,7 +3090,7 @@
             } catch (error) {
                 console.error('Error toggling follow status:', error);
                 followBtn.textContent = originalText;
-                showSuccessMessage('Failed to update follow status. Please try again.');
+                showSuccessMessage(error.message || 'Failed to update follow status. Please try again.');
             } finally {
                 followBtn.disabled = false;
             }
