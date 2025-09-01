@@ -1756,6 +1756,9 @@
                 currentUser = { username, profile: user };
                 await blobAPI.set('current_user', currentUser);
                 
+                // Load user's followed communities after login
+                await loadFollowedCommunities();
+                
                 // Clear the form
                 document.getElementById('inlineLoginFormElement').reset();
                 
@@ -2045,6 +2048,9 @@
                     if (fullProfile) {
                         currentUser.profile = fullProfile;
                     }
+                    
+                    // Load user's followed communities after loading user
+                    await loadFollowedCommunities();
                 }
             } catch (error) {
                 console.error('Error loading user:', error);
@@ -2210,7 +2216,7 @@
             renderFeedWithTabs();
         }
 
-        // FIXED: renderCommunityPage function with extensive debugging and improved button rendering
+        // FIXED: renderCommunityPage function with proper follow status checking
         async function renderCommunityPage() {
             console.log('renderCommunityPage called, currentCommunity:', currentCommunity);
             
@@ -2230,22 +2236,17 @@
 
             // Check if user is following this community (if logged in)
             let isFollowing = false;
-            let followCheckComplete = false;
             
             if (currentUser) {
                 try {
                     console.log('Checking follow status for authenticated user');
-                    // For now, simulate follow check since API might not exist
-                    // Replace with actual API call when available
-                    isFollowing = await simulateFollowCheck(currentCommunity);
+                    isFollowing = await checkIfFollowing(currentCommunity);
                     console.log('Follow status check result:', isFollowing);
                 } catch (error) {
                     console.error('Error checking follow status:', error);
                 }
-                followCheckComplete = true;
             } else {
                 console.log('User not authenticated, skipping follow status check');
-                followCheckComplete = true;
             }
 
             const communityPosts = posts.filter(post => post.communityName === community.name && !post.isPrivate);
@@ -2277,6 +2278,9 @@
             
             console.log('Generated follow button HTML:', followButtonHtml);
             
+            // Ensure member count is accurate
+            const memberCount = community.members?.length || 1;
+            
             const communityHeader = `
                 <div class="community-header">
                     <div class="community-hero">
@@ -2299,7 +2303,7 @@
                         </div>
                         <div class="stat-divider"></div>
                         <div class="stat-item">
-                            <span class="stat-number">${community.members?.length || 1}</span>
+                            <span class="stat-number">${memberCount}</span>
                             <span class="stat-label">members</span>
                         </div>
                         <div class="stat-divider"></div>
@@ -2320,7 +2324,7 @@
             updateFeedContent(finalHtml);
         }
 
-        // FIXED: Improved toggleCommunityFollow function with better error handling
+        // FIXED: Improved toggleCommunityFollow function with real follow/unfollow logic
         async function toggleCommunityFollow(communityName) {
             console.log('toggleCommunityFollow called for:', communityName);
             console.log('Current user:', currentUser);
@@ -2336,12 +2340,6 @@
             
             if (!followBtn) {
                 console.error('Follow button not found for community:', communityName);
-                // Try to find any button with the community name in onclick
-                const allButtons = document.querySelectorAll('button');
-                console.log('All buttons on page:', allButtons.length);
-                allButtons.forEach((btn, index) => {
-                    console.log(`Button ${index}:`, btn.textContent, btn.onclick);
-                });
                 return;
             }
             
@@ -2352,10 +2350,11 @@
                 followBtn.disabled = true;
                 followBtn.textContent = 'Loading...';
                 
-                console.log('Making API call to follow/unfollow community');
+                console.log('Toggling follow status for community:', communityName);
+                console.log('Was following:', wasFollowing, 'Will follow:', !wasFollowing);
                 
-                // Use simulation for now - replace with actual API call when available
-                const response = await simulateFollowToggle(communityName, !wasFollowing);
+                // Use real follow/unfollow logic
+                const response = await toggleFollowStatus(communityName, !wasFollowing);
                 
                 if (response.success) {
                     // Update button appearance
@@ -2363,13 +2362,15 @@
                         followBtn.textContent = '✓ Following';
                         followBtn.className = 'btn btn-secondary';
                         followBtn.style.cssText = 'padding: 12px 24px; font-weight: 600; box-shadow: 0 2px 8px rgba(0,0,0,0.15);';
-                        showSuccessMessage(`Now following c/${communityName}!`);
+                        showSuccessMessage(`Now following c/${communityName}! 🎉`);
                     } else {
                         followBtn.textContent = '+ Follow';
                         followBtn.className = 'btn';
                         followBtn.style.cssText = 'padding: 12px 24px; font-weight: 600; box-shadow: 0 2px 8px rgba(0,0,0,0.15);';
                         showSuccessMessage(`Unfollowed c/${communityName}`);
                     }
+                    
+                    console.log(`Follow toggle successful. New member count: ${response.memberCount}`);
                 } else {
                     throw new Error(response.error || 'Unknown error');
                 }
@@ -2377,32 +2378,146 @@
             } catch (error) {
                 console.error('Error toggling follow status:', error);
                 followBtn.textContent = originalText;
+                
+                // Restore original button class
+                if (wasFollowing) {
+                    followBtn.className = 'btn btn-secondary';
+                } else {
+                    followBtn.className = 'btn';
+                }
+                followBtn.style.cssText = 'padding: 12px 24px; font-weight: 600; box-shadow: 0 2px 8px rgba(0,0,0,0.15);';
+                
                 showSuccessMessage(error.message || 'Failed to update follow status. Please try again.');
             } finally {
                 followBtn.disabled = false;
             }
         }
 
-        // Temporary simulation functions - replace with actual API calls when available
-        async function simulateFollowCheck(communityName) {
-            // Simulate API delay
-            await new Promise(resolve => setTimeout(resolve, 100));
-            
-            // For demo purposes, return false (not following)
-            // In real implementation, this would check the user's followed communities
-            return false;
+        // User's followed communities storage
+        let followedCommunities = new Set();
+
+        // Load user's followed communities from storage
+        async function loadFollowedCommunities() {
+            if (!currentUser) {
+                followedCommunities = new Set();
+                return;
+            }
+
+            try {
+                const userFollows = await blobAPI.get(`user_follows_${currentUser.username}`);
+                followedCommunities = new Set(userFollows?.communities || []);
+                console.log('Loaded followed communities:', Array.from(followedCommunities));
+            } catch (error) {
+                console.error('Error loading followed communities:', error);
+                followedCommunities = new Set();
+            }
         }
 
-        async function simulateFollowToggle(communityName, shouldFollow) {
-            // Simulate API delay
-            await new Promise(resolve => setTimeout(resolve, 500));
+        // Save user's followed communities to storage
+        async function saveFollowedCommunities() {
+            if (!currentUser) return;
+
+            try {
+                const followData = {
+                    username: currentUser.username,
+                    communities: Array.from(followedCommunities),
+                    lastUpdated: new Date().toISOString()
+                };
+                await blobAPI.set(`user_follows_${currentUser.username}`, followData);
+                console.log('Saved followed communities:', followData);
+            } catch (error) {
+                console.error('Error saving followed communities:', error);
+            }
+        }
+
+        // Check if user is following a specific community
+        async function checkIfFollowing(communityName) {
+            if (!currentUser) return false;
             
-            // For now, just return success
-            return {
-                success: true,
-                following: shouldFollow,
-                message: shouldFollow ? 'Followed' : 'Unfollowed'
-            };
+            // Load followed communities if not already loaded
+            if (followedCommunities.size === 0) {
+                await loadFollowedCommunities();
+            }
+            
+            const isFollowing = followedCommunities.has(communityName);
+            console.log(`User ${currentUser.username} is ${isFollowing ? '' : 'not '}following ${communityName}`);
+            return isFollowing;
+        }
+
+        // Toggle follow status and update community member count
+        async function toggleFollowStatus(communityName, shouldFollow) {
+            if (!currentUser) {
+                throw new Error('User not authenticated');
+            }
+
+            try {
+                // Update user's followed communities
+                if (shouldFollow) {
+                    followedCommunities.add(communityName);
+                } else {
+                    followedCommunities.delete(communityName);
+                }
+
+                // Save user's followed communities
+                await saveFollowedCommunities();
+
+                // Update community member count
+                const community = communities.find(c => c.name === communityName);
+                if (community) {
+                    // Initialize members array if it doesn't exist
+                    if (!community.members) {
+                        community.members = [community.createdBy]; // Creator is always a member
+                    }
+
+                    if (shouldFollow) {
+                        // Add user to community members if not already there
+                        if (!community.members.includes(currentUser.username)) {
+                            community.members.push(currentUser.username);
+                        }
+                    } else {
+                        // Remove user from community members (but keep creator)
+                        if (currentUser.username !== community.createdBy) {
+                            community.members = community.members.filter(member => member !== currentUser.username);
+                        }
+                    }
+
+                    // Save updated community to storage
+                    await blobAPI.set(`community_${communityName}`, community);
+                    console.log(`Updated community ${communityName} members:`, community.members);
+
+                    // Update local communities array
+                    const localCommunityIndex = communities.findIndex(c => c.name === communityName);
+                    if (localCommunityIndex !== -1) {
+                        communities[localCommunityIndex] = community;
+                    }
+
+                    // Update member count display on page
+                    updateCommunityMemberCount(communityName, community.members.length);
+                }
+
+                return {
+                    success: true,
+                    following: shouldFollow,
+                    memberCount: community?.members?.length || 1
+                };
+
+            } catch (error) {
+                console.error('Error toggling follow status:', error);
+                throw error;
+            }
+        }
+
+        // Update the member count display on the community page
+        function updateCommunityMemberCount(communityName, newCount) {
+            // Find the member count element and update it
+            const memberCountElements = document.querySelectorAll('.stat-number');
+            memberCountElements.forEach((element, index) => {
+                const statLabel = element.parentNode.querySelector('.stat-label');
+                if (statLabel && statLabel.textContent === 'members') {
+                    element.textContent = newCount;
+                    console.log(`Updated member count display to ${newCount}`);
+                }
+            });
         }
 
         function renderPostList(postList, emptyMessage) {
@@ -2880,6 +2995,9 @@
                     currentUser = { username, profile: user };
                     await blobAPI.set('current_user', currentUser);
                     
+                    // Load user's followed communities after login
+                    await loadFollowedCommunities();
+                    
                     closeModal('authModal');
                     updateUI();
                     showSuccessMessage('Welcome back!');
@@ -2903,6 +3021,7 @@
         async function logout() {
             try {
                 currentUser = null;
+                followedCommunities = new Set(); // Clear followed communities
                 
                 // Try to delete current_user key, but don't fail if it doesn't exist
                 try {
@@ -2924,6 +3043,7 @@
                 console.error('Logout error:', error);
                 // Even if there's an error, still clear the user state
                 currentUser = null;
+                followedCommunities = new Set();
                 document.getElementById('adminPanel').style.display = 'none';
                 navigateToFeed();
                 updateUI();
