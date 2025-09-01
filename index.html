@@ -1363,7 +1363,7 @@
             <button class="feed-tab active" id="generalTab" onclick="switchFeedTab('general')">
                 General
             </button>
-            <button class="feed-tab" id="followedTab" onclick="switchFeedTab('followed')" disabled>
+            <button class="feed-tab" id="followedTab" onclick="switchFeedTab('followed')">
                 Followed
             </button>
             <button class="feed-tab" id="privateTab" onclick="switchFeedTab('private')">
@@ -1867,11 +1867,6 @@
 
         // Feed Tab Functions
         function switchFeedTab(tabName) {
-            if (tabName === 'followed') {
-                // Followed tab is disabled for now
-                return;
-            }
-
             currentFeedTab = tabName;
             
             // Update tab visual states
@@ -1889,6 +1884,10 @@
             // Show tabs only on feed page when user is logged in
             if (currentPage === 'feed' && currentUser) {
                 feedTabs.style.display = 'flex';
+                
+                // Enable all tabs for logged in users
+                const followedTab = document.getElementById('followedTab');
+                followedTab.disabled = false;
             } else {
                 feedTabs.style.display = 'none';
             }
@@ -2189,16 +2188,120 @@
             updateFeedContent(renderPostList(publicPosts, 'No public posts yet!'));
         }
 
-        function renderFollowedFeed() {
-            // Placeholder for followed communities feed
-            const placeholderHtml = `
-                <div class="feature-placeholder">
-                    <h3>🏘️ Followed Communities</h3>
-                    <p>This feature is coming soon! You'll be able to follow your favorite communities and see their posts in a dedicated feed.</p>
-                    <p style="margin-top: 16px; font-size: 12px; color: var(--fg-subtle);">Follow communities to see their content here</p>
+        // Get posts from followed communities
+        function getFollowedCommunityPosts() {
+            if (!currentUser || followedCommunities.size === 0) {
+                return [];
+            }
+
+            // Filter posts that are from followed communities and not private
+            const followedPosts = posts.filter(post => 
+                post.communityName && 
+                followedCommunities.has(post.communityName) && 
+                !post.isPrivate
+            );
+
+            console.log(`Found ${followedPosts.length} posts from ${followedCommunities.size} followed communities`);
+            console.log('Followed communities:', Array.from(followedCommunities));
+            
+            return followedPosts;
+        }
+
+        async function renderFollowedFeed() {
+            if (!currentUser) {
+                const placeholderHtml = `
+                    <div class="feature-placeholder">
+                        <h3>🏘️ Followed Communities</h3>
+                        <p>Sign in to follow communities and see their posts in your personalized feed!</p>
+                        <button class="btn" onclick="openAuthModal('signin')" style="margin-top: 16px;">Sign In</button>
+                    </div>
+                `;
+                updateFeedContent(placeholderHtml);
+                return;
+            }
+
+            // Show loading while we get the latest follow status
+            updateFeedContent('<div class="loading">Loading your followed communities feed...</div>');
+            
+            // Ensure we have the latest followed communities data
+            await loadFollowedCommunities();
+            
+            if (followedCommunities.size === 0) {
+                // User isn't following any communities yet
+                const emptyFollowedHtml = `
+                    <div class="feature-placeholder">
+                        <h3>🏘️ No Followed Communities Yet</h3>
+                        <p>You're not following any communities yet! Discover and follow communities to see their posts here.</p>
+                        <div style="margin-top: 20px;">
+                            <p style="color: var(--fg-muted); font-size: 14px; margin-bottom: 16px;">
+                                Browse communities in the sidebar to get started
+                            </p>
+                            <button class="btn" onclick="switchFeedTab('general')" style="margin-right: 12px;">
+                                Browse General Feed
+                            </button>
+                            <button class="btn btn-secondary" onclick="toggleCommunitiesDropdown(); toggleMenu();">
+                                Browse Communities
+                            </button>
+                        </div>
+                    </div>
+                `;
+                updateFeedContent(emptyFollowedHtml);
+                return;
+            }
+
+            // Get posts from followed communities
+            const followedPosts = getFollowedCommunityPosts();
+            
+            if (followedPosts.length === 0) {
+                // User is following communities but they don't have any posts
+                const noPostsHtml = `
+                    <div class="feature-placeholder">
+                        <h3>🏘️ No Posts Yet</h3>
+                        <p>You're following ${followedCommunities.size} ${followedCommunities.size === 1 ? 'community' : 'communities'}, but there are no recent posts.</p>
+                        <div style="margin-top: 16px; color: var(--fg-muted); font-size: 14px;">
+                            <p><strong>Following:</strong> ${Array.from(followedCommunities).map(name => `c/${name}`).join(', ')}</p>
+                        </div>
+                        <div style="margin-top: 20px;">
+                            <button class="btn" onclick="switchFeedTab('general')" style="margin-right: 12px;">
+                                Browse General Feed
+                            </button>
+                            <button class="btn btn-secondary" onclick="toggleCommunitiesDropdown(); toggleMenu();">
+                                Find More Communities
+                            </button>
+                        </div>
+                    </div>
+                `;
+                updateFeedContent(noPostsHtml);
+                return;
+            }
+
+            // Create a header showing followed communities info
+            const followedCommunitiesInfo = `
+                <div style="background: var(--bg-default); border: 1px solid var(--border-default); border-radius: 8px; padding: 16px; margin-bottom: 16px;">
+                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                        <span style="font-size: 18px;">🏘️</span>
+                        <h3 style="color: var(--fg-default); margin: 0;">Following ${followedCommunities.size} ${followedCommunities.size === 1 ? 'Community' : 'Communities'}</h3>
+                    </div>
+                    <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                        ${Array.from(followedCommunities).map(name => {
+                            const community = communities.find(c => c.name === name);
+                            return `<a href="#" 
+                                      class="post-community-link" 
+                                      onclick="navigateToCommunity('${name}'); return false;"
+                                      style="font-size: 12px;">
+                                c/${community ? escapeHtml(community.displayName) : escapeHtml(name)}
+                            </a>`;
+                        }).join('')}
+                    </div>
+                    <p style="color: var(--fg-muted); font-size: 12px; margin: 12px 0 0 0;">
+                        Showing ${followedPosts.length} ${followedPosts.length === 1 ? 'post' : 'posts'} from your followed communities
+                    </p>
                 </div>
             `;
-            updateFeedContent(placeholderHtml);
+
+            // Render the followed posts with the info header
+            const postsHtml = renderPostList(followedPosts, 'No posts from your followed communities yet!');
+            updateFeedContent(followedCommunitiesInfo + postsHtml);
         }
 
         function renderPrivateFeed() {
@@ -2444,7 +2547,7 @@
             return isFollowing;
         }
 
-        // Toggle follow status and update community member count
+        // Update toggleFollowStatus to refresh followed feed if currently viewing it
         async function toggleFollowStatus(communityName, shouldFollow) {
             if (!currentUser) {
                 throw new Error('User not authenticated');
@@ -2493,6 +2596,14 @@
 
                     // Update member count display on page
                     updateCommunityMemberCount(communityName, community.members.length);
+                }
+
+                // If we're currently viewing the followed feed, refresh it
+                if (currentPage === 'feed' && currentFeedTab === 'followed') {
+                    console.log('Refreshing followed feed after follow status change');
+                    setTimeout(() => {
+                        renderFollowedFeed();
+                    }, 100); // Small delay to allow UI to update first
                 }
 
                 return {
