@@ -1853,6 +1853,11 @@
             border-radius: 6px;
         }
 
+        .protected-badge {
+            background: linear-gradient(135deg, var(--danger-fg), #dc2626) !important;
+            color: white !important;
+        }
+
         .admin-user-bio, .admin-community-description {
             color: var(--fg-muted);
             font-size: 14px;
@@ -1896,6 +1901,15 @@
         }
 
         .admin-promote-btn:hover {
+            background: #f59e0b !important;
+        }
+
+        .admin-demote-btn {
+            background: var(--attention-fg) !important;
+            color: var(--bg-canvas) !important;
+        }
+
+        .admin-demote-btn:hover {
             background: #f59e0b !important;
         }
 
@@ -2562,6 +2576,9 @@
         let inlineLoginFormOpen = false;
         let currentFeedTab = 'general'; // Track current feed tab
 
+        // PROTECTED_ADMIN constant - matches the API
+        const PROTECTED_ADMIN = "dumbass";
+
         // Menu functions
         function toggleMenu() {
             const menu = document.getElementById('slideMenu');
@@ -2866,6 +2883,146 @@
             } else {
                 feedTabs.style.display = 'none';
             }
+        }
+
+        // Admin functions - UPDATED with demotion and @dumbass protection
+        async function promoteToAdmin(username) {
+            if (!confirm(`Promote @${username} to administrator? They will have full admin privileges.`)) return;
+            
+            try {
+                const user = await blobAPI.get(`user_${username}`);
+                if (!user) {
+                    showSuccessMessage('User not found');
+                    return;
+                }
+
+                if (user.isAdmin) {
+                    showSuccessMessage(`@${username} is already an admin!`);
+                    return;
+                }
+
+                // Update user to admin
+                const updatedUser = {
+                    ...user,
+                    isAdmin: true,
+                    promotedAt: new Date().toISOString(),
+                    promotedBy: currentUser.username
+                };
+
+                await blobAPI.set(`user_${username}`, updatedUser);
+                showSuccessMessage(`@${username} promoted to administrator!`);
+                
+                // Refresh admin page
+                renderAdminPage();
+                
+            } catch (error) {
+                console.error('Error promoting user:', error);
+                showSuccessMessage('Failed to promote user. Please try again.');
+            }
+        }
+
+        // NEW: Admin demotion function with @dumbass protection
+        async function demoteFromAdmin(username) {
+            // Check if trying to demote the protected admin
+            if (username === PROTECTED_ADMIN) {
+                showSuccessMessage(`@${PROTECTED_ADMIN} is a protected admin and cannot be demoted by anyone.`);
+                return;
+            }
+
+            // Prevent self-demotion
+            if (username === currentUser.username) {
+                showSuccessMessage('You cannot demote yourself.');
+                return;
+            }
+
+            if (!confirm(`Remove admin privileges from @${username}? They will become a regular user.`)) return;
+            
+            try {
+                const user = await blobAPI.get(`user_${username}`);
+                if (!user) {
+                    showSuccessMessage('User not found');
+                    return;
+                }
+
+                if (!user.isAdmin) {
+                    showSuccessMessage('User is not an admin');
+                    return;
+                }
+
+                // Update user to remove admin privileges
+                const updatedUser = {
+                    ...user,
+                    isAdmin: false,
+                    demotedAt: new Date().toISOString(),
+                    demotedBy: currentUser.username
+                };
+
+                await blobAPI.set(`user_${username}`, updatedUser);
+                showSuccessMessage(`@${username} admin privileges removed!`);
+                
+                // Refresh admin page
+                renderAdminPage();
+                
+            } catch (error) {
+                console.error('Error demoting user:', error);
+                showSuccessMessage('Failed to remove admin privileges. Please try again.');
+            }
+        }
+
+        // UPDATED: renderAllUsersPanel function with demote button and protection
+        function renderAllUsersPanel(allUsers) {
+            return `
+                <div class="admin-section-header">
+                    <h3>All Users Management</h3>
+                    <p>View and manage all registered users</p>
+                </div>
+                <div class="admin-users-list">
+                    ${allUsers.map(user => `
+                        <div class="admin-user-card">
+                            <div class="admin-user-info">
+                                <div class="admin-user-avatar">
+                                    ${user.profilePicture ? 
+                                        `<img src="${user.profilePicture}" alt="${user.username}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;" onerror="this.style.display='none'; this.parentNode.innerHTML='${user.username.charAt(0).toUpperCase()}';">` 
+                                        : user.username.charAt(0).toUpperCase()
+                                    }
+                                </div>
+                                <div class="admin-user-details">
+                                    <h4>
+                                        @${escapeHtml(user.username)}
+                                        ${user.isAdmin ? `<span class="admin-badge-small ${user.username === PROTECTED_ADMIN ? 'protected-badge' : ''}">${user.username === PROTECTED_ADMIN ? '🛡️ Protected Admin' : '👑 Admin'}</span>` : ''}
+                                    </h4>
+                                    <p class="admin-user-bio">${escapeHtml(user.bio || 'No bio provided')}</p>
+                                    <div class="admin-user-meta">
+                                        <span>📅 Joined ${formatDate(user.createdAt || new Date().toISOString())}</span>
+                                        <span>📝 ${posts.filter(p => p.author === user.username).length} posts</span>
+                                        <span>🏘️ ${communities.filter(c => c.createdBy === user.username).length} communities</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="admin-user-actions">
+                                ${!user.isAdmin ? `
+                                    <button class="btn admin-promote-btn" onclick="promoteToAdmin('${user.username}')">
+                                        👑 Make Admin
+                                    </button>
+                                ` : user.username !== currentUser.username && user.username !== PROTECTED_ADMIN ? `
+                                    <button class="btn admin-demote-btn" onclick="demoteFromAdmin('${user.username}')">
+                                        📉 Remove Admin
+                                    </button>
+                                ` : user.username === PROTECTED_ADMIN ? `
+                                    <button class="btn btn-secondary" disabled title="Protected admin cannot be demoted">
+                                        🛡️ Protected
+                                    </button>
+                                ` : ''}
+                                ${user.username !== currentUser.username ? `
+                                    <button class="btn btn-danger admin-delete-btn" onclick="deleteUser('${user.username}')">
+                                        🗑️ Delete
+                                    </button>
+                                ` : ''}
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
         }
 
         // Render user profile page
@@ -3676,54 +3833,6 @@
             `;
         }
 
-        // Render all users panel
-        function renderAllUsersPanel(allUsers) {
-            return `
-                <div class="admin-section-header">
-                    <h3>All Users Management</h3>
-                    <p>View and manage all registered users</p>
-                </div>
-                <div class="admin-users-list">
-                    ${allUsers.map(user => `
-                        <div class="admin-user-card">
-                            <div class="admin-user-info">
-                                <div class="admin-user-avatar">
-                                    ${user.profilePicture ? 
-                                        `<img src="${user.profilePicture}" alt="${user.username}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;" onerror="this.style.display='none'; this.parentNode.innerHTML='${user.username.charAt(0).toUpperCase()}';">` 
-                                        : user.username.charAt(0).toUpperCase()
-                                    }
-                                </div>
-                                <div class="admin-user-details">
-                                    <h4>
-                                        @${escapeHtml(user.username)}
-                                        ${user.isAdmin ? '<span class="admin-badge-small">👑 Admin</span>' : ''}
-                                    </h4>
-                                    <p class="admin-user-bio">${escapeHtml(user.bio || 'No bio provided')}</p>
-                                    <div class="admin-user-meta">
-                                        <span>📅 Joined ${formatDate(user.createdAt || new Date().toISOString())}</span>
-                                        <span>📝 ${posts.filter(p => p.author === user.username).length} posts</span>
-                                        <span>🏘️ ${communities.filter(c => c.createdBy === user.username).length} communities</span>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="admin-user-actions">
-                                ${!user.isAdmin ? `
-                                    <button class="btn admin-promote-btn" onclick="promoteToAdmin('${user.username}')">
-                                        👑 Make Admin
-                                    </button>
-                                ` : ''}
-                                ${user.username !== currentUser.username ? `
-                                    <button class="btn btn-danger admin-delete-btn" onclick="deleteUser('${user.username}')">
-                                        🗑️ Delete
-                                    </button>
-                                ` : ''}
-                            </div>
-                        </div>
-                    `).join('')}
-                </div>
-            `;
-        }
-
         // Render communities panel
         function renderCommunitiesPanel(allCommunities) {
             return `
@@ -3856,36 +3965,6 @@
             } catch (error) {
                 console.error('Error rejecting user:', error);
                 showSuccessMessage('Failed to reject user. Please try again.');
-            }
-        }
-
-        async function promoteToAdmin(username) {
-            if (!confirm(`Promote @${username} to administrator? They will have full admin privileges.`)) return;
-            
-            try {
-                const user = await blobAPI.get(`user_${username}`);
-                if (!user) {
-                    showSuccessMessage('User not found');
-                    return;
-                }
-
-                // Update user to admin
-                const updatedUser = {
-                    ...user,
-                    isAdmin: true,
-                    promotedAt: new Date().toISOString(),
-                    promotedBy: currentUser.username
-                };
-
-                await blobAPI.set(`user_${username}`, updatedUser);
-                showSuccessMessage(`@${username} promoted to administrator!`);
-                
-                // Refresh admin page
-                renderAdminPage();
-                
-            } catch (error) {
-                console.error('Error promoting user:', error);
-                showSuccessMessage('Failed to promote user. Please try again.');
             }
         }
 
