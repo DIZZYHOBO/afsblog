@@ -1986,9 +1986,25 @@
 
         function renderFeedWithTabs() {
             if (!currentUser) {
-                // If user is not logged in, show public feed without tabs
-                const publicPosts = posts.filter(post => !post.isPrivate);
-                updateFeedContent(renderPostList(publicPosts, 'No public posts yet!'));
+                // If user is not logged in, show login required message
+                const loginRequiredHtml = `
+                    <div class="login-required">
+                        <div class="login-required-icon">🔒</div>
+                        <h2>Log in to view feed</h2>
+                        <p>You need to be signed in to view posts and interact with the community.</p>
+                        <div class="login-required-buttons">
+                            <button class="login-required-btn" onclick="openAuthModal('signin')">
+                                <span>🚪</span>
+                                <span>Sign In</span>
+                            </button>
+                            <button class="login-required-btn secondary" onclick="openAuthModal('signup')">
+                                <span>✨</span>
+                                <span>Sign Up</span>
+                            </button>
+                        </div>
+                    </div>
+                `;
+                updateFeedContent(loginRequiredHtml);
                 return;
             }
 
@@ -2562,7 +2578,16 @@
         async function logout() {
             try {
                 currentUser = null;
-                await blobAPI.delete('current_user');
+                
+                // Try to delete current_user key, but don't fail if it doesn't exist
+                try {
+                    await blobAPI.delete('current_user');
+                } catch (deleteError) {
+                    // Ignore 404 errors - the key might not exist
+                    if (!deleteError.message.includes('404')) {
+                        console.warn('Failed to delete current_user key:', deleteError);
+                    }
+                }
                 
                 // Hide admin panel
                 document.getElementById('adminPanel').style.display = 'none';
@@ -2572,6 +2597,12 @@
                 showSuccessMessage('Logged out successfully!');
             } catch (error) {
                 console.error('Logout error:', error);
+                // Even if there's an error, still clear the user state
+                currentUser = null;
+                document.getElementById('adminPanel').style.display = 'none';
+                navigateToFeed();
+                updateUI();
+                showSuccessMessage('Logged out successfully!');
             }
         }
 
