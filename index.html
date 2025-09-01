@@ -1887,29 +1887,19 @@
             updateFeedContent(communityHeader + renderPostList(communityPosts, 'No posts in this community yet!'));
         }
 
-        async function renderPostList(postList, emptyMessage) {
+        function renderPostList(postList, emptyMessage) {
             if (postList.length === 0) {
                 return `<div class="empty-state"><p>${emptyMessage}</p></div>`;
             }
 
-            // Get user profiles for all unique authors
-            const uniqueAuthors = [...new Set(postList.map(post => post.author))];
-            const authorProfiles = {};
-            
-            for (const author of uniqueAuthors) {
-                authorProfiles[author] = await getUserProfile(author);
-            }
-
             return postList.map(post => {
                 const community = communities.find(c => c.name === post.communityName);
-                const authorProfile = authorProfiles[post.author];
-                const avatar = renderUserAvatar(post.author, authorProfile?.profilePictureUrl);
                 
                 return `
                     <div class="post-card ${post.isPrivate ? 'private' : ''}">
                         <div class="post-header">
                             <div class="post-author">
-                                ${avatar}
+                                <div class="post-avatar">${post.author.charAt(0).toUpperCase()}</div>
                                 <div class="post-meta">
                                     <a href="#" class="post-username" onclick="navigateToProfile('${post.author}'); return false;">
                                         @${escapeHtml(post.author)}
@@ -1920,7 +1910,6 @@
                             <div class="post-badges">
                                 ${post.isPrivate ? '<span class="post-badge private">Private</span>' : ''}
                                 ${post.type === 'link' ? '<span class="post-badge link">Link</span>' : ''}
-                                ${authorProfile?.isAdmin ? '<span class="post-badge" style="background-color: var(--danger-fg); color: white;">Admin</span>' : ''}
                             </div>
                         </div>
                         
