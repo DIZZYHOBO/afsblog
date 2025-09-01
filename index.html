@@ -200,14 +200,21 @@
             max-height: 300px;
         }
 
+        .hidden {
+            display: none;
+        }
+
+        /* Community dropdown enhancements */
         .community-item {
-            display: block;
+            display: flex;
+            align-items: center;
             padding: 8px 48px;
             color: var(--fg-muted);
             text-decoration: none;
             font-size: 13px;
             cursor: pointer;
             transition: all 0.2s ease;
+            gap: 8px;
         }
 
         .community-item:hover {
@@ -1422,7 +1429,11 @@
             } else {
                 dropdown.innerHTML = communities.map(community => `
                     <a href="#" class="community-item" onclick="navigateToCommunity('${community.name}'); return false;">
-                        c/${escapeHtml(community.displayName)}
+                        <span style="margin-right: 8px;">🏘️</span>
+                        <span>c/${escapeHtml(community.displayName)}</span>
+                        <span style="margin-left: auto; font-size: 11px; color: var(--fg-subtle);">
+                            ${posts.filter(p => p.communityName === community.name && !p.isPrivate).length}
+                        </span>
                     </a>
                 `).join('');
             }
@@ -1486,7 +1497,7 @@
             document.getElementById(activeId).classList.add('active');
         }
 
-        // Netlify Blobs API implementation (keeping the existing implementation)
+        // Netlify Blobs API implementation with proper error handling for production
         const blobAPI = {
             async get(key) {
                 try {
@@ -1497,7 +1508,8 @@
                     
                     if (!response.ok) {
                         if (response.status === 404) return null;
-                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                        console.warn(`Blob API GET error for key ${key}: ${response.status}`);
+                        return null; // Graceful degradation
                     }
                     
                     const result = await response.json();
@@ -1535,7 +1547,8 @@
                     });
                     
                     if (!response.ok) {
-                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                        console.warn(`Blob API LIST error: ${response.status}`);
+                        return []; // Return empty array for graceful degradation
                     }
                     
                     const result = await response.json();
@@ -1566,45 +1579,65 @@
             }
         };
 
-        // Initialize app
+        // Initialize app with better error handling for production
         document.addEventListener('DOMContentLoaded', async () => {
-            // Configure marked.js for markdown rendering
-            marked.setOptions({
-                highlight: function(code, lang) {
-                    if (lang && hljs.getLanguage(lang)) {
-                        return hljs.highlight(code, { language: lang }).value;
-                    }
-                    return hljs.highlightAuto(code).value;
-                },
-                breaks: true,
-                gfm: true
-            });
-            
-            // Custom renderer for enhanced features
-            markdownRenderer = new marked.Renderer();
-            
-            // Custom link renderer to handle media embeds
-            markdownRenderer.link = function(href, title, text) {
-                const mediaHtml = renderMediaFromUrl(href);
-                if (mediaHtml) return mediaHtml;
-                
-                return `<a href="${href}" target="_blank" rel="noopener noreferrer" ${title ? `title="${title}"` : ''}>${text}</a>`;
-            };
-            
-            // Custom image renderer
-            markdownRenderer.image = function(href, title, text) {
-                return `<img src="${href}" alt="${text}" ${title ? `title="${title}"` : ''} onclick="openImageModal('${href}')" style="cursor: pointer;">`;
-            };
+            try {
+                // Configure marked.js for markdown rendering
+                if (typeof marked !== 'undefined') {
+                    marked.setOptions({
+                        highlight: function(code, lang) {
+                            if (typeof hljs !== 'undefined' && lang && hljs.getLanguage(lang)) {
+                                return hljs.highlight(code, { language: lang }).value;
+                            }
+                            if (typeof hljs !== 'undefined') {
+                                return hljs.highlightAuto(code).value;
+                            }
+                            return code;
+                        },
+                        breaks: true,
+                        gfm: true
+                    });
+                    
+                    // Custom renderer for enhanced features
+                    markdownRenderer = new marked.Renderer();
+                    
+                    // Custom link renderer to handle media embeds
+                    markdownRenderer.link = function(href, title, text) {
+                        const mediaHtml = renderMediaFromUrl(href);
+                        if (mediaHtml) return mediaHtml;
+                        
+                        return `<a href="${href}" target="_blank" rel="noopener noreferrer" ${title ? `title="${title}"` : ''}>${text}</a>`;
+                    };
+                    
+                    // Custom image renderer
+                    markdownRenderer.image = function(href, title, text) {
+                        return `<img src="${href}" alt="${text}" ${title ? `title="${title}"` : ''} onclick="openImageModal('${href}')" style="cursor: pointer;">`;
+                    };
+                } else {
+                    console.warn('Marked.js not loaded, markdown rendering will be basic');
+                }
 
-            await loadUser();
-            await loadCommunities();
-            await loadPosts();
-            updateUI();
-            setupEventListeners();
-            
-            // Load admin stats if user is admin
-            if (currentUser?.profile?.isAdmin) {
-                await loadAdminStats();
+                // Initialize app data
+                showPage('feedPage'); // Show feed page by default
+                updateFeedContent('<div class="loading">Loading...</div>');
+                
+                await loadUser();
+                await loadCommunities();
+                await loadPosts();
+                
+                updateUI();
+                setupEventListeners();
+                
+                // Load admin stats if user is admin
+                if (currentUser?.profile?.isAdmin) {
+                    await loadAdminStats();
+                }
+                
+                console.log('✅ Blog app initialized successfully');
+                
+            } catch (error) {
+                console.error('❌ Error initializing app:', error);
+                showError('general', 'Failed to initialize the application. Please refresh the page.');
             }
         });
 
@@ -1761,7 +1794,10 @@
 
         function updateUI() {
             updateComposeButton();
-            renderCurrentPage();
+            if (currentPage === 'feed') {
+                renderCurrentPage();
+            }
+            // Other pages are handled by their specific load functions
         }
 
         function updateComposeButton() {
@@ -2390,9 +2426,35 @@
             showSuccessMessage('Admin stats refreshed!');
         }
 
-        // Utility functions
+        // Enhanced error handling and user feedback
         function showError(elementId, message) {
-            document.getElementById(elementId).innerHTML = `<div class="error-message">${escapeHtml(message)}</div>`;
+            const element = document.getElementById(elementId);
+            if (element) {
+                element.innerHTML = `<div class="error-message">${escapeHtml(message)}</div>`;
+            } else {
+                // If specific element doesn't exist, show general error
+                showGeneralError(message);
+            }
+        }
+
+        function showGeneralError(message) {
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'error-message';
+            errorDiv.textContent = message;
+            errorDiv.style.position = 'fixed';
+            errorDiv.style.top = '80px';
+            errorDiv.style.right = '20px';
+            errorDiv.style.zIndex = '1000';
+            errorDiv.style.borderRadius = '8px';
+            errorDiv.style.boxShadow = 'var(--overlay-shadow)';
+            errorDiv.style.maxWidth = '300px';
+            document.body.appendChild(errorDiv);
+            
+            setTimeout(() => {
+                if (errorDiv.parentNode) {
+                    errorDiv.remove();
+                }
+            }, 5000);
         }
 
         function showSuccessMessage(message) {
@@ -2405,10 +2467,13 @@
             successDiv.style.zIndex = '1000';
             successDiv.style.borderRadius = '8px';
             successDiv.style.boxShadow = 'var(--overlay-shadow)';
+            successDiv.style.maxWidth = '300px';
             document.body.appendChild(successDiv);
             
             setTimeout(() => {
-                successDiv.remove();
+                if (successDiv.parentNode) {
+                    successDiv.remove();
+                }
             }, 4000);
         }
 
