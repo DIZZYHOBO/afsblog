@@ -2603,10 +2603,11 @@
             // Show loading
             updateFeedContent('<div class="loading">Loading profile...</div>');
 
-            // Get user's posts (both public and private since it's their own profile)
-            const userPosts = posts.filter(post => post.author === currentUser.username);
-            const publicPosts = userPosts.filter(post => !post.isPrivate);
-            const privatePosts = userPosts.filter(post => post.isPrivate);
+            // Get user's posts (only public posts for profile display)
+            const userPosts = posts.filter(post => post.author === currentUser.username && !post.isPrivate);
+            const totalPosts = posts.filter(post => post.author === currentUser.username).length;
+            const publicPosts = userPosts; // All posts shown are public
+            const privatePosts = posts.filter(post => post.author === currentUser.username && post.isPrivate);
 
             // Get user's followed communities count
             const followedCount = followedCommunities.size;
@@ -2655,18 +2656,18 @@
                         <!-- Profile Stats -->
                         <div class="profile-stats">
                             <div class="stat-item">
-                                <span class="stat-number">${userPosts.length}</span>
-                                <span class="stat-label">posts</span>
+                                <span class="stat-number">${totalPosts}</span>
+                                <span class="stat-label">total posts</span>
                             </div>
                             <div class="stat-divider"></div>
                             <div class="stat-item">
                                 <span class="stat-number">${publicPosts.length}</span>
-                                <span class="stat-label">public</span>
+                                <span class="stat-label">public posts</span>
                             </div>
                             <div class="stat-divider"></div>
                             <div class="stat-item">
                                 <span class="stat-number">${privatePosts.length}</span>
-                                <span class="stat-label">private</span>
+                                <span class="stat-label">private posts</span>
                             </div>
                             <div class="stat-divider"></div>
                             <div class="stat-item">
@@ -2690,7 +2691,7 @@
                     <div class="profile-content">
                         <div class="profile-tabs">
                             <button class="profile-tab active" id="profilePostsTab" onclick="switchProfileTab('posts')">
-                                📝 Posts (${userPosts.length})
+                                📝 Public Posts (${userPosts.length})
                             </button>
                             <button class="profile-tab" id="profileCommunitiesTab" onclick="switchProfileTab('communities')">
                                 🏘️ Communities (${createdCommunities.length})
@@ -2701,9 +2702,9 @@
                         </div>
 
                         <div class="profile-tab-content">
-                            <!-- Posts Tab Content (default) -->
+                            <!-- Posts Tab Content (default) - Only shows PUBLIC posts -->
                             <div id="profilePostsContent" class="profile-tab-panel active">
-                                ${userPosts.length > 0 ? renderPostList(userPosts, 'No posts yet!') : '<div class="empty-state"><p>You haven\'t created any posts yet. <a href="#" onclick="openModal(\'composeModal\'); return false;" style="color: var(--accent-fg);">Create your first post!</a></p></div>'}
+                                ${userPosts.length > 0 ? renderPostList(userPosts, 'No public posts yet!') : '<div class="empty-state"><p>You haven\'t created any public posts yet. <a href="#" onclick="openModal(\'composeModal\'); return false;" style="color: var(--accent-fg);">Create your first post!</a></p><p style="margin-top: 12px; color: var(--fg-muted); font-size: 14px;">Note: Only public posts are shown on profiles. Private posts remain private and are only visible to you in the Private feed tab.</p></div>'}
                             </div>
 
                             <!-- Communities Tab Content -->
@@ -3136,6 +3137,18 @@
                 option.textContent = community.displayName;
                 select.appendChild(option);
             });
+        }
+
+        function renderCurrentPage() {
+            if (currentPage === 'feed') {
+                renderFeedWithTabs();
+            } else if (currentPage === 'community') {
+                renderCommunityPage();
+            } else if (currentPage === 'profile') {
+                renderProfilePage();
+            } else if (currentPage === 'admin') {
+                renderAdminPage();
+            }
         }
 
         function navigateToSettings() {
