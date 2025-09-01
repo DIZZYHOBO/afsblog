@@ -36,6 +36,8 @@
             --btn-secondary-bg: transparent;
             --btn-secondary-border: #f0f6fc1a;
             --btn-secondary-hover-bg: #30363d;
+        .hidden {
+            display: none;
         }
 
         * {
@@ -1131,8 +1133,158 @@
             background: var(--fg-subtle);
         }
 
-        .hidden {
-            display: none;
+        /* Community Header Styles */
+        .community-header {
+            background: linear-gradient(135deg, var(--bg-default) 0%, var(--bg-overlay) 100%);
+            border: 1px solid var(--border-default);
+            border-radius: 16px;
+            padding: 32px;
+            margin-bottom: 24px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .community-header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, var(--accent-emphasis), var(--accent-fg), var(--success-fg));
+        }
+
+        .community-hero {
+            display: flex;
+            align-items: flex-start;
+            gap: 24px;
+            margin-bottom: 24px;
+        }
+
+        .community-avatar {
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, var(--accent-emphasis), var(--accent-fg));
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 36px;
+            font-weight: 700;
+            color: white;
+            box-shadow: 0 8px 24px rgba(88, 166, 255, 0.3);
+            flex-shrink: 0;
+        }
+
+        .community-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .community-title {
+            font-size: 32px;
+            font-weight: 700;
+            color: var(--fg-default);
+            margin: 0 0 8px 0;
+            line-height: 1.2;
+            word-wrap: break-word;
+        }
+
+        .community-handle {
+            font-size: 18px;
+            color: var(--accent-fg);
+            margin: 0 0 12px 0;
+            font-weight: 600;
+        }
+
+        .community-description {
+            font-size: 16px;
+            color: var(--fg-muted);
+            line-height: 1.5;
+            margin: 0;
+            max-width: 600px;
+        }
+
+        .community-actions {
+            flex-shrink: 0;
+            margin-top: 8px;
+        }
+
+        .community-stats {
+            display: flex;
+            align-items: center;
+            gap: 24px;
+            padding: 20px 0 0 0;
+            border-top: 1px solid var(--border-default);
+            flex-wrap: wrap;
+        }
+
+        .stat-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .stat-number {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--accent-fg);
+        }
+
+        .stat-label {
+            font-size: 14px;
+            color: var(--fg-muted);
+            font-weight: 500;
+        }
+
+        .stat-creator {
+            font-size: 14px;
+            color: var(--fg-default);
+            font-weight: 600;
+        }
+
+        .stat-divider {
+            width: 1px;
+            height: 20px;
+            background-color: var(--border-default);
+        }
+
+        /* Responsive design for community header */
+        @media (max-width: 768px) {
+            .community-header {
+                padding: 24px 20px;
+            }
+
+            .community-hero {
+                flex-direction: column;
+                align-items: center;
+                text-align: center;
+                gap: 20px;
+            }
+
+            .community-avatar {
+                width: 64px;
+                height: 64px;
+                font-size: 28px;
+            }
+
+            .community-title {
+                font-size: 28px;
+            }
+
+            .community-handle {
+                font-size: 16px;
+            }
+
+            .community-stats {
+                justify-content: center;
+                gap: 16px;
+            }
+
+            .stat-divider {
+                display: none;
+            }
         }
 
         /* Markdown Content Styles */
@@ -2216,30 +2368,49 @@
             const followButtonHtml = currentUser && sessionToken 
                 ? `<button class="btn ${isFollowing ? 'btn-secondary' : ''}" 
                           onclick="toggleCommunityFollow('${community.name}')" 
-                          id="followBtn-${community.name}">
+                          id="followBtn-${community.name}"
+                          style="padding: 12px 24px; font-weight: 600; box-shadow: 0 2px 8px rgba(0,0,0,0.15);">
                       ${isFollowing ? '✓ Following' : '+ Follow'}
                    </button>`
-                : `<button class="btn" onclick="openAuthModal('signin')">
+                : `<button class="btn" onclick="openAuthModal('signin')" 
+                          style="padding: 12px 24px; font-weight: 600; box-shadow: 0 2px 8px rgba(0,0,0,0.15);">
                       + Follow
                    </button>`;
             
             const communityHeader = `
-                <div style="background-color: var(--bg-default); border: 1px solid var(--border-default); border-radius: 8px; padding: 24px; margin-bottom: 24px;">
-                    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px;">
-                        <div style="flex: 1;">
-                            <h1 style="color: var(--accent-fg); font-size: 28px; margin-bottom: 8px;">${escapeHtml(community.displayName)}</h1>
-                            <p style="color: var(--fg-muted); margin-bottom: 4px;">c/${escapeHtml(community.name)}</p>
-                            ${community.description ? `<p style="color: var(--fg-default); margin-bottom: 16px;">${escapeHtml(community.description)}</p>` : ''}
+                <div class="community-header">
+                    <div class="community-hero">
+                        <div class="community-avatar">
+                            ${community.displayName.charAt(0).toUpperCase()}
                         </div>
-                        <div>
+                        <div class="community-info">
+                            <h1 class="community-title">${escapeHtml(community.displayName)}</h1>
+                            <p class="community-handle">c/${escapeHtml(community.name)}</p>
+                            ${community.description ? `<p class="community-description">${escapeHtml(community.description)}</p>` : ''}
+                        </div>
+                        <div class="community-actions">
                             ${followButtonHtml}
                         </div>
                     </div>
-                    <div style="display: flex; gap: 20px; color: var(--fg-muted); font-size: 14px;">
-                        <span>${communityPosts.length} posts</span>
-                        <span>${community.members?.length || 1} members</span>
-                        <span>Created by @${escapeHtml(community.createdBy)}</span>
-                        <span>${formatDate(community.createdAt)}</span>
+                    <div class="community-stats">
+                        <div class="stat-item">
+                            <span class="stat-number">${communityPosts.length}</span>
+                            <span class="stat-label">posts</span>
+                        </div>
+                        <div class="stat-divider"></div>
+                        <div class="stat-item">
+                            <span class="stat-number">${community.members?.length || 1}</span>
+                            <span class="stat-label">members</span>
+                        </div>
+                        <div class="stat-divider"></div>
+                        <div class="stat-item">
+                            <span class="stat-label">Created by</span>
+                            <span class="stat-creator">@${escapeHtml(community.createdBy)}</span>
+                        </div>
+                        <div class="stat-divider"></div>
+                        <div class="stat-item">
+                            <span class="stat-label">${formatDate(community.createdAt)}</span>
+                        </div>
                     </div>
                 </div>
             `;
