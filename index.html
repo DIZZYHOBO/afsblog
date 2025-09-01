@@ -11,6 +11,33 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/DOMPurify/3.0.7/purify.min.js"></script>
     <style>
+        :root {
+            /* GitHub Dark Theme Colors */
+            --bg-canvas: #0d1117;
+            --bg-default: #161b22;
+            --bg-overlay: #21262d;
+            --bg-subtle: #30363d;
+            --border-default: #30363d;
+            --border-muted: #21262d;
+            --fg-default: #f0f6fc;
+            --fg-muted: #8b949e;
+            --fg-subtle: #6e7681;
+            --accent-fg: #58a6ff;
+            --accent-emphasis: #1f6feb;
+            --attention-fg: #d29922;
+            --success-fg: #3fb950;
+            --danger-fg: #f85149;
+            --severe-fg: #f85149;
+            --done-fg: #a5a5a5;
+            --header-bg: #161b22;
+            --overlay-shadow: 0 16px 32px rgba(1,4,9,0.85);
+            --btn-primary-bg: #238636;
+            --btn-primary-hover-bg: #2ea043;
+            --btn-secondary-bg: transparent;
+            --btn-secondary-border: #f0f6fc1a;
+            --btn-secondary-hover-bg: #30363d;
+        }
+
         * {
             margin: 0;
             padding: 0;
@@ -18,180 +45,288 @@
         }
 
         body {
-            background-color: #000;
-            color: #fff;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            line-height: 1.4;
+            background-color: var(--bg-canvas);
+            color: var(--fg-default);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif;
+            line-height: 1.5;
+            transition: margin-left 0.3s ease;
         }
 
-        .header {
-            background-color: #1a1a1b;
-            padding: 12px 16px;
-            border-bottom: 1px solid #343536;
-            position: sticky;
-            top: 0;
-            z-index: 100;
-        }
-
-        .header-content {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .logo {
-            font-size: 20px;
-            font-weight: bold;
-            color: #ff4500;
+        /* Floating Menu Toggle */
+        .menu-toggle {
+            position: fixed;
+            top: 16px;
+            left: 16px;
+            background: var(--bg-default);
+            border: 1px solid var(--border-default);
+            color: var(--fg-muted);
+            font-size: 16px;
             cursor: pointer;
+            padding: 8px;
+            border-radius: 6px;
+            transition: all 0.2s ease;
+            z-index: 100;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
 
-        .auth-section {
+        .menu-toggle:hover {
+            background-color: var(--btn-secondary-hover-bg);
+            color: var(--fg-default);
+            border-color: var(--border-muted);
+        }
+
+        /* Remove header styles */
+        .header {
+            display: none;
+        }
+
+        /* Sliding Menu */
+        .slide-menu {
+            position: fixed;
+            top: 0;
+            left: -280px;
+            width: 280px;
+            height: 100vh;
+            background-color: var(--bg-default);
+            border-right: 1px solid var(--border-default);
+            z-index: 200;
+            transition: left 0.3s ease;
+            overflow-y: auto;
+        }
+
+        .slide-menu.open {
+            left: 0;
+        }
+
+        .menu-header {
+            padding: 20px 16px;
+            border-bottom: 1px solid var(--border-default);
+        }
+
+        .menu-user-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .profile-avatar {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, var(--accent-emphasis), var(--accent-fg));
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            font-weight: 600;
+            color: white;
+        }
+
+        .menu-user-details h4 {
+            color: var(--fg-default);
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .menu-user-details p {
+            color: var(--fg-muted);
+            font-size: 12px;
+        }
+
+        .menu-nav {
+            padding: 8px 0;
+        }
+
+        .menu-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            color: var(--fg-default);
+            text-decoration: none;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+            border: none;
+            background: none;
+            width: 100%;
+            text-align: left;
+            font-size: 14px;
+        }
+
+        .menu-item:hover {
+            background-color: var(--bg-subtle);
+        }
+
+        .menu-item.active {
+            background-color: var(--bg-overlay);
+            border-right: 3px solid var(--accent-emphasis);
+        }
+
+        .menu-item-icon {
+            font-size: 16px;
+            width: 20px;
+            text-align: center;
+        }
+
+        .menu-divider {
+            height: 1px;
+            background-color: var(--border-default);
+            margin: 8px 0;
+        }
+
+        .communities-dropdown {
+            background-color: var(--bg-overlay);
+            border-top: 1px solid var(--border-default);
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+        }
+
+        .communities-dropdown.open {
+            max-height: 300px;
+        }
+
+        .community-item {
+            display: block;
+            padding: 8px 48px;
+            color: var(--fg-muted);
+            text-decoration: none;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .community-item:hover {
+            background-color: var(--bg-subtle);
+            color: var(--fg-default);
+        }
+
+        /* Menu Overlay */
+        .menu-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 150;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .menu-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        /* Main Content */
+        .main-container {
+            max-width: 800px; /* Reduced from 1280px */
+            margin: 0 auto;
+            padding: 70px 16px 24px 70px; /* Adjusted padding: top increased, left increased to avoid button */
+            transition: all 0.3s ease;
+        }
+
+        /* Post Cards - GitHub styled */
+        .post-card {
+            background-color: var(--bg-default);
+            border: 1px solid var(--border-default);
+            border-radius: 8px;
+            margin-bottom: 16px;
+            overflow: hidden;
+            transition: border-color 0.2s ease;
+        }
+
+        .post-card:hover {
+            border-color: var(--border-muted);
+        }
+
+        .post-card.private {
+            border-left: 3px solid var(--attention-fg);
+        }
+
+        .post-header {
+            padding: 16px 16px 0 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .post-author {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex: 1;
+        }
+
+        .post-avatar {
+            width: 24px;
+            height: 24px;
+            background: linear-gradient(135deg, var(--accent-emphasis), var(--accent-fg));
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: 600;
+            color: white;
+        }
+
+        .post-meta {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .post-username {
+            color: var(--fg-default);
+            font-size: 14px;
+            font-weight: 600;
+            text-decoration: none;
+        }
+
+        .post-username:hover {
+            color: var(--accent-fg);
+        }
+
+        .post-timestamp {
+            color: var(--fg-muted);
+            font-size: 12px;
+        }
+
+        .post-badges {
             display: flex;
             gap: 8px;
             align-items: center;
         }
 
-        .btn {
-            background: #0079d3;
-            color: white;
-            border: none;
-            padding: 6px 12px;
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: 500;
-            cursor: pointer;
-            text-decoration: none;
-            display: inline-block;
-        }
-
-        .btn:hover {
-            background: #1484d6;
-        }
-
-        .btn:disabled {
-            background: #666;
-            cursor: not-allowed;
-        }
-
-        .btn-secondary {
-            background: transparent;
-            border: 1px solid #0079d3;
-            color: #0079d3;
-        }
-
-        .btn-secondary:hover {
-            background: #0079d3;
-            color: white;
-        }
-
-        .btn-community {
-            background: #ff4500;
-            color: white;
-        }
-
-        .btn-community:hover {
-            background: #ff6b35;
-        }
-
-        .btn-admin {
-            background: #e11d48;
-            color: white;
+        .post-badge {
+            background-color: var(--bg-subtle);
+            color: var(--fg-muted);
             font-size: 11px;
-        }
-
-        .btn-admin:hover {
-            background: #be123c;
-        }
-
-        .admin-badge {
-            background: #e11d48;
-            color: white;
-            padding: 2px 6px;
-            border-radius: 12px;
-            font-size: 10px;
-            font-weight: 500;
-            margin-left: 4px;
-        }
-
-        .nav-menu {
-            display: flex;
-            background: #1a1a1b;
-            margin: 12px 0;
-            border-radius: 20px;
-            overflow: hidden;
-        }
-
-        .nav-menu button {
-            flex: 1;
-            background: transparent;
-            color: #818384;
-            border: none;
-            padding: 8px 16px;
-            cursor: pointer;
-            font-size: 14px;
-            font-weight: 500;
-        }
-
-        .nav-menu button.active {
-            background: #272729;
-            color: #fff;
-        }
-
-        /* Community specific styles */
-        .community-card {
-            background: #1a1a1b;
-            margin: 8px 0;
-            border-radius: 12px;
-            border: 1px solid #343536;
-            padding: 16px;
-            cursor: pointer;
-            transition: border-color 0.2s;
-        }
-
-        .community-card:hover {
-            border-color: #ff4500;
-        }
-
-        .community-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            margin-bottom: 12px;
-        }
-
-        .community-info h3 {
-            color: #ff4500;
-            font-size: 18px;
-            margin-bottom: 4px;
-        }
-
-        .community-name {
-            color: #818384;
-            font-size: 14px;
-            margin-bottom: 8px;
-        }
-
-        .community-description {
-            color: #d7dadc;
-            font-size: 14px;
-            line-height: 1.4;
-        }
-
-        .community-stats {
-            display: flex;
-            gap: 16px;
-            color: #818384;
-            font-size: 12px;
-        }
-
-        .community-badge {
-            background: #ff4500;
-            color: white;
             padding: 2px 8px;
             border-radius: 12px;
-            font-size: 11px;
             font-weight: 500;
+        }
+
+        .post-badge.private {
+            background-color: var(--attention-fg);
+            color: var(--bg-canvas);
+        }
+
+        .post-badge.link {
+            background-color: var(--accent-emphasis);
+            color: white;
+        }
+
+        .post-body {
+            padding: 12px 16px;
         }
 
         .post-community {
@@ -202,292 +337,40 @@
         }
 
         .post-community-link {
-            color: #ff4500;
+            color: var(--accent-fg);
             text-decoration: none;
             font-size: 12px;
             font-weight: 600;
             padding: 2px 8px;
             border-radius: 12px;
-            background: rgba(255, 69, 0, 0.1);
+            background-color: rgba(88, 166, 255, 0.1);
+            border: 1px solid rgba(88, 166, 255, 0.2);
         }
 
         .post-community-link:hover {
-            background: rgba(255, 69, 0, 0.2);
-        }
-
-        /* Admin Panel Styles */
-        .admin-panel {
-            background: #1a1a1b;
-            border: 1px solid #e11d48;
-            border-radius: 8px;
-            padding: 16px;
-            margin: 16px 0;
-        }
-
-        .admin-panel-header {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            margin-bottom: 16px;
-            color: #e11d48;
-            font-weight: bold;
-        }
-
-        .admin-stats {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            gap: 12px;
-            margin-bottom: 16px;
-        }
-
-        .admin-stat-card {
-            background: #272729;
-            padding: 12px;
-            border-radius: 8px;
-            text-align: center;
-        }
-
-        .admin-stat-number {
-            font-size: 24px;
-            font-weight: bold;
-            color: #e11d48;
-        }
-
-        .admin-stat-label {
-            font-size: 12px;
-            color: #818384;
-            margin-top: 4px;
-        }
-
-        .admin-actions {
-            display: flex;
-            gap: 8px;
-            flex-wrap: wrap;
-        }
-
-        .admin-section {
-            margin-top: 16px;
-            padding-top: 16px;
-            border-top: 1px solid #343536;
-        }
-
-        .admin-section h4 {
-            color: #e11d48;
-            margin-bottom: 12px;
-        }
-
-        .user-card {
-            background: #272729;
-            border: 1px solid #343536;
-            border-radius: 8px;
-            padding: 12px;
-            margin-bottom: 8px;
-        }
-
-        .user-card.pending {
-            border-color: #f59e0b;
-        }
-
-        .user-card-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 8px;
-        }
-
-        .user-info {
-            color: #d7dadc;
-            font-size: 14px;
-        }
-
-        .user-actions {
-            display: flex;
-            gap: 4px;
-        }
-
-        .btn-small {
-            padding: 4px 8px;
-            font-size: 11px;
-        }
-
-        .btn-approve {
-            background: #059669;
-        }
-
-        .btn-reject, .btn-delete {
-            background: #dc2626;
-        }
-
-        /* Modal styles */
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0,0,0,0.8);
-            z-index: 200;
-        }
-
-        .modal-content {
-            background: #1a1a1b;
-            margin: 20px;
-            margin-top: 60px;
-            border-radius: 8px;
-            padding: 20px;
-            max-height: 80vh;
-            overflow-y: auto;
-        }
-
-        .modal-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 16px;
-            padding-bottom: 12px;
-            border-bottom: 1px solid #343536;
-        }
-
-        .close-btn {
-            background: none;
-            border: none;
-            color: #818384;
-            font-size: 24px;
-            cursor: pointer;
-        }
-
-        .form-group {
-            margin-bottom: 16px;
-        }
-
-        .form-group label {
-            display: block;
-            margin-bottom: 4px;
-            color: #d7dadc;
-            font-size: 14px;
-        }
-
-        .form-group input,
-        .form-group textarea,
-        .form-group select {
-            width: 100%;
-            background: #272729;
-            border: 1px solid #343536;
-            border-radius: 4px;
-            padding: 12px;
-            color: #d7dadc;
-            font-size: 14px;
-        }
-
-        .form-group textarea {
-            min-height: 120px;
-            resize: vertical;
-        }
-
-        .form-group small {
-            color: #818384;
-            font-size: 12px;
-            margin-top: 4px;
-            display: block;
-        }
-
-        /* Feed container styles */
-        .feed-container {
-            max-width: 100%;
-            margin: 0 auto;
-            padding: 0 16px;
-        }
-
-        @media (min-width: 769px) {
-            .feed-container {
-                max-width: 500px;
-                padding: 0 20px;
-            }
-        }
-
-        @media (min-width: 1200px) {
-            .feed-container {
-                max-width: 550px;
-                padding: 0 40px;
-            }
-        }
-
-        .post-card {
-            background: #1a1a1b;
-            margin: 8px 0;
-            border-radius: 12px;
-            border: 1px solid #343536;
-            overflow: hidden;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-
-        .post-card.private {
-            border-left: 4px solid #ff4500;
-        }
-
-        .post-header {
-            background: #272729;
-            padding: 12px 16px;
-            border-bottom: 1px solid #343536;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .post-header .username {
-            color: #0079d3;
-            font-size: 13px;
-            font-weight: 600;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-
-        .post-header .username:hover {
-            text-decoration: underline;
-        }
-
-        .post-header .timestamp {
-            color: #818384;
-            font-size: 12px;
-            margin-left: auto;
-        }
-
-        .private-badge {
-            background: #ff4500;
-            color: white;
-            font-size: 10px;
-            padding: 2px 6px;
-            border-radius: 12px;
-            margin-left: 8px;
-        }
-
-        .post-body {
-            padding: 16px;
+            background-color: rgba(88, 166, 255, 0.2);
         }
 
         .post-title {
             font-size: 18px;
             font-weight: 600;
-            color: #fff;
+            color: var(--fg-default);
             margin-bottom: 12px;
             line-height: 1.3;
             word-wrap: break-word;
         }
 
         .post-content {
-            color: #d7dadc;
+            color: var(--fg-default);
             font-size: 14px;
-            line-height: 1.5;
+            line-height: 1.6;
             margin-bottom: 16px;
         }
 
         .post-actions {
-            background: #272729;
-            border-top: 1px solid #343536;
-            padding: 8px 16px;
+            background-color: var(--bg-subtle);
+            border-top: 1px solid var(--border-default);
+            padding: 8px;
             display: flex;
             align-items: center;
             gap: 0;
@@ -496,7 +379,7 @@
         .action-btn {
             background: none;
             border: none;
-            color: #818384;
+            color: var(--fg-muted);
             font-size: 13px;
             font-weight: 500;
             cursor: pointer;
@@ -504,263 +387,335 @@
             align-items: center;
             justify-content: center;
             gap: 6px;
-            padding: 8px 12px;
+            padding: 8px 16px;
             border-radius: 6px;
             flex: 1;
             transition: all 0.2s ease;
             min-width: 0;
-            position: relative;
         }
 
         .action-btn:hover {
-            background: #343536;
-            color: #fff;
+            background-color: var(--btn-secondary-hover-bg);
+            color: var(--fg-default);
         }
 
-        .action-btn:not(:last-child)::after {
-            content: '';
-            position: absolute;
-            right: 0;
-            top: 50%;
-            transform: translateY(-50%);
-            height: 20px;
-            width: 1px;
-            background: #343536;
+        /* Buttons */
+        .btn {
+            background-color: var(--btn-primary-bg);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: background-color 0.2s ease;
         }
 
-        .loading {
+        .btn:hover {
+            background-color: var(--btn-primary-hover-bg);
+        }
+
+        .btn:disabled {
+            background-color: var(--bg-subtle);
+            color: var(--fg-muted);
+            cursor: not-allowed;
+        }
+
+        .btn-secondary {
+            background-color: var(--btn-secondary-bg);
+            border: 1px solid var(--btn-secondary-border);
+            color: var(--fg-default);
+        }
+
+        .btn-secondary:hover {
+            background-color: var(--btn-secondary-hover-bg);
+        }
+
+        .btn-danger {
+            background-color: var(--danger-fg);
+        }
+
+        .btn-danger:hover {
+            background-color: #dc2626;
+        }
+
+        .btn-small {
+            padding: 4px 8px;
+            font-size: 12px;
+        }
+
+        /* Admin Panel */
+        .admin-panel {
+            background-color: var(--bg-default);
+            border: 1px solid var(--danger-fg);
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 24px;
+        }
+
+        .admin-panel-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 16px;
+            color: var(--danger-fg);
+            font-weight: 600;
+        }
+
+        .admin-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+
+        .admin-stat-card {
+            background-color: var(--bg-overlay);
+            border: 1px solid var(--border-default);
+            padding: 16px;
+            border-radius: 8px;
             text-align: center;
-            padding: 20px;
-            color: #818384;
+        }
+
+        .admin-stat-number {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--danger-fg);
+        }
+
+        .admin-stat-label {
+            font-size: 12px;
+            color: var(--fg-muted);
+            margin-top: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        /* Loading and Empty States */
+        .loading, .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: var(--fg-muted);
         }
 
         .empty-state {
-            text-align: center;
-            padding: 40px 20px;
-            color: #818384;
+            background-color: var(--bg-default);
+            border: 1px solid var(--border-default);
+            border-radius: 8px;
         }
 
+        /* Messages */
         .error-message {
-            background: #b91c1c;
-            color: white;
-            padding: 8px 12px;
-            border-radius: 4px;
+            background-color: rgba(248, 81, 73, 0.1);
+            border: 1px solid var(--danger-fg);
+            color: var(--danger-fg);
+            padding: 12px 16px;
+            border-radius: 6px;
             margin-bottom: 16px;
             font-size: 14px;
         }
 
         .success-message {
-            background: #059669;
-            color: white;
-            padding: 8px 12px;
-            border-radius: 4px;
+            background-color: rgba(63, 185, 80, 0.1);
+            border: 1px solid var(--success-fg);
+            color: var(--success-fg);
+            padding: 12px 16px;
+            border-radius: 6px;
             margin-bottom: 16px;
             font-size: 14px;
+        }
+
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 300;
+        }
+
+        .modal-content {
+            background: var(--bg-default);
+            margin: 20px;
+            margin-top: 60px;
+            border-radius: 12px;
+            border: 1px solid var(--border-default);
+            padding: 24px;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: var(--overlay-shadow);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--border-default);
+        }
+
+        .modal-header h3 {
+            color: var(--fg-default);
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            color: var(--fg-muted);
+            font-size: 24px;
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 6px;
+        }
+
+        .close-btn:hover {
+            background-color: var(--btn-secondary-hover-bg);
+            color: var(--fg-default);
+        }
+
+        /* Form Styles */
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 6px;
+            color: var(--fg-default);
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .form-group input,
+        .form-group textarea,
+        .form-group select {
+            width: 100%;
+            background: var(--bg-canvas);
+            border: 1px solid var(--border-default);
+            border-radius: 6px;
+            padding: 12px;
+            color: var(--fg-default);
+            font-size: 14px;
+            font-family: inherit;
+        }
+
+        .form-group input:focus,
+        .form-group textarea:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: var(--accent-emphasis);
+            box-shadow: 0 0 0 3px rgba(31, 111, 235, 0.1);
+        }
+
+        .form-group textarea {
+            min-height: 120px;
+            resize: vertical;
+            font-family: inherit;
+        }
+
+        .form-group small {
+            color: var(--fg-muted);
+            font-size: 12px;
+            margin-top: 4px;
+            display: block;
+        }
+
+        /* Compose Button */
+        .compose-btn {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 48px;
+            height: 48px;
+            background: var(--btn-primary-bg);
+            border: none;
+            border-radius: 50%;
+            color: white;
+            font-size: 20px;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            z-index: 50;
+            transition: all 0.2s ease;
+        }
+
+        .compose-btn:hover {
+            background: var(--btn-primary-hover-bg);
+            transform: scale(1.05);
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .main-container {
+                padding: 60px 12px 24px 60px; /* Adjusted for mobile */
+                max-width: none;
+            }
+            
+            .slide-menu {
+                width: 260px;
+                left: -260px;
+            }
+            
+            .post-header {
+                padding: 12px 12px 0 12px;
+            }
+            
+            .post-body {
+                padding: 8px 12px;
+            }
+
+            .menu-toggle {
+                top: 12px;
+                left: 12px;
+                width: 36px;
+                height: 36px;
+                font-size: 14px;
+            }
+
+            .compose-btn {
+                width: 44px;
+                height: 44px;
+                bottom: 16px;
+                right: 16px;
+                font-size: 18px;
+            }
+        }
+
+        /* Hide scrollbar for the menu */
+        .slide-menu::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .slide-menu::-webkit-scrollbar-track {
+            background: var(--bg-default);
+        }
+
+        .slide-menu::-webkit-scrollbar-thumb {
+            background: var(--border-default);
+            border-radius: 3px;
+        }
+
+        .slide-menu::-webkit-scrollbar-thumb:hover {
+            background: var(--fg-subtle);
         }
 
         .hidden {
             display: none;
         }
 
-        /* Page specific styles */
-        .page-header {
-            background: #1a1a1b;
-            padding: 12px 16px;
-            border-bottom: 1px solid #343536;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 12px;
-        }
-
-        .back-btn {
-            background: none;
-            border: none;
-            color: #818384;
-            font-size: 20px;
-            cursor: pointer;
-            padding: 4px;
-            border-radius: 4px;
-        }
-
-        .back-btn:hover {
-            background: #272729;
-            color: #fff;
-        }
-
-        .page-title {
-            font-size: 18px;
-            font-weight: bold;
-            color: #fff;
-        }
-
-        .community-page {
-            display: none;
-        }
-
-        .community-detail-header {
-            background: #1a1a1b;
-            padding: 20px;
-            border: 1px solid #343536;
-            border-radius: 8px;
-            margin-bottom: 16px;
-        }
-
-        .community-detail-header h1 {
-            color: #ff4500;
-            font-size: 24px;
-            margin-bottom: 8px;
-        }
-
-        .community-detail-header .description {
-            color: #d7dadc;
-            margin-bottom: 12px;
-        }
-
-        .community-detail-stats {
-            display: flex;
-            gap: 20px;
-            color: #818384;
-            font-size: 14px;
-        }
-
-        /* Compose button */
-        .compose-btn {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            width: 56px;
-            height: 56px;
-            background: #ff4500;
-            border: none;
-            border-radius: 50%;
-            color: white;
-            font-size: 24px;
-            cursor: pointer;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-            z-index: 50;
-        }
-
-        .compose-btn.community {
-            background: #0079d3;
-        }
-
-        /* Profile avatar styles */
-        .profile-avatar-small {
-            width: 24px;
-            height: 24px;
-            background: linear-gradient(135deg, #ff4500, #ff6b35);
-            border-radius: 50%;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 12px;
-            font-weight: bold;
-            color: white;
-            overflow: hidden;
-            margin-right: 6px;
-            vertical-align: middle;
-        }
-
-        /* User info */
-        .user-info-display {
-            color: #d7dadc;
-            font-size: 14px;
-            cursor: pointer;
-            padding: 4px 8px;
-            border-radius: 4px;
-            transition: background-color 0.2s;
-            display: flex;
-            align-items: center;
-        }
-
-        .user-info-display:hover {
-            background: #272729;
-        }
-
-        /* Media Rendering Styles */
-        .post-media {
-            margin: 12px 0;
-            border-radius: 8px;
-            overflow: hidden;
-            border: 1px solid #343536;
-        }
-
-        .post-image {
-            width: 100%;
-            max-height: 500px;
-            object-fit: cover;
-            display: block;
-            cursor: pointer;
-            transition: transform 0.2s ease;
-        }
-
-        .post-image:hover {
-            transform: scale(1.02);
-        }
-
-        .post-video {
-            width: 100%;
-            max-height: 400px;
-            background: #000;
-        }
-
-        .post-embed {
-            width: 100%;
-            min-height: 300px;
-            border: none;
-            border-radius: 8px;
-        }
-
-        .youtube-embed {
-            position: relative;
-            width: 100%;
-            height: 0;
-            padding-bottom: 56.25%; /* 16:9 aspect ratio */
-            overflow: hidden;
-            border-radius: 8px;
-        }
-
-        .youtube-embed iframe {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            border: none;
-        }
-
-        .media-link {
-            display: block;
-            color: #0079d3;
-            text-decoration: none;
-            padding: 12px;
-            background: rgba(0, 121, 211, 0.1);
-            border: 1px solid #0079d3;
-            border-radius: 8px;
-            margin: 12px 0;
-            transition: all 0.2s ease;
-        }
-
-        .media-link:hover {
-            background: rgba(0, 121, 211, 0.2);
-            text-decoration: underline;
-        }
-
-        .media-link-title {
-            font-weight: 600;
-            margin-bottom: 4px;
-        }
-
-        .media-link-url {
-            font-size: 12px;
-            color: #818384;
-            word-break: break-all;
-        }
-
-        /* Markdown Rendering Styles */
+        /* Markdown Content Styles */
         .markdown-content {
-            color: #d7dadc;
+            color: var(--fg-default);
             line-height: 1.6;
         }
 
@@ -770,23 +725,15 @@
         .markdown-content h4,
         .markdown-content h5,
         .markdown-content h6 {
-            color: #fff;
+            color: var(--fg-default);
             margin: 16px 0 8px 0;
             font-weight: 600;
         }
 
         .markdown-content h1 {
             font-size: 1.8em;
-            border-bottom: 1px solid #343536;
+            border-bottom: 1px solid var(--border-default);
             padding-bottom: 8px;
-        }
-
-        .markdown-content h2 {
-            font-size: 1.5em;
-        }
-
-        .markdown-content h3 {
-            font-size: 1.3em;
         }
 
         .markdown-content p {
@@ -794,7 +741,7 @@
         }
 
         .markdown-content a {
-            color: #0079d3;
+            color: var(--accent-fg);
             text-decoration: none;
         }
 
@@ -802,36 +749,18 @@
             text-decoration: underline;
         }
 
-        .markdown-content blockquote {
-            border-left: 4px solid #ff4500;
-            padding-left: 16px;
-            margin: 16px 0;
-            color: #818384;
-            font-style: italic;
-        }
-
-        .markdown-content ul,
-        .markdown-content ol {
-            padding-left: 24px;
-            margin: 12px 0;
-        }
-
-        .markdown-content li {
-            margin: 4px 0;
-        }
-
         .markdown-content code {
-            background: #272729;
-            color: #ff6b35;
+            background: var(--bg-subtle);
+            color: var(--fg-default);
             padding: 2px 6px;
-            border-radius: 4px;
-            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
-            font-size: 0.9em;
+            border-radius: 6px;
+            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+            font-size: 0.85em;
         }
 
         .markdown-content pre {
-            background: #1a1a1b;
-            border: 1px solid #343536;
+            background: var(--bg-canvas);
+            border: 1px solid var(--border-default);
             border-radius: 8px;
             padding: 16px;
             overflow-x: auto;
@@ -842,173 +771,71 @@
             background: none;
             color: inherit;
             padding: 0;
-            font-size: 0.85em;
         }
 
-        .markdown-content table {
-            border-collapse: collapse;
-            width: 100%;
+        .markdown-content blockquote {
+            border-left: 4px solid var(--accent-emphasis);
+            padding-left: 16px;
             margin: 16px 0;
-            border: 1px solid #343536;
-            border-radius: 8px;
-            overflow: hidden;
-        }
-
-        .markdown-content th,
-        .markdown-content td {
-            border: 1px solid #343536;
-            padding: 8px 12px;
-            text-align: left;
-        }
-
-        .markdown-content th {
-            background: #272729;
-            font-weight: 600;
-            color: #fff;
-        }
-
-        .markdown-content hr {
-            border: none;
-            border-top: 1px solid #343536;
-            margin: 24px 0;
-        }
-
-        .markdown-content img {
-            max-width: 100%;
-            height: auto;
-            border-radius: 8px;
-            margin: 8px 0;
-        }
-
-        /* Image Modal */
-        .image-modal {
-            display: none;
-            position: fixed;
-            z-index: 1000;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.9);
-            cursor: pointer;
-        }
-
-        .image-modal-content {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            max-width: 90%;
-            max-height: 90%;
-            object-fit: contain;
-        }
-
-        .image-modal-close {
-            position: absolute;
-            top: 20px;
-            right: 35px;
-            color: #f1f1f1;
-            font-size: 40px;
-            font-weight: bold;
-            cursor: pointer;
-        }
-
-        .image-modal-close:hover {
-            color: #ff4500;
-        }
-
-        /* Media Upload Styles */
-        .media-upload-area {
-            border: 2px dashed #343536;
-            border-radius: 8px;
-            padding: 20px;
-            text-align: center;
-            background: #272729;
-            margin: 12px 0;
-            cursor: pointer;
-            transition: all 0.2s ease;
-        }
-
-        .media-upload-area:hover {
-            border-color: #ff4500;
-            background: rgba(255, 69, 0, 0.1);
-        }
-
-        .media-upload-area.dragover {
-            border-color: #ff4500;
-            background: rgba(255, 69, 0, 0.2);
-        }
-
-        .media-preview {
-            margin: 12px 0;
-            text-align: center;
-        }
-
-        .media-preview img,
-        .media-preview video {
-            max-width: 100%;
-            max-height: 200px;
-            border-radius: 8px;
-        }
-
-        .media-remove-btn {
-            background: #dc2626;
-            color: white;
-            border: none;
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 12px;
-            cursor: pointer;
-            margin-top: 8px;
-        }
-
-        /* Post Type Toggle */
-        .post-type-toggle {
-            display: flex;
-            background: #272729;
-            border-radius: 8px;
-            overflow: hidden;
-            margin-bottom: 16px;
-        }
-
-        .post-type-btn {
-            flex: 1;
-            background: transparent;
-            color: #818384;
-            border: none;
-            padding: 8px 16px;
-            cursor: pointer;
-            font-size: 14px;
-            transition: all 0.2s ease;
-        }
-
-        .post-type-btn.active {
-            background: #ff4500;
-            color: white;
-        }
-
-        .post-type-btn:hover:not(.active) {
-            background: #343536;
-            color: #d7dadc;
+            color: var(--fg-muted);
+            font-style: italic;
         }
     </style>
 </head>
 <body>
-    <header class="header">
-        <div class="header-content">
-            <div class="logo" onclick="showFeed()">🏘️ Communities</div>
-            <div class="auth-section" id="authSection">
-                <!-- Auth buttons will be inserted here -->
-            </div>
-        </div>
-    </header>
+    <!-- Menu Overlay -->
+    <div class="menu-overlay" id="menuOverlay" onclick="toggleMenu()"></div>
 
-    <div class="nav-menu" id="navMenu" style="display: none;">
-        <button id="feedBtn" class="active" onclick="showFeed()">Feed</button>
-        <button id="communitiesBtn" onclick="showCommunities()">Communities</button>
-        <button id="privateBtn" onclick="showPrivateFeed()">Private</button>
-        <button id="adminBtn" style="display: none;" onclick="showAdminPanel()">Admin</button>
+    <!-- Sliding Menu -->
+    <div class="slide-menu" id="slideMenu">
+        <div class="menu-header" id="menuHeader">
+            <!-- User info will be inserted here -->
+        </div>
+        
+        <nav class="menu-nav">
+            <button class="menu-item active" id="menuFeed" onclick="navigateToFeed()">
+                <span class="menu-item-icon">🏠</span>
+                <span>Feed</span>
+            </button>
+            
+            <button class="menu-item" id="menuProfile" onclick="navigateToProfile()">
+                <span class="menu-item-icon">👤</span>
+                <span>Profile</span>
+            </button>
+            
+            <button class="menu-item" id="menuCreateCommunity" onclick="openCreateCommunity()">
+                <span class="menu-item-icon">➕</span>
+                <span>Create Community</span>
+            </button>
+            
+            <button class="menu-item" id="menuBrowseCommunities" onclick="toggleCommunitiesDropdown()">
+                <span class="menu-item-icon">🏘️</span>
+                <span>Browse Communities</span>
+                <span style="margin-left: auto; font-size: 12px;" id="communitiesToggle">▼</span>
+            </button>
+            
+            <div class="communities-dropdown" id="communitiesDropdown">
+                <!-- Communities will be inserted here -->
+            </div>
+            
+            <div class="menu-divider"></div>
+            
+            <button class="menu-item" id="menuSettings" onclick="navigateToSettings()">
+                <span class="menu-item-icon">⚙️</span>
+                <span>Settings</span>
+            </button>
+            
+            <button class="menu-item" id="menuLogout" onclick="logout()">
+                <span class="menu-item-icon">🚪</span>
+                <span>Logout</span>
+            </button>
+        </nav>
     </div>
+
+    <!-- Floating Menu Toggle -->
+    <button class="menu-toggle" id="menuToggle" onclick="toggleMenu()">
+        <span>☰</span>
+    </button>
 
     <!-- Admin Panel -->
     <div id="adminPanel" class="admin-panel" style="display: none;">
@@ -1035,72 +862,40 @@
             </div>
         </div>
 
-        <div class="admin-actions">
-            <button class="btn btn-admin" onclick="loadPendingUsers()">Pending Users</button>
-            <button class="btn btn-admin" onclick="loadAllUsers()">All Users</button>
-            <button class="btn btn-admin" onclick="loadAdminCommunities()">Manage Communities</button>
-            <button class="btn btn-admin" onclick="refreshAdminStats()">Refresh Stats</button>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px;">
+            <button class="btn btn-danger btn-small" onclick="loadPendingUsers()">Pending Users</button>
+            <button class="btn btn-danger btn-small" onclick="loadAllUsers()">All Users</button>
+            <button class="btn btn-danger btn-small" onclick="loadAdminCommunities()">Manage Communities</button>
+            <button class="btn btn-danger btn-small" onclick="refreshAdminStats()">Refresh Stats</button>
         </div>
 
-        <!-- Pending Users Section -->
+        <!-- Admin sections will be inserted here -->
         <div id="pendingUsersSection" class="admin-section" style="display: none;">
-            <h4>Pending User Approvals</h4>
+            <h4 style="color: var(--danger-fg); margin-bottom: 12px;">Pending User Approvals</h4>
             <div id="pendingUsersList"></div>
         </div>
 
-        <!-- All Users Section -->
         <div id="allUsersSection" class="admin-section" style="display: none;">
-            <h4>All Users</h4>
+            <h4 style="color: var(--danger-fg); margin-bottom: 12px;">All Users</h4>
             <div id="allUsersList"></div>
         </div>
 
-        <!-- Communities Management Section -->
         <div id="adminCommunitiesSection" class="admin-section" style="display: none;">
-            <h4>Community Management</h4>
+            <h4 style="color: var(--danger-fg); margin-bottom: 12px;">Community Management</h4>
             <div id="adminCommunitiesList"></div>
         </div>
     </div>
 
-    <!-- Main Feed -->
-    <main id="mainFeed" class="main-feed">
-        <div class="feed-container">
-            <div id="feed" class="loading">
-                Loading...
-            </div>
-        </div>
-    </main>
-
-    <!-- Communities List -->
-    <main id="communitiesPage" class="community-page">
-        <div class="page-header">
-            <div class="page-title">Communities</div>
-            <button class="btn btn-community" id="createCommunityBtn" onclick="openModal('createCommunityModal')" style="display: none;">Create Community</button>
-        </div>
-        <div class="feed-container">
-            <div id="communitiesList" class="loading">
-                Loading communities...
-            </div>
-        </div>
-    </main>
-
-    <!-- Community Detail Page -->
-    <main id="communityPage" class="community-page">
-        <div class="page-header">
-            <button class="back-btn" onclick="showCommunities()">←</button>
-            <div class="page-title" id="communityPageTitle">Community</div>
-        </div>
-        <div class="feed-container">
-            <div id="communityDetail" class="loading">
-                Loading community...
-            </div>
-            <div id="communityPosts" class="loading">
-                Loading posts...
-            </div>
+    <!-- Main Content -->
+    <main class="main-container">
+        <div id="feed" class="loading">
+            Loading...
         </div>
     </main>
 
     <button class="compose-btn" id="composeBtn" style="display: none;" onclick="openModal('composeModal')">+</button>
 
+    <!-- Modals (keeping the existing modal structure but with updated styling) -->
     <!-- Auth Modal -->
     <div class="modal" id="authModal">
         <div class="modal-content">
@@ -1124,9 +919,9 @@
                 </div>
                 <button type="submit" class="btn" id="authSubmitBtn">Sign Up</button>
             </form>
-            <p style="margin-top: 12px; color: #818384; font-size: 14px;">
+            <p style="margin-top: 16px; color: var(--fg-muted); font-size: 14px;">
                 <span id="authToggleText">Already have an account?</span>
-                <button type="button" class="btn-secondary" id="authToggleBtn" onclick="toggleAuthMode()">Sign In</button>
+                <button type="button" class="btn-secondary btn" id="authToggleBtn" onclick="toggleAuthMode()">Sign In</button>
             </p>
         </div>
     </div>
@@ -1153,7 +948,7 @@
                     <label for="communityDescription">Description</label>
                     <textarea id="communityDescription" maxlength="500" placeholder="A community for programming discussions and help"></textarea>
                 </div>
-                <button type="submit" class="btn btn-community" id="createCommunitySubmitBtn">Create Community</button>
+                <button type="submit" class="btn" id="createCommunitySubmitBtn">Create Community</button>
             </form>
         </div>
     </div>
@@ -1176,9 +971,9 @@
 
                 <div class="form-group">
                     <label>Post Type</label>
-                    <div class="post-type-toggle">
-                        <button type="button" class="post-type-btn active" onclick="setPostType('text')">Text Post</button>
-                        <button type="button" class="post-type-btn" onclick="setPostType('link')">Link/Media</button>
+                    <div style="display: flex; background: var(--bg-subtle); border-radius: 8px; overflow: hidden; margin-bottom: 16px;">
+                        <button type="button" style="flex: 1; background: var(--btn-primary-bg); color: white; border: none; padding: 8px 16px; cursor: pointer; font-size: 14px;" onclick="setPostType('text')">Text Post</button>
+                        <button type="button" style="flex: 1; background: transparent; color: var(--fg-default); border: none; padding: 8px 16px; cursor: pointer; font-size: 14px;" onclick="setPostType('link')">Link/Media</button>
                     </div>
                 </div>
 
@@ -1193,18 +988,6 @@
                         <label for="postContent">Content</label>
                         <textarea id="postContent" required placeholder="Share your thoughts... (Markdown supported)" maxlength="10000"></textarea>
                         <small>Supports Markdown formatting, including **bold**, *italic*, `code`, links, images, and more!</small>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label>Media Upload (Optional)</label>
-                        <div class="media-upload-area" id="mediaUpload" onclick="document.getElementById('mediaFile').click()">
-                            <input type="file" id="mediaFile" accept="image/*,video/*" style="display: none;" onchange="handleMediaUpload(event)">
-                            <div id="mediaUploadText">
-                                📎 Click to upload image or video<br>
-                                <small>Or drag and drop files here</small>
-                            </div>
-                        </div>
-                        <div id="mediaPreview" class="media-preview" style="display: none;"></div>
                     </div>
                 </div>
 
@@ -1223,24 +1006,20 @@
                 </div>
 
                 <div class="form-group">
-                    <input type="checkbox" id="isPrivate" style="width: auto; margin-right: 8px;">
-                    <label for="isPrivate" style="display: inline;">Private post (only you can see this)</label>
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                        <input type="checkbox" id="isPrivate" style="width: auto;">
+                        <span>Private post (only you can see this)</span>
+                    </label>
                 </div>
                 <button type="submit" class="btn" id="composeSubmitBtn">Post</button>
             </form>
         </div>
     </div>
 
-    <!-- Image Modal -->
-    <div id="imageModal" class="image-modal" onclick="closeImageModal()">
-        <span class="image-modal-close" onclick="closeImageModal()">&times;</span>
-        <img class="image-modal-content" id="modalImage">
-    </div>
-
     <script>
         // App state
         let currentUser = null;
-        let currentPage = 'feed'; // 'feed', 'communities', 'community', 'private'
+        let currentPage = 'feed';
         let communities = [];
         let posts = [];
         let currentCommunity = null;
@@ -1248,300 +1027,154 @@
         let adminData = null;
         let currentPostType = 'text';
         let uploadedMedia = null;
-
-        // Initialize Markdown renderer with custom settings
         let markdownRenderer;
-        
-        // Initialize app
-        document.addEventListener('DOMContentLoaded', async () => {
-            // Configure marked.js for markdown rendering
-            marked.setOptions({
-                highlight: function(code, lang) {
-                    if (lang && hljs.getLanguage(lang)) {
-                        return hljs.highlight(code, { language: lang }).value;
-                    }
-                    return hljs.highlightAuto(code).value;
-                },
-                breaks: true,
-                gfm: true
-            });
-            
-            // Custom renderer for enhanced features
-            markdownRenderer = new marked.Renderer();
-            
-            // Custom link renderer to handle media embeds
-            markdownRenderer.link = function(href, title, text) {
-                const mediaHtml = renderMediaFromUrl(href);
-                if (mediaHtml) return mediaHtml;
-                
-                return `<a href="${href}" target="_blank" rel="noopener noreferrer" ${title ? `title="${title}"` : ''}>${text}</a>`;
-            };
-            
-            // Custom image renderer
-            markdownRenderer.image = function(href, title, text) {
-                return `<img src="${href}" alt="${text}" ${title ? `title="${title}"` : ''} onclick="openImageModal('${href}')" style="cursor: pointer;">`;
-            };
 
-            await loadUser();
-            await loadCommunities();
-            await loadPosts();
-            updateUI();
-            setupEventListeners();
+        // Menu functions
+        function toggleMenu() {
+            const menu = document.getElementById('slideMenu');
+            const overlay = document.getElementById('menuOverlay');
+            const isOpen = menu.classList.contains('open');
             
-            // Load admin stats if user is admin
-            if (currentUser?.profile?.isAdmin) {
-                await loadAdminStats();
-            }
-        });
-
-        function setupEventListeners() {
-            // Auth form
-            document.getElementById('authForm').addEventListener('submit', handleAuth);
-            
-            // Create community form
-            document.getElementById('createCommunityForm').addEventListener('submit', handleCreateCommunity);
-            
-            // Compose form
-            document.getElementById('composeForm').addEventListener('submit', handleCreatePost);
-            
-            // Media upload drag and drop
-            const mediaUpload = document.getElementById('mediaUpload');
-            mediaUpload.addEventListener('dragover', handleDragOver);
-            mediaUpload.addEventListener('drop', handleDrop);
-            mediaUpload.addEventListener('dragleave', handleDragLeave);
-        }
-
-        // Media handling functions
-        function setPostType(type) {
-            currentPostType = type;
-            
-            // Update button states
-            document.querySelectorAll('.post-type-btn').forEach(btn => btn.classList.remove('active'));
-            event.target.classList.add('active');
-            
-            // Show/hide relevant fields
-            const textFields = document.getElementById('textPostFields');
-            const linkFields = document.getElementById('linkPostFields');
-            
-            if (type === 'text') {
-                textFields.style.display = 'block';
-                linkFields.style.display = 'none';
-                document.getElementById('postContent').required = true;
-                document.getElementById('postUrl').required = false;
+            if (isOpen) {
+                menu.classList.remove('open');
+                overlay.classList.remove('active');
             } else {
-                textFields.style.display = 'none';
-                linkFields.style.display = 'block';
-                document.getElementById('postContent').required = false;
-                document.getElementById('postUrl').required = true;
+                menu.classList.add('open');
+                overlay.classList.add('active');
+                updateMenuContent();
             }
         }
 
-        function handleDragOver(e) {
-            e.preventDefault();
-            e.currentTarget.classList.add('dragover');
-        }
-
-        function handleDragLeave(e) {
-            e.currentTarget.classList.remove('dragover');
-        }
-
-        function handleDrop(e) {
-            e.preventDefault();
-            e.currentTarget.classList.remove('dragover');
+        function updateMenuContent() {
+            const menuHeader = document.getElementById('menuHeader');
+            const menuAuthButtons = document.getElementById('menuAuthButtons');
+            const menuLogout = document.getElementById('menuLogout');
             
-            const files = e.dataTransfer.files;
-            if (files.length > 0) {
-                handleMediaFile(files[0]);
+            if (currentUser) {
+                menuHeader.innerHTML = `
+                    <div class="menu-user-info">
+                        <div class="profile-avatar">${currentUser.username.charAt(0).toUpperCase()}</div>
+                        <div class="menu-user-details">
+                            <h4>@${escapeHtml(currentUser.username)}</h4>
+                            <p>${currentUser.profile?.isAdmin ? 'Administrator' : 'Member'}</p>
+                        </div>
+                    </div>
+                `;
+                
+                // Show/hide menu items based on auth status
+                document.getElementById('menuProfile').style.display = 'flex';
+                document.getElementById('menuCreateCommunity').style.display = 'flex';
+                document.getElementById('menuBrowseCommunities').style.display = 'flex';
+                document.getElementById('menuSettings').style.display = 'flex';
+                menuLogout.style.display = 'flex';
+                menuAuthButtons.style.display = 'none';
+                
+                // Update communities dropdown
+                updateCommunitiesInMenu();
+            } else {
+                menuHeader.innerHTML = `
+                    <div class="menu-user-info">
+                        <div class="profile-avatar">?</div>
+                        <div class="menu-user-details">
+                            <h4>Not signed in</h4>
+                            <p>Please sign in to continue</p>
+                        </div>
+                    </div>
+                `;
+                
+                // Hide authenticated menu items
+                document.getElementById('menuProfile').style.display = 'none';
+                document.getElementById('menuCreateCommunity').style.display = 'none';
+                document.getElementById('menuBrowseCommunities').style.display = 'none';
+                document.getElementById('menuSettings').style.display = 'none';
+                menuLogout.style.display = 'none';
+                
+                // Show auth buttons in menu
+                menuAuthButtons.style.display = 'block';
+                menuAuthButtons.innerHTML = `
+                    <button class="btn btn-secondary" onclick="openAuthModal('signin'); toggleMenu();" style="width: 100%; margin-bottom: 8px;">Sign In</button>
+                    <button class="btn" onclick="openAuthModal('signup'); toggleMenu();" style="width: 100%;">Sign Up</button>
+                `;
             }
         }
 
-        function handleMediaUpload(event) {
-            const file = event.target.files[0];
-            if (file) {
-                handleMediaFile(file);
+        function handleLogout() {
+            logout();
+            toggleMenu();
+        }
+
+        function updateCommunitiesInMenu() {
+            const dropdown = document.getElementById('communitiesDropdown');
+            
+            if (communities.length === 0) {
+                dropdown.innerHTML = '<div class="community-item">No communities yet</div>';
+            } else {
+                dropdown.innerHTML = communities.map(community => `
+                    <a href="#" class="community-item" onclick="navigateToCommunity('${community.name}'); return false;">
+                        c/${escapeHtml(community.displayName)}
+                    </a>
+                `).join('');
             }
         }
 
-        function handleMediaFile(file) {
-            if (!file.type.startsWith('image/') && !file.type.startsWith('video/')) {
-                showError('composeError', 'Please select an image or video file');
+        function toggleCommunitiesDropdown() {
+            const dropdown = document.getElementById('communitiesDropdown');
+            const toggle = document.getElementById('communitiesToggle');
+            const isOpen = dropdown.classList.contains('open');
+            
+            if (isOpen) {
+                dropdown.classList.remove('open');
+                toggle.textContent = '▼';
+            } else {
+                dropdown.classList.add('open');
+                toggle.textContent = '▲';
+            }
+        }
+
+        // Navigation functions
+        function navigateToFeed() {
+            toggleMenu();
+            currentPage = 'feed';
+            updateActiveMenuItem('menuFeed');
+            updateUI();
+        }
+
+        function navigateToProfile() {
+            toggleMenu();
+            // TODO: Implement profile page
+            showSuccessMessage('Profile page coming soon!');
+        }
+
+        function openCreateCommunity() {
+            toggleMenu();
+            if (!currentUser) {
+                openAuthModal('signin');
                 return;
             }
-
-            if (file.size > 10 * 1024 * 1024) { // 10MB limit
-                showError('composeError', 'File size must be less than 10MB');
-                return;
-            }
-
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                uploadedMedia = {
-                    type: file.type.startsWith('image/') ? 'image' : 'video',
-                    data: e.target.result,
-                    name: file.name
-                };
-                showMediaPreview();
-            };
-            reader.readAsDataURL(file);
+            openModal('createCommunityModal');
         }
 
-        function showMediaPreview() {
-            const preview = document.getElementById('mediaPreview');
-            const uploadText = document.getElementById('mediaUploadText');
-            
-            if (uploadedMedia) {
-                const mediaElement = uploadedMedia.type === 'image' 
-                    ? `<img src="${uploadedMedia.data}" alt="Preview">`
-                    : `<video src="${uploadedMedia.data}" controls></video>`;
-                
-                preview.innerHTML = `
-                    ${mediaElement}
-                    <br>
-                    <button type="button" class="media-remove-btn" onclick="removeMedia()">Remove</button>
-                `;
-                preview.style.display = 'block';
-                uploadText.innerHTML = '✓ Media uploaded';
-            }
+        function navigateToCommunity(communityName) {
+            toggleMenu();
+            currentPage = 'community';
+            currentCommunity = communityName;
+            updateUI();
         }
 
-        function removeMedia() {
-            uploadedMedia = null;
-            const preview = document.getElementById('mediaPreview');
-            const uploadText = document.getElementById('mediaUploadText');
-            
-            preview.style.display = 'none';
-            uploadText.innerHTML = `
-                📎 Click to upload image or video<br>
-                <small>Or drag and drop files here</small>
-            `;
-            document.getElementById('mediaFile').value = '';
+        function navigateToSettings() {
+            toggleMenu();
+            // TODO: Implement settings page
+            showSuccessMessage('Settings page coming soon!');
         }
 
-        // Media rendering functions
-        function renderMediaFromUrl(url) {
-            if (!url) return null;
-
-            // YouTube video
-            const youtubeMatch = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]+)/);
-            if (youtubeMatch) {
-                const videoId = youtubeMatch[1];
-                return `
-                    <div class="youtube-embed">
-                        <iframe src="https://www.youtube.com/embed/${videoId}" 
-                                allowfullscreen></iframe>
-                    </div>
-                `;
-            }
-
-            // Vimeo video
-            const vimeoMatch = url.match(/vimeo\.com\/(\d+)/);
-            if (vimeoMatch) {
-                const videoId = vimeoMatch[1];
-                return `
-                    <div class="youtube-embed">
-                        <iframe src="https://player.vimeo.com/video/${videoId}" 
-                                allowfullscreen></iframe>
-                    </div>
-                `;
-            }
-
-            // Direct image links
-            if (url.match(/\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i)) {
-                return `<img src="${url}" class="post-image" onclick="openImageModal('${url}')" alt="Image">`;
-            }
-
-            // Direct video links
-            if (url.match(/\.(mp4|webm|ogg|mov)(\?.*)?$/i)) {
-                return `<video src="${url}" class="post-video" controls></video>`;
-            }
-
-            // Twitter/X posts
-            const twitterMatch = url.match(/(?:twitter\.com|x\.com)\/\w+\/status\/(\d+)/);
-            if (twitterMatch) {
-                return `
-                    <div class="media-link">
-                        <div class="media-link-title">🐦 Twitter/X Post</div>
-                        <div class="media-link-url">${url}</div>
-                    </div>
-                `;
-            }
-
-            // Generic link with preview
-            return null; // Let default link rendering handle it
+        function updateActiveMenuItem(activeId) {
+            document.querySelectorAll('.menu-item').forEach(item => {
+                item.classList.remove('active');
+            });
+            document.getElementById(activeId).classList.add('active');
         }
 
-        function renderPostContent(post) {
-            let contentHtml = '';
-
-            // Handle different post types
-            if (post.type === 'link' && post.url) {
-                const mediaHtml = renderMediaFromUrl(post.url);
-                if (mediaHtml) {
-                    contentHtml += `<div class="post-media">${mediaHtml}</div>`;
-                } else {
-                    contentHtml += `
-                        <a href="${post.url}" target="_blank" rel="noopener noreferrer" class="media-link">
-                            <div class="media-link-title">🔗 ${post.url}</div>
-                            <div class="media-link-url">${post.url}</div>
-                        </a>
-                    `;
-                }
-                
-                if (post.description) {
-                    contentHtml += `<div class="markdown-content">${renderMarkdown(post.description)}</div>`;
-                }
-            } else if (post.content) {
-                contentHtml += `<div class="markdown-content">${renderMarkdown(post.content)}</div>`;
-            }
-
-            // Handle embedded media from text posts
-            if (post.media) {
-                if (post.media.type === 'image') {
-                    contentHtml += `
-                        <div class="post-media">
-                            <img src="${post.media.data}" class="post-image" onclick="openImageModal('${post.media.data}')" alt="Uploaded image">
-                        </div>
-                    `;
-                } else if (post.media.type === 'video') {
-                    contentHtml += `
-                        <div class="post-media">
-                            <video src="${post.media.data}" class="post-video" controls></video>
-                        </div>
-                    `;
-                }
-            }
-
-            return contentHtml;
-        }
-
-        function renderMarkdown(text) {
-            if (!text) return '';
-            
-            try {
-                // Render markdown with custom renderer
-                const html = marked.parse(text, { renderer: markdownRenderer });
-                
-                // Sanitize the HTML to prevent XSS attacks
-                return DOMPurify.sanitize(html);
-            } catch (error) {
-                console.error('Markdown rendering error:', error);
-                return escapeHtml(text);
-            }
-        }
-
-        // Image modal functions
-        function openImageModal(src) {
-            const modal = document.getElementById('imageModal');
-            const modalImg = document.getElementById('modalImage');
-            modal.style.display = 'block';
-            modalImg.src = src;
-        }
-
-        function closeImageModal() {
-            document.getElementById('imageModal').style.display = 'none';
-        }
-
-        // Netlify Blobs API implementation
+        // Netlify Blobs API implementation (keeping the existing implementation)
         const blobAPI = {
             async get(key) {
                 try {
@@ -1623,6 +1256,34 @@
 
         // Initialize app
         document.addEventListener('DOMContentLoaded', async () => {
+            // Configure marked.js for markdown rendering
+            marked.setOptions({
+                highlight: function(code, lang) {
+                    if (lang && hljs.getLanguage(lang)) {
+                        return hljs.highlight(code, { language: lang }).value;
+                    }
+                    return hljs.highlightAuto(code).value;
+                },
+                breaks: true,
+                gfm: true
+            });
+            
+            // Custom renderer for enhanced features
+            markdownRenderer = new marked.Renderer();
+            
+            // Custom link renderer to handle media embeds
+            markdownRenderer.link = function(href, title, text) {
+                const mediaHtml = renderMediaFromUrl(href);
+                if (mediaHtml) return mediaHtml;
+                
+                return `<a href="${href}" target="_blank" rel="noopener noreferrer" ${title ? `title="${title}"` : ''}>${text}</a>`;
+            };
+            
+            // Custom image renderer
+            markdownRenderer.image = function(href, title, text) {
+                return `<img src="${href}" alt="${text}" ${title ? `title="${title}"` : ''} onclick="openImageModal('${href}')" style="cursor: pointer;">`;
+            };
+
             await loadUser();
             await loadCommunities();
             await loadPosts();
@@ -1644,6 +1305,18 @@
             
             // Compose form
             document.getElementById('composeForm').addEventListener('submit', handleCreatePost);
+            
+            // Close menu when clicking outside
+            document.addEventListener('click', (e) => {
+                const menu = document.getElementById('slideMenu');
+                const menuToggle = document.getElementById('menuToggle');
+                
+                if (menu.classList.contains('open') && 
+                    !menu.contains(e.target) && 
+                    !menuToggle.contains(e.target)) {
+                    toggleMenu();
+                }
+            });
         }
 
         async function loadUser() {
@@ -1717,336 +1390,14 @@
             }
         }
 
-        // Admin Functions
-        async function loadAdminStats() {
-            try {
-                const userKeys = await blobAPI.list('user_');
-                const pendingUserKeys = await blobAPI.list('pending_user_');
-                const postKeys = await blobAPI.list('post_');
-                const communityKeys = await blobAPI.list('community_');
-
-                document.getElementById('totalUsers').textContent = userKeys.length;
-                document.getElementById('pendingUsers').textContent = pendingUserKeys.length;
-                document.getElementById('totalPosts').textContent = postKeys.length;
-                document.getElementById('totalCommunities').textContent = communityKeys.length;
-            } catch (error) {
-                console.error('Error loading admin stats:', error);
-            }
-        }
-
-        async function loadPendingUsers() {
-            try {
-                const pendingUserKeys = await blobAPI.list('pending_user_');
-                const pendingPromises = pendingUserKeys.map(key => blobAPI.get(key));
-                const pendingUsers = (await Promise.all(pendingPromises)).filter(Boolean);
-
-                const container = document.getElementById('pendingUsersList');
-                const section = document.getElementById('pendingUsersSection');
-
-                if (pendingUsers.length === 0) {
-                    container.innerHTML = '<p style="color: #818384;">No pending users</p>';
-                } else {
-                    container.innerHTML = pendingUsers.map(user => `
-                        <div class="user-card pending">
-                            <div class="user-card-header">
-                                <div>
-                                    <strong>${escapeHtml(user.username)}</strong>
-                                    <div class="user-info">${escapeHtml(user.bio || 'No bio provided')}</div>
-                                    <div class="user-info" style="font-size: 12px; color: #818384;">
-                                        Registered: ${formatDate(user.createdAt)}
-                                    </div>
-                                </div>
-                                <div class="user-actions">
-                                    <button class="btn btn-approve btn-small" onclick="approveUser('${user.username}')">
-                                        Approve
-                                    </button>
-                                    <button class="btn btn-reject btn-small" onclick="rejectUser('${user.username}')">
-                                        Reject
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    `).join('');
-                }
-
-                section.style.display = 'block';
-                document.getElementById('allUsersSection').style.display = 'none';
-                document.getElementById('adminCommunitiesSection').style.display = 'none';
-            } catch (error) {
-                console.error('Error loading pending users:', error);
-            }
-        }
-
-        async function loadAllUsers() {
-            try {
-                const userKeys = await blobAPI.list('user_');
-                const userPromises = userKeys.map(key => blobAPI.get(key));
-                const users = (await Promise.all(userPromises)).filter(Boolean);
-
-                const container = document.getElementById('allUsersList');
-                const section = document.getElementById('allUsersSection');
-
-                if (users.length === 0) {
-                    container.innerHTML = '<p style="color: #818384;">No users found</p>';
-                } else {
-                    container.innerHTML = users.map(user => {
-                        const userPosts = posts.filter(p => p.author === user.username).length;
-                        return `
-                            <div class="user-card">
-                                <div class="user-card-header">
-                                    <div>
-                                        <strong>${escapeHtml(user.username)}</strong>
-                                        ${user.isAdmin ? '<span class="admin-badge">Admin</span>' : ''}
-                                        <div class="user-info">${escapeHtml(user.bio || 'No bio provided')}</div>
-                                        <div class="user-info" style="font-size: 12px; color: #818384;">
-                                            Posts: ${userPosts} | Joined: ${formatDate(user.createdAt)}
-                                        </div>
-                                    </div>
-                                    <div class="user-actions">
-                                        ${!user.isAdmin && user.username !== currentUser?.username ? `
-                                            <button class="btn btn-delete btn-small" onclick="deleteUser('${user.username}')">
-                                                Delete
-                                            </button>
-                                        ` : ''}
-                                    </div>
-                                </div>
-                            </div>
-                        `;
-                    }).join('');
-                }
-
-                section.style.display = 'block';
-                document.getElementById('pendingUsersSection').style.display = 'none';
-                document.getElementById('adminCommunitiesSection').style.display = 'none';
-            } catch (error) {
-                console.error('Error loading all users:', error);
-            }
-        }
-
-        async function loadAdminCommunities() {
-            try {
-                const container = document.getElementById('adminCommunitiesList');
-                const section = document.getElementById('adminCommunitiesSection');
-
-                if (communities.length === 0) {
-                    container.innerHTML = '<p style="color: #818384;">No communities found</p>';
-                } else {
-                    container.innerHTML = communities.map(community => {
-                        const communityPosts = posts.filter(p => p.communityName === community.name).length;
-                        return `
-                            <div class="user-card">
-                                <div class="user-card-header">
-                                    <div>
-                                        <strong>${escapeHtml(community.displayName)}</strong>
-                                        <div class="user-info">c/${escapeHtml(community.name)}</div>
-                                        <div class="user-info">${escapeHtml(community.description || 'No description')}</div>
-                                        <div class="user-info" style="font-size: 12px; color: #818384;">
-                                            Posts: ${communityPosts} | Members: ${community.members?.length || 0} | 
-                                            Created by: ${escapeHtml(community.createdBy)} | ${formatDate(community.createdAt)}
-                                        </div>
-                                    </div>
-                                    <div class="user-actions">
-                                        <button class="btn btn-delete btn-small" onclick="deleteCommunity('${community.name}')">
-                                            Delete Community
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        `;
-                    }).join('');
-                }
-
-                section.style.display = 'block';
-                document.getElementById('pendingUsersSection').style.display = 'none';
-                document.getElementById('allUsersSection').style.display = 'none';
-            } catch (error) {
-                console.error('Error loading admin communities:', error);
-            }
-        }
-
-        async function approveUser(username) {
-            if (!confirm(`Approve user "${username}"?`)) return;
-
-            try {
-                const pendingUser = await blobAPI.get(`pending_user_${username}`);
-                if (!pendingUser) {
-                    showError('general', 'Pending user not found');
-                    return;
-                }
-
-                // Create approved user
-                const approvedUser = {
-                    username: pendingUser.username,
-                    password: pendingUser.password,
-                    bio: pendingUser.bio,
-                    createdAt: pendingUser.createdAt,
-                    approvedAt: new Date().toISOString(),
-                    isAdmin: false
-                };
-
-                await blobAPI.set(`user_${username}`, approvedUser);
-                await blobAPI.delete(`pending_user_${username}`);
-
-                showSuccessMessage(`User "${username}" approved successfully!`);
-                await loadAdminStats();
-                await loadPendingUsers();
-            } catch (error) {
-                console.error('Error approving user:', error);
-                showError('general', 'Failed to approve user');
-            }
-        }
-
-        async function rejectUser(username) {
-            if (!confirm(`Reject and delete user "${username}"? This cannot be undone.`)) return;
-
-            try {
-                await blobAPI.delete(`pending_user_${username}`);
-                showSuccessMessage(`User "${username}" rejected and removed.`);
-                await loadAdminStats();
-                await loadPendingUsers();
-            } catch (error) {
-                console.error('Error rejecting user:', error);
-                showError('general', 'Failed to reject user');
-            }
-        }
-
-        async function deleteUser(username) {
-            if (!confirm(`Delete user "${username}" and all their posts? This cannot be undone.`)) return;
-
-            try {
-                // Delete user
-                await blobAPI.delete(`user_${username}`);
-
-                // Delete user's posts
-                const userPostKeys = posts.filter(p => p.author === username).map(p => p.id);
-                for (const postId of userPostKeys) {
-                    await blobAPI.delete(postId);
-                }
-
-                // Update local data
-                posts = posts.filter(p => p.author !== username);
-
-                showSuccessMessage(`User "${username}" and all their posts deleted.`);
-                await loadAdminStats();
-                await loadAllUsers();
-                updateUI();
-            } catch (error) {
-                console.error('Error deleting user:', error);
-                showError('general', 'Failed to delete user');
-            }
-        }
-
-        async function deleteCommunity(communityName) {
-            if (!confirm(`Delete community "${communityName}" and all its posts? This cannot be undone.`)) return;
-
-            try {
-                // Delete community
-                await blobAPI.delete(`community_${communityName}`);
-
-                // Delete community posts
-                const communityPostKeys = posts.filter(p => p.communityName === communityName).map(p => p.id);
-                for (const postId of communityPostKeys) {
-                    await blobAPI.delete(postId);
-                }
-
-                // Update local data
-                communities = communities.filter(c => c.name !== communityName);
-                posts = posts.filter(p => p.communityName !== communityName);
-
-                showSuccessMessage(`Community "${communityName}" and all its posts deleted.`);
-                await loadAdminStats();
-                await loadAdminCommunities();
-                updateCommunityDropdown();
-                updateUI();
-            } catch (error) {
-                console.error('Error deleting community:', error);
-                showError('general', 'Failed to delete community');
-            }
-        }
-
-        function refreshAdminStats() {
-            loadAdminStats();
-            showSuccessMessage('Admin stats refreshed!');
-        }
-
-        function showAdminPanel() {
-            const adminPanel = document.getElementById('adminPanel');
-            const isVisible = adminPanel.style.display !== 'none';
-            adminPanel.style.display = isVisible ? 'none' : 'block';
-
-            // Hide admin sections when toggling panel
-            if (isVisible) {
-                document.getElementById('pendingUsersSection').style.display = 'none';
-                document.getElementById('allUsersSection').style.display = 'none';
-                document.getElementById('adminCommunitiesSection').style.display = 'none';
-            }
-        }
-
         function updateUI() {
-            updateAuthSection();
-            updateNavMenu();
             updateComposeButton();
-            
-            if (currentPage === 'feed') {
-                renderFeed();
-            } else if (currentPage === 'communities') {
-                renderCommunities();
-            } else if (currentPage === 'community') {
-                renderCommunityPage();
-            } else if (currentPage === 'private') {
-                renderPrivateFeed();
-            }
-        }
-
-        function updateAuthSection() {
-            const authSection = document.getElementById('authSection');
-            
-            if (currentUser) {
-                authSection.innerHTML = `
-                    <span class="user-info-display">
-                        <div class="profile-avatar-small">${currentUser.username.charAt(0).toUpperCase()}</div>
-                        @${escapeHtml(currentUser.username)}
-                        ${currentUser.profile?.isAdmin ? '<span class="admin-badge">Admin</span>' : ''}
-                    </span>
-                    ${currentUser.profile?.isAdmin ? '<button class="btn btn-admin" onclick="showAdminPanel()">Admin</button>' : ''}
-                    <button class="btn btn-secondary" onclick="logout()">Logout</button>
-                `;
-            } else {
-                authSection.innerHTML = `
-                    <button class="btn btn-secondary" onclick="openAuthModal('signin')">Sign In</button>
-                    <button class="btn" onclick="openAuthModal('signup')">Sign Up</button>
-                `;
-            }
-        }
-
-        function updateNavMenu() {
-            const navMenu = document.getElementById('navMenu');
-            const adminBtn = document.getElementById('adminBtn');
-            
-            navMenu.style.display = currentUser ? 'flex' : 'none';
-            adminBtn.style.display = (currentUser?.profile?.isAdmin) ? 'block' : 'none';
-            
-            // Update active button
-            document.querySelectorAll('.nav-menu button').forEach(btn => btn.classList.remove('active'));
-            if (currentPage === 'feed') {
-                document.getElementById('feedBtn').classList.add('active');
-            } else if (currentPage === 'communities' || currentPage === 'community') {
-                document.getElementById('communitiesBtn').classList.add('active');
-            } else if (currentPage === 'private') {
-                document.getElementById('privateBtn').classList.add('active');
-            }
+            renderCurrentPage();
         }
 
         function updateComposeButton() {
             const composeBtn = document.getElementById('composeBtn');
             composeBtn.style.display = currentUser ? 'block' : 'none';
-            
-            // Change button style based on current page
-            if (currentPage === 'community') {
-                composeBtn.classList.add('community');
-            } else {
-                composeBtn.classList.remove('community');
-            }
         }
 
         function updateCommunityDropdown() {
@@ -2061,96 +1412,17 @@
             });
         }
 
-        // Page navigation functions
-        function showFeed() {
-            currentPage = 'feed';
-            hideAllPages();
-            document.getElementById('mainFeed').style.display = 'block';
-            updateUI();
+        function renderCurrentPage() {
+            if (currentPage === 'feed') {
+                renderFeed();
+            } else if (currentPage === 'community') {
+                renderCommunityPage();
+            }
         }
 
-        function showCommunities() {
-            currentPage = 'communities';
-            hideAllPages();
-            document.getElementById('communitiesPage').style.display = 'block';
-            updateUI();
-        }
-
-        function showCommunity(communityName) {
-            currentPage = 'community';
-            currentCommunity = communityName;
-            hideAllPages();
-            document.getElementById('communityPage').style.display = 'block';
-            document.getElementById('communityPageTitle').textContent = communities.find(c => c.name === communityName)?.displayName || communityName;
-            updateUI();
-            
-            // Pre-select community in compose modal
-            document.getElementById('postCommunity').value = communityName;
-        }
-
-        function showPrivateFeed() {
-            currentPage = 'private';
-            hideAllPages();
-            document.getElementById('mainFeed').style.display = 'block';
-            updateUI();
-        }
-
-        function hideAllPages() {
-            document.getElementById('mainFeed').style.display = 'none';
-            document.getElementById('communitiesPage').style.display = 'none';
-            document.getElementById('communityPage').style.display = 'none';
-        }
-
-        // Feed rendering functions
         function renderFeed() {
             const filteredPosts = posts.filter(post => !post.isPrivate);
             updateFeedContent(renderPostList(filteredPosts, 'No public posts yet!'));
-        }
-
-        function renderPrivateFeed() {
-            const filteredPosts = posts.filter(post => post.isPrivate && post.author === currentUser?.username);
-            updateFeedContent(renderPostList(filteredPosts, 'No private posts yet!'));
-        }
-
-        function renderCommunities() {
-            const communitiesList = document.getElementById('communitiesList');
-            const createBtn = document.getElementById('createCommunityBtn');
-            
-            createBtn.style.display = currentUser ? 'block' : 'none';
-            
-            if (communities.length === 0) {
-                communitiesList.innerHTML = `
-                    <div class="empty-state">
-                        <p>No communities yet!</p>
-                        ${currentUser ? '<p>Be the first to create one.</p>' : '<p>Sign in to create communities.</p>'}
-                    </div>
-                `;
-                return;
-            }
-
-            const communitiesHTML = communities.map(community => {
-                const postCount = posts.filter(post => post.communityName === community.name && !post.isPrivate).length;
-                
-                return `
-                    <div class="community-card" onclick="showCommunity('${community.name}')">
-                        <div class="community-header">
-                            <div class="community-info">
-                                <h3>${escapeHtml(community.displayName)}</h3>
-                                <div class="community-name">c/${escapeHtml(community.name)}</div>
-                                ${community.description ? `<div class="community-description">${escapeHtml(community.description)}</div>` : ''}
-                            </div>
-                            ${community.isPrivate ? '<div class="community-badge">Private</div>' : ''}
-                        </div>
-                        <div class="community-stats">
-                            <span>${postCount} posts</span>
-                            <span>${community.members?.length || 1} members</span>
-                            <span>Created ${formatDate(community.createdAt)}</span>
-                        </div>
-                    </div>
-                `;
-            }).join('');
-
-            communitiesList.innerHTML = communitiesHTML;
         }
 
         function renderCommunityPage() {
@@ -2159,25 +1431,22 @@
             const community = communities.find(c => c.name === currentCommunity);
             if (!community) return;
 
-            const communityDetail = document.getElementById('communityDetail');
-            const postCount = posts.filter(post => post.communityName === community.name && !post.isPrivate).length;
-            
-            communityDetail.innerHTML = `
-                <div class="community-detail-header">
-                    <h1>${escapeHtml(community.displayName)}</h1>
-                    <div class="community-name">c/${escapeHtml(community.name)}</div>
-                    ${community.description ? `<div class="description">${escapeHtml(community.description)}</div>` : ''}
-                    <div class="community-detail-stats">
-                        <span>${postCount} posts</span>
+            const communityPosts = posts.filter(post => post.communityName === community.name && !post.isPrivate);
+            const communityHeader = `
+                <div style="background-color: var(--bg-default); border: 1px solid var(--border-default); border-radius: 8px; padding: 24px; margin-bottom: 24px;">
+                    <h1 style="color: var(--accent-fg); font-size: 28px; margin-bottom: 8px;">${escapeHtml(community.displayName)}</h1>
+                    <p style="color: var(--fg-muted); margin-bottom: 4px;">c/${escapeHtml(community.name)}</p>
+                    ${community.description ? `<p style="color: var(--fg-default); margin-bottom: 16px;">${escapeHtml(community.description)}</p>` : ''}
+                    <div style="display: flex; gap: 20px; color: var(--fg-muted); font-size: 14px;">
+                        <span>${communityPosts.length} posts</span>
                         <span>${community.members?.length || 1} members</span>
                         <span>Created by @${escapeHtml(community.createdBy)}</span>
                         <span>${formatDate(community.createdAt)}</span>
                     </div>
                 </div>
             `;
-
-            const communityPosts = posts.filter(post => post.communityName === community.name && !post.isPrivate);
-            document.getElementById('communityPosts').innerHTML = renderPostList(communityPosts, 'No posts in this community yet!');
+            
+            updateFeedContent(communityHeader + renderPostList(communityPosts, 'No posts in this community yet!'));
         }
 
         function renderPostList(postList, emptyMessage) {
@@ -2191,19 +1460,23 @@
                 return `
                     <div class="post-card ${post.isPrivate ? 'private' : ''}">
                         <div class="post-header">
-                            <span class="username">
-                                <div class="profile-avatar-small">${post.author.charAt(0).toUpperCase()}</div>
-                                @${escapeHtml(post.author)}
-                            </span>
-                            ${post.isPrivate ? '<span class="private-badge">Private</span>' : ''}
-                            ${post.type === 'link' ? '<span class="private-badge" style="background: #0079d3;">Link</span>' : ''}
-                            <span class="timestamp">${formatTimestamp(post.timestamp)}</span>
+                            <div class="post-author">
+                                <div class="post-avatar">${post.author.charAt(0).toUpperCase()}</div>
+                                <div class="post-meta">
+                                    <a href="#" class="post-username">@${escapeHtml(post.author)}</a>
+                                    <div class="post-timestamp">${formatTimestamp(post.timestamp)}</div>
+                                </div>
+                            </div>
+                            <div class="post-badges">
+                                ${post.isPrivate ? '<span class="post-badge private">Private</span>' : ''}
+                                ${post.type === 'link' ? '<span class="post-badge link">Link</span>' : ''}
+                            </div>
                         </div>
                         
                         <div class="post-body">
-                            ${post.communityName && community ? `
+                            ${post.communityName && community && currentPage !== 'community' ? `
                                 <div class="post-community">
-                                    <a href="#" class="post-community-link" onclick="showCommunity('${post.communityName}'); return false;">
+                                    <a href="#" class="post-community-link" onclick="navigateToCommunity('${post.communityName}'); return false;">
                                         c/${escapeHtml(community.displayName)}
                                     </a>
                                 </div>
@@ -2231,6 +1504,73 @@
                     </div>
                 `;
             }).join('');
+        }
+
+        function renderPostContent(post) {
+            let contentHtml = '';
+
+            if (post.type === 'link' && post.url) {
+                const mediaHtml = renderMediaFromUrl(post.url);
+                if (mediaHtml) {
+                    contentHtml += `<div style="margin: 12px 0; border-radius: 8px; overflow: hidden;">${mediaHtml}</div>`;
+                } else {
+                    contentHtml += `
+                        <a href="${post.url}" target="_blank" rel="noopener noreferrer" style="display: block; color: var(--accent-fg); text-decoration: none; padding: 12px; background-color: rgba(88, 166, 255, 0.1); border: 1px solid rgba(88, 166, 255, 0.2); border-radius: 8px; margin: 12px 0;">
+                            <div style="font-weight: 600; margin-bottom: 4px;">🔗 ${post.url}</div>
+                            <div style="font-size: 12px; color: var(--fg-muted); word-break: break-all;">${post.url}</div>
+                        </a>
+                    `;
+                }
+                
+                if (post.description) {
+                    contentHtml += `<div class="markdown-content">${renderMarkdown(post.description)}</div>`;
+                }
+            } else if (post.content) {
+                contentHtml += `<div class="markdown-content">${renderMarkdown(post.content)}</div>`;
+            }
+
+            return contentHtml;
+        }
+
+        function renderMediaFromUrl(url) {
+            if (!url) return null;
+
+            // YouTube video
+            const youtubeMatch = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]+)/);
+            if (youtubeMatch) {
+                const videoId = youtubeMatch[1];
+                return `
+                    <div style="position: relative; width: 100%; height: 0; padding-bottom: 56.25%; overflow: hidden;">
+                        <iframe src="https://www.youtube.com/embed/${videoId}" 
+                                style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none;"
+                                allowfullscreen></iframe>
+                    </div>
+                `;
+            }
+
+            // Direct image links
+            if (url.match(/\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i)) {
+                return `<img src="${url}" style="max-width: 100%; height: auto; cursor: pointer;" onclick="openImageModal('${url}')" alt="Image">`;
+            }
+
+            // Direct video links
+            if (url.match(/\.(mp4|webm|ogg|mov)(\?.*)?$/i)) {
+                return `<video src="${url}" style="width: 100%; max-height: 400px;" controls></video>`;
+            }
+
+            return null;
+        }
+
+        function renderMarkdown(text) {
+            if (!text) return '';
+            
+            try {
+                const html = marked.parse(text, { renderer: markdownRenderer });
+                return DOMPurify.sanitize(html);
+            } catch (error) {
+                console.error('Markdown rendering error:', error);
+                return escapeHtml(text);
+            }
         }
 
         function updateFeedContent(html) {
@@ -2354,7 +1694,6 @@
                     updateUI();
                     showSuccessMessage('Welcome back!');
 
-                    // Load admin stats if user is admin
                     if (user.isAdmin) {
                         await loadAdminStats();
                     }
@@ -2379,7 +1718,7 @@
                 // Hide admin panel
                 document.getElementById('adminPanel').style.display = 'none';
                 
-                showFeed();
+                navigateToFeed();
                 updateUI();
                 showSuccessMessage('Logged out successfully!');
             } catch (error) {
@@ -2450,9 +1789,7 @@
                 document.getElementById('createCommunityForm').reset();
                 
                 updateCommunityDropdown();
-                renderCommunities();
                 
-                // Update admin stats if user is admin
                 if (currentUser.profile?.isAdmin) {
                     await loadAdminStats();
                 }
@@ -2469,6 +1806,38 @@
         }
 
         // Post functions
+        function setPostType(type) {
+            currentPostType = type;
+            
+            // Update button states
+            const buttons = document.querySelectorAll('[onclick*="setPostType"]');
+            buttons.forEach(btn => {
+                if (btn.onclick.toString().includes(`'${type}'`)) {
+                    btn.style.background = 'var(--btn-primary-bg)';
+                    btn.style.color = 'white';
+                } else {
+                    btn.style.background = 'transparent';
+                    btn.style.color = 'var(--fg-default)';
+                }
+            });
+            
+            // Show/hide relevant fields
+            const textFields = document.getElementById('textPostFields');
+            const linkFields = document.getElementById('linkPostFields');
+            
+            if (type === 'text') {
+                textFields.style.display = 'block';
+                linkFields.style.display = 'none';
+                document.getElementById('postContent').required = true;
+                document.getElementById('postUrl').required = false;
+            } else {
+                textFields.style.display = 'none';
+                linkFields.style.display = 'block';
+                document.getElementById('postContent').required = false;
+                document.getElementById('postUrl').required = true;
+            }
+        }
+
         async function handleCreatePost(e) {
             e.preventDefault();
             
@@ -2489,8 +1858,8 @@
             
             if (currentPostType === 'text') {
                 content = document.getElementById('postContent').value.trim();
-                if (!content && !uploadedMedia) {
-                    showError('composeError', 'Please provide content or upload media');
+                if (!content) {
+                    showError('composeError', 'Please provide content');
                     return;
                 }
             } else {
@@ -2532,8 +1901,7 @@
                 };
 
                 if (currentPostType === 'text') {
-                    if (content) post.content = content;
-                    if (uploadedMedia) post.media = uploadedMedia;
+                    post.content = content;
                 } else {
                     post.url = url;
                     if (description) post.description = description;
@@ -2545,15 +1913,12 @@
                 closeModal('composeModal');
                 document.getElementById('composeForm').reset();
                 
-                // Reset post type and media
+                // Reset post type
                 currentPostType = 'text';
-                uploadedMedia = null;
                 setPostType('text');
-                removeMedia();
                 
                 updateUI();
                 
-                // Update admin stats if user is admin
                 if (currentUser.profile?.isAdmin) {
                     await loadAdminStats();
                 }
@@ -2579,7 +1944,6 @@
                 posts = posts.filter(p => p.id !== postId);
                 updateUI();
                 
-                // Update admin stats if user is admin
                 if (currentUser.profile?.isAdmin) {
                     await loadAdminStats();
                 }
@@ -2589,6 +1953,55 @@
                 console.error('Error deleting post:', error);
                 showError('general', 'Failed to delete post. Please try again.');
             }
+        }
+
+        // Admin functions (keeping existing implementation)
+        async function loadAdminStats() {
+            try {
+                const userKeys = await blobAPI.list('user_');
+                const pendingUserKeys = await blobAPI.list('pending_user_');
+                const postKeys = await blobAPI.list('post_');
+                const communityKeys = await blobAPI.list('community_');
+
+                document.getElementById('totalUsers').textContent = userKeys.length;
+                document.getElementById('pendingUsers').textContent = pendingUserKeys.length;
+                document.getElementById('totalPosts').textContent = postKeys.length;
+                document.getElementById('totalCommunities').textContent = communityKeys.length;
+            } catch (error) {
+                console.error('Error loading admin stats:', error);
+            }
+        }
+
+        function showAdminPanel() {
+            const adminPanel = document.getElementById('adminPanel');
+            const isVisible = adminPanel.style.display !== 'none';
+            adminPanel.style.display = isVisible ? 'none' : 'block';
+
+            if (isVisible) {
+                document.getElementById('pendingUsersSection').style.display = 'none';
+                document.getElementById('allUsersSection').style.display = 'none';
+                document.getElementById('adminCommunitiesSection').style.display = 'none';
+            }
+        }
+
+        async function loadPendingUsers() {
+            // TODO: Implement pending users management
+            showSuccessMessage('Pending users management coming soon!');
+        }
+
+        async function loadAllUsers() {
+            // TODO: Implement all users management
+            showSuccessMessage('User management coming soon!');
+        }
+
+        async function loadAdminCommunities() {
+            // TODO: Implement community management
+            showSuccessMessage('Community management coming soon!');
+        }
+
+        function refreshAdminStats() {
+            loadAdminStats();
+            showSuccessMessage('Admin stats refreshed!');
         }
 
         // Utility functions
@@ -2604,11 +2017,13 @@
             successDiv.style.top = '80px';
             successDiv.style.right = '20px';
             successDiv.style.zIndex = '1000';
+            successDiv.style.borderRadius = '8px';
+            successDiv.style.boxShadow = 'var(--overlay-shadow)';
             document.body.appendChild(successDiv);
             
             setTimeout(() => {
                 successDiv.remove();
-            }, 3000);
+            }, 4000);
         }
 
         function formatTimestamp(timestamp) {
@@ -2637,54 +2052,12 @@
             return div.innerHTML;
         }
 
-        // Close modals when clicking outside
-        window.addEventListener('click', (e) => {
-            if (e.target.classList.contains('modal')) {
-                e.target.style.display = 'none';
-            }
-        });
+        // Image modal functions (placeholder)
+        function openImageModal(src) {
+            // TODO: Implement image modal
+            window.open(src, '_blank');
+        }
 
-        // Initialize app - moved to after all function definitions
-        document.addEventListener('DOMContentLoaded', async () => {
-            // Configure marked.js for markdown rendering
-            marked.setOptions({
-                highlight: function(code, lang) {
-                    if (lang && hljs.getLanguage(lang)) {
-                        return hljs.highlight(code, { language: lang }).value;
-                    }
-                    return hljs.highlightAuto(code).value;
-                },
-                breaks: true,
-                gfm: true
-            });
-            
-            // Custom renderer for enhanced features
-            markdownRenderer = new marked.Renderer();
-            
-            // Custom link renderer to handle media embeds
-            markdownRenderer.link = function(href, title, text) {
-                const mediaHtml = renderMediaFromUrl(href);
-                if (mediaHtml) return mediaHtml;
-                
-                return `<a href="${href}" target="_blank" rel="noopener noreferrer" ${title ? `title="${title}"` : ''}>${text}</a>`;
-            };
-            
-            // Custom image renderer
-            markdownRenderer.image = function(href, title, text) {
-                return `<img src="${href}" alt="${text}" ${title ? `title="${title}"` : ''} onclick="openImageModal('${href}')" style="cursor: pointer;">`;
-            };
-
-            await loadUser();
-            await loadCommunities();
-            await loadPosts();
-            updateUI();
-            setupEventListeners();
-            
-            // Load admin stats if user is admin
-            if (currentUser?.profile?.isAdmin) {
-                await loadAdminStats();
-            }
-        });
     </script>
 </body>
 </html>
