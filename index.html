@@ -138,6 +138,139 @@
             font-size: 12px;
         }
 
+        /* Login Prompt Styles */
+        .login-prompt {
+            background: var(--bg-overlay);
+            border: 1px solid var(--border-default);
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 16px;
+            text-align: center;
+        }
+
+        .login-prompt-title {
+            color: var(--fg-default);
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 12px;
+        }
+
+        .login-toggle-btn {
+            background: var(--btn-primary-bg);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            width: 100%;
+            transition: background-color 0.2s ease;
+        }
+
+        .login-toggle-btn:hover {
+            background: var(--btn-primary-hover-bg);
+        }
+
+        /* Inline Login Form */
+        .inline-login-form {
+            background: var(--bg-subtle);
+            border: 1px solid var(--border-default);
+            border-radius: 6px;
+            padding: 16px;
+            margin-top: 12px;
+            display: none;
+        }
+
+        .inline-login-form.open {
+            display: block;
+            animation: slideDown 0.3s ease-out;
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .inline-form-group {
+            margin-bottom: 12px;
+        }
+
+        .inline-form-group label {
+            display: block;
+            margin-bottom: 4px;
+            color: var(--fg-default);
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .inline-form-group input {
+            width: 100%;
+            background: var(--bg-canvas);
+            border: 1px solid var(--border-default);
+            border-radius: 4px;
+            padding: 8px;
+            color: var(--fg-default);
+            font-size: 12px;
+        }
+
+        .inline-form-group input:focus {
+            outline: none;
+            border-color: var(--accent-emphasis);
+            box-shadow: 0 0 0 2px rgba(31, 111, 235, 0.1);
+        }
+
+        .inline-form-buttons {
+            display: flex;
+            gap: 8px;
+        }
+
+        .inline-form-buttons button {
+            flex: 1;
+            padding: 8px;
+            border: none;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .inline-btn-primary {
+            background: var(--btn-primary-bg);
+            color: white;
+        }
+
+        .inline-btn-primary:hover {
+            background: var(--btn-primary-hover-bg);
+        }
+
+        .inline-btn-secondary {
+            background: var(--btn-secondary-bg);
+            border: 1px solid var(--btn-secondary-border);
+            color: var(--fg-default);
+        }
+
+        .inline-btn-secondary:hover {
+            background: var(--btn-secondary-hover-bg);
+        }
+
+        .inline-error-message {
+            background-color: rgba(248, 81, 73, 0.1);
+            border: 1px solid var(--danger-fg);
+            color: var(--danger-fg);
+            padding: 8px;
+            border-radius: 4px;
+            margin-bottom: 12px;
+            font-size: 12px;
+        }
+
         .menu-nav {
             padding: 8px 0;
         }
@@ -1028,6 +1161,7 @@
         let currentPostType = 'text';
         let uploadedMedia = null;
         let markdownRenderer;
+        let inlineLoginFormOpen = false;
 
         // Menu functions
         function toggleMenu() {
@@ -1047,7 +1181,6 @@
 
         function updateMenuContent() {
             const menuHeader = document.getElementById('menuHeader');
-            const menuAuthButtons = document.getElementById('menuAuthButtons');
             const menuLogout = document.getElementById('menuLogout');
             
             if (currentUser) {
@@ -1067,17 +1200,30 @@
                 document.getElementById('menuBrowseCommunities').style.display = 'flex';
                 document.getElementById('menuSettings').style.display = 'flex';
                 menuLogout.style.display = 'flex';
-                menuAuthButtons.style.display = 'none';
                 
                 // Update communities dropdown
                 updateCommunitiesInMenu();
             } else {
                 menuHeader.innerHTML = `
-                    <div class="menu-user-info">
-                        <div class="profile-avatar">?</div>
-                        <div class="menu-user-details">
-                            <h4>Not signed in</h4>
-                            <p>Please sign in to continue</p>
+                    <div class="login-prompt">
+                        <div class="login-prompt-title">Click here to log in</div>
+                        <button class="login-toggle-btn" onclick="toggleInlineLoginForm()">Login</button>
+                        <div class="inline-login-form" id="inlineLoginForm">
+                            <div id="inlineLoginError"></div>
+                            <form id="inlineLoginFormElement" onsubmit="handleInlineLogin(event)">
+                                <div class="inline-form-group">
+                                    <label for="inlineUsername">Username</label>
+                                    <input type="text" id="inlineUsername" required minlength="3" maxlength="20">
+                                </div>
+                                <div class="inline-form-group">
+                                    <label for="inlinePassword">Password</label>
+                                    <input type="password" id="inlinePassword" required minlength="6">
+                                </div>
+                                <div class="inline-form-buttons">
+                                    <button type="submit" class="inline-btn-primary" id="inlineLoginBtn">Sign In</button>
+                                    <button type="button" class="inline-btn-secondary" onclick="openAuthModal('signup'); toggleMenu();">Sign Up</button>
+                                </div>
+                            </form>
                         </div>
                     </div>
                 `;
@@ -1088,14 +1234,94 @@
                 document.getElementById('menuBrowseCommunities').style.display = 'none';
                 document.getElementById('menuSettings').style.display = 'none';
                 menuLogout.style.display = 'none';
-                
-                // Show auth buttons in menu
-                menuAuthButtons.style.display = 'block';
-                menuAuthButtons.innerHTML = `
-                    <button class="btn btn-secondary" onclick="openAuthModal('signin'); toggleMenu();" style="width: 100%; margin-bottom: 8px;">Sign In</button>
-                    <button class="btn" onclick="openAuthModal('signup'); toggleMenu();" style="width: 100%;">Sign Up</button>
-                `;
             }
+        }
+
+        function toggleInlineLoginForm() {
+            const form = document.getElementById('inlineLoginForm');
+            const isOpen = form.classList.contains('open');
+            
+            if (isOpen) {
+                form.classList.remove('open');
+                inlineLoginFormOpen = false;
+            } else {
+                form.classList.add('open');
+                inlineLoginFormOpen = true;
+                // Focus on username field
+                setTimeout(() => {
+                    document.getElementById('inlineUsername').focus();
+                }, 300);
+            }
+        }
+
+        async function handleInlineLogin(e) {
+            e.preventDefault();
+            
+            const username = document.getElementById('inlineUsername').value.trim();
+            const password = document.getElementById('inlinePassword').value;
+            const errorDiv = document.getElementById('inlineLoginError');
+            const submitBtn = document.getElementById('inlineLoginBtn');
+
+            errorDiv.innerHTML = '';
+            
+            if (username.length < 3) {
+                showInlineError('Username must be at least 3 characters long');
+                return;
+            }
+            
+            if (password.length < 6) {
+                showInlineError('Password must be at least 6 characters long');
+                return;
+            }
+
+            try {
+                submitBtn.disabled = true;
+                submitBtn.textContent = 'Signing in...';
+
+                const user = await blobAPI.get(`user_${username}`);
+                
+                if (!user) {
+                    const pendingUser = await blobAPI.get(`pending_user_${username}`);
+                    if (pendingUser) {
+                        showInlineError('Your account is still pending admin approval.');
+                    } else {
+                        showInlineError('Invalid username or password');
+                    }
+                    return;
+                }
+                
+                if (user.password !== password) {
+                    showInlineError('Invalid username or password');
+                    return;
+                }
+                
+                currentUser = { username, profile: user };
+                await blobAPI.set('current_user', currentUser);
+                
+                // Clear the form
+                document.getElementById('inlineLoginFormElement').reset();
+                
+                // Close menu and update UI
+                toggleMenu();
+                updateUI();
+                showSuccessMessage('Welcome back!');
+
+                if (user.isAdmin) {
+                    await loadAdminStats();
+                }
+                
+            } catch (error) {
+                console.error('Inline login error:', error);
+                showInlineError('Something went wrong. Please try again.');
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Sign In';
+            }
+        }
+
+        function showInlineError(message) {
+            const errorDiv = document.getElementById('inlineLoginError');
+            errorDiv.innerHTML = `<div class="inline-error-message">${escapeHtml(message)}</div>`;
         }
 
         function handleLogout() {
