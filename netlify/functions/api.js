@@ -2192,51 +2192,18 @@
             const community = communities.find(c => c.name === currentCommunity);
             if (!community) return;
 
-            // Check if user is following this community (if logged in)
-            let isFollowing = false;
-            if (currentUser && sessionToken) {
-                try {
-                    // Use existing API endpoint
-                    const response = await fetch('/.netlify/functions/api/communities/following', {
-                        headers: {
-                            'Authorization': `Bearer ${sessionToken}`
-                        }
-                    });
-                    
-                    if (response.ok) {
-                        const result = await response.json();
-                        isFollowing = result.communities.some(c => c.name === currentCommunity);
-                    }
-                } catch (error) {
-                    console.error('Error checking follow status:', error);
-                }
-            }
-
             const communityPosts = posts.filter(post => post.communityName === community.name && !post.isPrivate);
             const communityHeader = `
                 <div style="background-color: var(--bg-default); border: 1px solid var(--border-default); border-radius: 8px; padding: 24px; margin-bottom: 24px;">
-                    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; gap: 16px;">
-                        <div style="flex: 1; min-width: 0;">
-                            <h1 style="color: var(--accent-fg); font-size: 28px; margin-bottom: 8px; word-wrap: break-word;">${escapeHtml(community.displayName)}</h1>
-                            <p style="color: var(--fg-muted); margin-bottom: 4px;">c/${escapeHtml(community.name)}</p>
-                            ${community.description ? `<p style="color: var(--fg-default); margin-bottom: 0;">${escapeHtml(community.description)}</p>` : ''}
-                        </div>
-                        <div style="flex-shrink: 0;">
-                            ${currentUser && sessionToken ? `
-                                <button class="btn ${isFollowing ? 'btn-secondary' : ''}" 
-                                        onclick="toggleCommunityFollow('${escapeHtml(community.name)}')" 
-                                        id="followBtn-${escapeHtml(community.name)}"
-                                        style="min-width: 100px;">
-                                    ${isFollowing ? '✓ Following' : '+ Follow'}
-                                </button>
-                            ` : `
-                                <button class="btn" onclick="openAuthModal('signin')" style="min-width: 100px;">
-                                    + Follow
-                                </button>
-                            `}
-                        </div>
-                    </div>
-                    <div style="display: flex; gap: 20px; color: var(--fg-muted); font-size: 14px; flex-wrap: wrap;">
+                    <h1 style="color: var(--accent-fg); font-size: 28px; margin-bottom: 8px;">${escapeHtml(community.displayName)}</h1>
+                    <p style="color: var(--fg-muted); margin-bottom: 4px;">c/${escapeHtml(community.name)}</p>
+                    ${community.description ? `<p style="color: var(--fg-default); margin-bottom: 16px;">${escapeHtml(community.description)}</p>` : ''}
+                    
+                    <button class="btn" id="followBtn-${community.name}" onclick="followCommunity('${community.name}')">
+                        + Follow
+                    </button>
+                    
+                    <div style="display: flex; gap: 20px; color: var(--fg-muted); font-size: 14px; margin-top: 16px;">
                         <span>${communityPosts.length} posts</span>
                         <span>${community.members?.length || 1} members</span>
                         <span>Created by @${escapeHtml(community.createdBy)}</span>
@@ -2246,6 +2213,49 @@
             `;
             
             updateFeedContent(communityHeader + renderPostList(communityPosts, 'No posts in this community yet!'));
+        }
+
+        async function followCommunity(communityName) {
+            if (!sessionToken) {
+                openAuthModal('signin');
+                return;
+            }
+
+            const btn = document.getElementById(`followBtn-${communityName}`);
+            btn.textContent = 'Loading...';
+            btn.disabled = true;
+
+            try {
+                const response = await fetch('/.netlify/functions/api/communities/follow', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${sessionToken}`
+                    },
+                    body: JSON.stringify({
+                        communityName: communityName,
+                        action: 'toggle'
+                    })
+                });
+
+                const result = await response.json();
+                
+                if (result.following) {
+                    btn.textContent = '✓ Following';
+                    btn.className = 'btn btn-secondary';
+                } else {
+                    btn.textContent = '+ Follow';
+                    btn.className = 'btn';
+                }
+                
+                showSuccessMessage(result.message);
+                
+            } catch (error) {
+                btn.textContent = '+ Follow';
+                showSuccessMessage('Error following community');
+            }
+            
+            btn.disabled = false;
         }
 
         function renderPostList(postList, emptyMessage) {
