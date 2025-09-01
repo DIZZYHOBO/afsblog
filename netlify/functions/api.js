@@ -9,7 +9,8 @@ const API_CONFIG = {
   RATE_LIMIT_MAX_REQUESTS: 1000,
   SESSION_DURATION: 7 * 24 * 60 * 60 * 1000, // 7 days
   DEFAULT_PAGE_SIZE: 10,
-  MAX_PAGE_SIZE: 50
+  MAX_PAGE_SIZE: 50,
+  PROTECTED_ADMIN: "dumbass" // Protected admin that cannot be demoted
 };
 
 export default async (req, context) => {
@@ -116,6 +117,10 @@ export default async (req, context) => {
           return await handleApproveUser(req, blogStore, headers, authResult.user);
         case 'admin/reject-user':
           return await handleRejectUser(req, blogStore, headers, authResult.user);
+        case 'admin/promote-user':
+          return await handlePromoteUser(req, blogStore, headers, authResult.user);
+        case 'admin/demote-user':
+          return await handleDemoteUser(req, blogStore, headers, authResult.user);
         case 'admin/delete-user':
           return await handleDeleteUser(req, blogStore, headers, authResult.user);
         case 'admin/stats':
@@ -175,6 +180,149 @@ export default async (req, context) => {
     );
   }
 };
+
+// ADMIN USER MANAGEMENT HANDLERS
+
+async function handlePromoteUser(req, blogStore, headers, admin) {
+  if (req.method !== 'POST') {
+    return new Response(
+      JSON.stringify({ error: "Method not allowed" }),
+      { status: 405, headers }
+    );
+  }
+
+  try {
+    const { username } = await req.json();
+
+    if (!username) {
+      return new Response(
+        JSON.stringify({ error: "Username is required" }),
+        { status: 400, headers }
+      );
+    }
+
+    const user = await blogStore.get(`user_${username}`, { type: "json" });
+    if (!user) {
+      return new Response(
+        JSON.stringify({ error: "User not found" }),
+        { status: 404, headers }
+      );
+    }
+
+    if (user.isAdmin) {
+      return new Response(
+        JSON.stringify({ error: "User is already an admin" }),
+        { status: 400, headers }
+      );
+    }
+
+    const updatedUser = {
+      ...user,
+      isAdmin: true,
+      promotedAt: new Date().toISOString(),
+      promotedBy: admin.username
+    };
+
+    await blogStore.set(`user_${username}`, JSON.stringify(updatedUser));
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        message: `@${username} promoted to administrator`,
+        promotedUser: username,
+        promotedBy: admin.username
+      }),
+      { status: 200, headers }
+    );
+
+  } catch (error) {
+    console.error("Promote user error:", error);
+    return new Response(
+      JSON.stringify({ error: "Failed to promote user" }),
+      { status: 500, headers }
+    );
+  }
+}
+
+async function handleDemoteUser(req, blogStore, headers, admin) {
+  if (req.method !== 'POST') {
+    return new Response(
+      JSON.stringify({ error: "Method not allowed" }),
+      { status: 405, headers }
+    );
+  }
+
+  try {
+    const { username } = await req.json();
+
+    if (!username) {
+      return new Response(
+        JSON.stringify({ error: "Username is required" }),
+        { status: 400, headers }
+      );
+    }
+
+    // Check if trying to demote the protected admin
+    if (username === API_CONFIG.PROTECTED_ADMIN) {
+      return new Response(
+        JSON.stringify({ 
+          error: `@${API_CONFIG.PROTECTED_ADMIN} is a protected admin and cannot be demoted`,
+          protected: true
+        }),
+        { status: 403, headers }
+      );
+    }
+
+    const user = await blogStore.get(`user_${username}`, { type: "json" });
+    if (!user) {
+      return new Response(
+        JSON.stringify({ error: "User not found" }),
+        { status: 404, headers }
+      );
+    }
+
+    if (!user.isAdmin) {
+      return new Response(
+        JSON.stringify({ error: "User is not an admin" }),
+        { status: 400, headers }
+      );
+    }
+
+    // Prevent self-demotion
+    if (user.username === admin.username) {
+      return new Response(
+        JSON.stringify({ error: "Cannot demote yourself" }),
+        { status: 400, headers }
+      );
+    }
+
+    const updatedUser = {
+      ...user,
+      isAdmin: false,
+      demotedAt: new Date().toISOString(),
+      demotedBy: admin.username
+    };
+
+    await blogStore.set(`user_${username}`, JSON.stringify(updatedUser));
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        message: `@${username} admin privileges removed`,
+        demotedUser: username,
+        demotedBy: admin.username
+      }),
+      { status: 200, headers }
+    );
+
+  } catch (error) {
+    console.error("Demote user error:", error);
+    return new Response(
+      JSON.stringify({ error: "Failed to remove admin privileges" }),
+      { status: 500, headers }
+    );
+  }
+}
 
 // REPLY HANDLERS (IMPLEMENTED)
 
@@ -1344,7 +1492,7 @@ async function handlePrivateFeed(req, blogStore, headers, user) {
 // UPDATED DOCUMENTATION
 async function handleDefault(req, headers) {
   const docs = {
-    message: "Blog API v5.0 - Now with Communities and Reply Management! 🏘️",
+    message: "Blog API v5.1 - Now with Admin User Management! 👑",
     endpoints: {
       // Authentication
       "POST /api/auth/login": "Login with username/password",
@@ -1371,6 +1519,8 @@ async function handleDefault(req, headers) {
       "GET /api/admin/users": "Get all approved users with post counts",
       "POST /api/admin/approve-user": "Approve a pending user",
       "POST /api/admin/reject-user": "Reject a pending user",
+      "POST /api/admin/promote-user": "Promote user to admin",
+      "POST /api/admin/demote-user": "Remove admin privileges (protects @dumbass)",
       "POST /api/admin/delete-user": "Delete user and all their posts",
       "GET /api/admin/stats": "Get admin dashboard statistics",
       
@@ -1405,6 +1555,22 @@ async function handleDefault(req, headers) {
       "PUT /api/profile/update": "Update user profile"
     },
     newFeatures: {
+      adminUserManagement: {
+        description: "Full admin user management with protected admin! 👑",
+        features: [
+          "Promote regular users to admin status",
+          "Demote admins back to regular users",
+          "Protected admin (@dumbass) cannot be demoted by anyone",
+          "Self-demotion prevention for security",
+          "Track promotion/demotion history with timestamps",
+          "Admin action logging and attribution"
+        ],
+        protections: [
+          "@dumbass user is permanently protected from demotion",
+          "Admins cannot demote themselves",
+          "All admin actions are logged with timestamps and attribution"
+        ]
+      },
       replies: {
         description: "Full reply management with API endpoints! 💬",
         features: [
@@ -1433,6 +1599,16 @@ async function handleDefault(req, headers) {
           "Personal following feed with posts from followed communities",
           "Track following count and community details",
           "Toggle follow status with single API call"
+        ]
+      }
+    },
+    protectedUsers: {
+      dumbass: {
+        description: "Special protected admin user",
+        protections: [
+          "Cannot be demoted by any admin",
+          "Permanent admin privileges",
+          "API returns 403 Forbidden with specific error message when demotion is attempted"
         ]
       }
     }
