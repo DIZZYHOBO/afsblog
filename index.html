@@ -1497,92 +1497,160 @@
             document.getElementById(activeId).classList.add('active');
         }
 
-        // Netlify Blobs API implementation with proper error handling for production
+        // Enhanced API integration - using both blobs and api endpoints
+        const blogAPI = {
+            // Test API connection
+            async testConnection() {
+                try {
+                    console.log('🔍 Testing API connections...');
+                    
+                    // Test blobs function
+                    const blobsResponse = await fetch('/.netlify/functions/blobs?list=true&prefix=test', {
+                        method: 'GET',
+                        headers: { 'Content-Type': 'application/json' }
+                    });
+                    console.log(`📡 Blobs API: ${blobsResponse.status} ${blobsResponse.statusText}`);
+                    
+                    // Test main API function
+                    const apiResponse = await fetch('/.netlify/functions/api', {
+                        method: 'GET',
+                        headers: { 'Content-Type': 'application/json' }
+                    });
+                    console.log(`📡 Main API: ${apiResponse.status} ${apiResponse.statusText}`);
+                    
+                    return {
+                        blobs: blobsResponse.ok,
+                        api: apiResponse.ok
+                    };
+                } catch (error) {
+                    console.error('❌ API connection test failed:', error);
+                    return { blobs: false, api: false };
+                }
+            }
+        };
+
+        // Netlify Blobs API implementation with comprehensive error handling
         const blobAPI = {
             async get(key) {
                 try {
+                    console.log(`📥 Getting blob: ${key}`);
                     const response = await fetch(`/.netlify/functions/blobs?key=${encodeURIComponent(key)}`, {
                         method: 'GET',
                         headers: { 'Content-Type': 'application/json' }
                     });
                     
+                    console.log(`📡 Blob GET response: ${response.status} for key: ${key}`);
+                    
                     if (!response.ok) {
-                        if (response.status === 404) return null;
-                        console.warn(`Blob API GET error for key ${key}: ${response.status}`);
-                        return null; // Graceful degradation
+                        if (response.status === 404) {
+                            console.log(`📭 Key not found: ${key}`);
+                            return null;
+                        }
+                        console.warn(`⚠️ Blob API GET error for key ${key}: ${response.status} ${response.statusText}`);
+                        return null;
                     }
                     
                     const result = await response.json();
+                    console.log(`✅ Retrieved blob: ${key}`, result.data ? 'with data' : 'empty');
                     return result.data;
                 } catch (error) {
-                    console.error('Error getting blob:', error);
+                    console.error(`❌ Error getting blob ${key}:`, error);
                     return null;
                 }
             },
             
             async set(key, value) {
                 try {
+                    console.log(`📤 Setting blob: ${key}`);
                     const response = await fetch('/.netlify/functions/blobs', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ key, value })
                     });
                     
+                    console.log(`📡 Blob SET response: ${response.status} for key: ${key}`);
+                    
                     if (!response.ok) {
+                        const errorText = await response.text();
+                        console.error(`❌ Blob SET error: ${response.status} ${response.statusText}`, errorText);
                         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                     }
                     
-                    return await response.json();
+                    const result = await response.json();
+                    console.log(`✅ Set blob: ${key}`);
+                    return result;
                 } catch (error) {
-                    console.error('Error setting blob:', error);
+                    console.error(`❌ Error setting blob ${key}:`, error);
                     throw error;
                 }
             },
             
             async list(prefix = '') {
                 try {
+                    console.log(`📋 Listing blobs with prefix: ${prefix}`);
                     const response = await fetch(`/.netlify/functions/blobs?list=true&prefix=${encodeURIComponent(prefix)}`, {
                         method: 'GET',
                         headers: { 'Content-Type': 'application/json' }
                     });
                     
+                    console.log(`📡 Blob LIST response: ${response.status} for prefix: ${prefix}`);
+                    
                     if (!response.ok) {
-                        console.warn(`Blob API LIST error: ${response.status}`);
-                        return []; // Return empty array for graceful degradation
+                        console.warn(`⚠️ Blob API LIST error: ${response.status} ${response.statusText}`);
+                        return [];
                     }
                     
                     const result = await response.json();
-                    return result.keys || [];
+                    const keys = result.keys || [];
+                    console.log(`✅ Listed ${keys.length} blobs with prefix: ${prefix}`);
+                    return keys;
                 } catch (error) {
-                    console.error('Error listing blobs:', error);
+                    console.error(`❌ Error listing blobs with prefix ${prefix}:`, error);
                     return [];
                 }
             },
             
             async delete(key) {
                 try {
+                    console.log(`🗑️ Deleting blob: ${key}`);
                     const response = await fetch('/.netlify/functions/blobs', {
                         method: 'DELETE',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ key })
                     });
                     
+                    console.log(`📡 Blob DELETE response: ${response.status} for key: ${key}`);
+                    
                     if (!response.ok) {
+                        const errorText = await response.text();
+                        console.error(`❌ Blob DELETE error: ${response.status} ${response.statusText}`, errorText);
                         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                     }
                     
-                    return await response.json();
+                    const result = await response.json();
+                    console.log(`✅ Deleted blob: ${key}`);
+                    return result;
                 } catch (error) {
-                    console.error('Error deleting blob:', error);
+                    console.error(`❌ Error deleting blob ${key}:`, error);
                     throw error;
                 }
             }
         };
 
-        // Initialize app with better error handling for production
+        // Initialize app with comprehensive API testing
         document.addEventListener('DOMContentLoaded', async () => {
             try {
                 console.log('🚀 Initializing Blog App v2.0...');
+                console.log('🌐 Current URL:', window.location.href);
+                
+                // Test API connectivity first
+                const apiStatus = await blogAPI.testConnection();
+                console.log('📡 API Status:', apiStatus);
+                
+                if (!apiStatus.blobs && !apiStatus.api) {
+                    showGeneralError('Cannot connect to API. Please check if the server functions are working.');
+                    return;
+                }
                 
                 // Verify required elements exist
                 const requiredElements = ['feedPage', 'profilePage', 'communityPage', 'slideMenu'];
@@ -1635,14 +1703,17 @@
                 showPage('feedPage'); // Show feed page by default
                 updateFeedContent('<div class="loading">Loading...</div>');
                 
-                console.log('📡 Loading user data...');
+                console.log('👤 Loading user data...');
                 await loadUser();
+                console.log('👤 User loaded:', currentUser ? `@${currentUser.username}` : 'Not logged in');
                 
                 console.log('🏘️ Loading communities...');
                 await loadCommunities();
+                console.log('🏘️ Communities loaded:', communities.length);
                 
                 console.log('📝 Loading posts...');
                 await loadPosts();
+                console.log('📝 Posts loaded:', posts.length);
                 
                 console.log('🎨 Updating UI...');
                 updateUI();
@@ -1655,10 +1726,11 @@
                 }
                 
                 console.log('✅ Blog app initialized successfully');
+                showSuccessMessage('Blog loaded successfully!');
                 
             } catch (error) {
                 console.error('❌ Error initializing app:', error);
-                showGeneralError('Failed to initialize the application. Please refresh the page.');
+                showGeneralError(`Failed to initialize: ${error.message}`);
             }
         });
 
