@@ -2284,6 +2284,17 @@
             }
         }
 
+        function updateReplyCount(postId, count) {
+            // Find the reply button for this post and update its count
+            const postCard = document.querySelector(`[onclick="toggleReplies('${postId}')"]`);
+            if (postCard) {
+                const countSpan = postCard.querySelector('span:last-child');
+                if (countSpan) {
+                    countSpan.textContent = count;
+                }
+            }
+        }
+
         function renderMarkdown(text) {
             if (!text) return '';
             
