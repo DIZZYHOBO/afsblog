@@ -1212,7 +1212,7 @@
             <button class="feed-tab active" id="generalTab" onclick="switchFeedTab('general')">
                 General
             </button>
-            <button class="feed-tab" id="followedTab" onclick="switchFeedTab('followed')">
+            <button class="feed-tab" id="followedTab" onclick="switchFeedTab('followed')" disabled>
                 Followed
             </button>
             <button class="feed-tab" id="privateTab" onclick="switchFeedTab('private')">
@@ -1469,7 +1469,6 @@
         let markdownRenderer;
         let inlineLoginFormOpen = false;
         let currentFeedTab = 'general'; // Track current feed tab
-        let followedCommunities = []; // Track followed communities
 
         // Menu functions
         function toggleMenu() {
@@ -1617,9 +1616,6 @@
                 if (user.isAdmin) {
                     await loadAdminStats();
                 }
-
-                // Load followed communities for the user
-                await loadFollowedCommunities();
                 
             } catch (error) {
                 console.error('Inline login error:', error);
@@ -1713,6 +1709,11 @@
 
         // Feed Tab Functions
         function switchFeedTab(tabName) {
+            if (tabName === 'followed') {
+                // Followed tab is disabled for now
+                return;
+            }
+
             currentFeedTab = tabName;
             
             // Update tab visual states
@@ -1847,7 +1848,6 @@
 
             await loadUser();
             await loadCommunities();
-            await loadFollowedCommunities();
             await loadPosts();
             updateUI();
             setupEventListeners();
@@ -1922,20 +1922,7 @@
             }
         }
 
-        async function loadFollowedCommunities() {
-            if (!currentUser) {
-                followedCommunities = [];
-                return;
-            }
-            
-            try {
-                const followed = await blobAPI.get(`user_following_${currentUser.username}`);
-                followedCommunities = followed || [];
-            } catch (error) {
-                console.error('Error loading followed communities:', error);
-                followedCommunities = [];
-            }
-        }
+        async function loadPosts() {
             try {
                 if (!isLoading) {
                     isLoading = true;
@@ -2042,51 +2029,15 @@
         }
 
         function renderFollowedFeed() {
-            if (!currentUser) {
-                updateFeedContent('<div class="empty-state"><p>Please sign in to view followed communities.</p></div>');
-                return;
-            }
-            
-            if (followedCommunities.length === 0) {
-                const placeholderHtml = `
-                    <div class="feature-placeholder">
-                        <h3>🏘️ Followed Communities</h3>
-                        <p>You're not following any communities yet!</p>
-                        <p style="margin-top: 16px; font-size: 14px;">Browse communities and click "Follow" to see their posts here.</p>
-                        <div style="margin-top: 20px;">
-                            <button class="btn" onclick="navigateToAllCommunities()">Browse Communities</button>
-                        </div>
-                    </div>
-                `;
-                updateFeedContent(placeholderHtml);
-                return;
-            }
-
-            // Show posts from followed communities
-            const followedCommunityNames = followedCommunities.map(c => c.name || c);
-            const followedPosts = posts.filter(post => 
-                !post.isPrivate && 
-                post.communityName && 
-                followedCommunityNames.includes(post.communityName)
-            );
-            
-            if (followedPosts.length === 0) {
-                const placeholderHtml = `
-                    <div class="feature-placeholder">
-                        <h3>🏘️ No Recent Posts</h3>
-                        <p>Your followed communities haven't posted anything recently.</p>
-                        <p style="margin-top: 16px; font-size: 14px;">Following ${followedCommunities.length} communities</p>
-                    </div>
-                `;
-                updateFeedContent(placeholderHtml);
-            } else {
-                updateFeedContent(renderPostList(followedPosts, 'No posts from followed communities yet!'));
-            }
-        }
-
-        function navigateToAllCommunities() {
-            // TODO: Implement browse communities page
-            showSuccessMessage('Browse communities page coming soon! For now, you can follow communities from their individual pages.');
+            // Placeholder for followed communities feed
+            const placeholderHtml = `
+                <div class="feature-placeholder">
+                    <h3>🏘️ Followed Communities</h3>
+                    <p>This feature is coming soon! You'll be able to follow your favorite communities and see their posts in a dedicated feed.</p>
+                    <p style="margin-top: 16px; font-size: 12px; color: var(--fg-subtle);">Follow communities to see their content here</p>
+                </div>
+            `;
+            updateFeedContent(placeholderHtml);
         }
 
         function renderPrivateFeed() {
@@ -2113,20 +2064,9 @@
             const communityPosts = posts.filter(post => post.communityName === community.name && !post.isPrivate);
             const communityHeader = `
                 <div style="background-color: var(--bg-default); border: 1px solid var(--border-default); border-radius: 8px; padding: 24px; margin-bottom: 24px;">
-                    <div style="display: flex; justify-content: between; align-items: start; margin-bottom: 16px;">
-                        <div style="flex: 1;">
-                            <h1 style="color: var(--accent-fg); font-size: 28px; margin-bottom: 8px;">${escapeHtml(community.displayName)}</h1>
-                            <p style="color: var(--fg-muted); margin-bottom: 4px;">c/${escapeHtml(community.name)}</p>
-                            ${community.description ? `<p style="color: var(--fg-default); margin-bottom: 16px;">${escapeHtml(community.description)}</p>` : ''}
-                        </div>
-                        ${currentUser ? `
-                            <button class="community-header-follow ${isFollowingCommunity(community.name) ? 'following' : ''}" 
-                                    onclick="toggleFollowCommunity('${community.name}')"
-                                    id="follow-btn-${community.name}">
-                                ${isFollowingCommunity(community.name) ? 'Following' : 'Follow'}
-                            </button>
-                        ` : ''}
-                    </div>
+                    <h1 style="color: var(--accent-fg); font-size: 28px; margin-bottom: 8px;">${escapeHtml(community.displayName)}</h1>
+                    <p style="color: var(--fg-muted); margin-bottom: 4px;">c/${escapeHtml(community.name)}</p>
+                    ${community.description ? `<p style="color: var(--fg-default); margin-bottom: 16px;">${escapeHtml(community.description)}</p>` : ''}
                     <div style="display: flex; gap: 20px; color: var(--fg-muted); font-size: 14px;">
                         <span>${communityPosts.length} posts</span>
                         <span>${community.members?.length || 1} members</span>
@@ -2169,13 +2109,6 @@
                                     <a href="#" class="post-community-link" onclick="navigateToCommunity('${post.communityName}'); return false;">
                                         c/${escapeHtml(community.displayName)}
                                     </a>
-                                    ${currentUser ? `
-                                        <button class="community-follow-btn ${isFollowingCommunity(post.communityName) ? 'following' : ''}"
-                                                onclick="toggleFollowCommunity('${post.communityName}')"
-                                                id="follow-btn-${post.communityName}">
-                                            ${isFollowingCommunity(post.communityName) ? '✓' : '+'}
-                                        </button>
-                                    ` : ''}
                                 </div>
                             ` : ''}
                             <h3 class="post-title">${escapeHtml(post.title)}</h3>
@@ -2404,71 +2337,7 @@
             }
         }
 
-        function isFollowingCommunity(communityName) {
-            if (!currentUser || !followedCommunities) return false;
-            return followedCommunities.includes(communityName);
-        }
-
-        async function toggleFollowCommunity(communityName) {
-            if (!currentUser) {
-                openAuthModal('signin');
-                return;
-            }
-
-            try {
-                const isFollowing = isFollowingCommunity(communityName);
-                
-                // Optimistically update UI
-                if (isFollowing) {
-                    followedCommunities = followedCommunities.filter(name => name !== communityName);
-                } else {
-                    followedCommunities.push(communityName);
-                }
-
-                // Update button states
-                updateFollowButtonStates(communityName, !isFollowing);
-
-                // Update backend
-                await blobAPI.set(`user_following_${currentUser.username}`, followedCommunities);
-                
-                const action = isFollowing ? 'Unfollowed' : 'Following';
-                showSuccessMessage(`${action} c/${communityName}!`);
-
-                // If we're in the followed feed and just unfollowed, refresh
-                if (currentFeedTab === 'followed' && isFollowing) {
-                    renderFollowedFeed();
-                }
-
-            } catch (error) {
-                console.error('Error toggling follow:', error);
-                
-                // Revert optimistic update
-                if (isFollowingCommunity(communityName)) {
-                    followedCommunities = followedCommunities.filter(name => name !== communityName);
-                } else {
-                    followedCommunities.push(communityName);
-                }
-                
-                updateFollowButtonStates(communityName, isFollowingCommunity(communityName));
-                showSuccessMessage('Failed to update follow status. Please try again.');
-            }
-        }
-
-        function updateFollowButtonStates(communityName, isFollowing) {
-            // Update all follow buttons for this community
-            const followButtons = document.querySelectorAll(`[id^="follow-btn-${communityName}"]`);
-            followButtons.forEach(btn => {
-                if (btn.classList.contains('community-header-follow')) {
-                    // Large header button
-                    btn.textContent = isFollowing ? 'Following' : 'Follow';
-                    btn.className = `community-header-follow ${isFollowing ? 'following' : ''}`;
-                } else {
-                    // Small inline button
-                    btn.textContent = isFollowing ? '✓' : '+';
-                    btn.className = `community-follow-btn ${isFollowing ? 'following' : ''}`;
-                }
-            });
-        }
+        function updateReplyCount(postId, count) {
             // Find the reply button for this post and update its count
             const postCard = document.querySelector(`[onclick="toggleReplies('${postId}')"]`);
             if (postCard) {
@@ -2692,9 +2561,6 @@
                     if (user.isAdmin) {
                         await loadAdminStats();
                     }
-                    
-                    // Load followed communities for the user
-                    await loadFollowedCommunities();
                 }
                 
                 form.reset();
