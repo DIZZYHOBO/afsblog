@@ -3270,14 +3270,19 @@
             document.getElementById('adminTotalCommunities').textContent = allCommunities.length;
         }
 
-        // Load pending users list
+        // Load pending users list (make sure we only get pending users, not approved ones)
         async function loadPendingUsersList() {
             try {
                 const pendingKeys = await blobAPI.list('pending_user_');
+                console.log(`Found ${pendingKeys.length} pending user keys:`, pendingKeys);
+                
                 const pendingPromises = pendingKeys.map(async (key) => {
                     try {
                         const user = await blobAPI.get(key);
-                        return { ...user, key };
+                        if (user && user.username && user.status === 'pending') {
+                            return { ...user, key };
+                        }
+                        return null;
                     } catch (error) {
                         console.error(`Error loading pending user ${key}:`, error);
                         return null;
@@ -3285,21 +3290,30 @@
                 });
                 
                 const pendingUsers = await Promise.all(pendingPromises);
-                return pendingUsers.filter(Boolean).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+                const validPendingUsers = pendingUsers.filter(Boolean);
+                
+                console.log(`Loaded ${validPendingUsers.length} valid pending users`);
+                return validPendingUsers.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
             } catch (error) {
                 console.error('Error loading pending users:', error);
                 return [];
             }
         }
 
-        // Load all users list
+        // Load all users list (only approved users, not pending ones)
         async function loadAllUsersList() {
             try {
                 const userKeys = await blobAPI.list('user_');
-                const userPromises = userKeys.map(async (key) => {
+                // Filter out any keys that might be pending users or other data
+                const actualUserKeys = userKeys.filter(key => key.startsWith('user_') && !key.startsWith('user_follows_'));
+                
+                const userPromises = actualUserKeys.map(async (key) => {
                     try {
                         const user = await blobAPI.get(key);
-                        return { ...user, key };
+                        if (user && user.username) { // Only include valid user objects
+                            return { ...user, key };
+                        }
+                        return null;
                     } catch (error) {
                         console.error(`Error loading user ${key}:`, error);
                         return null;
@@ -3307,7 +3321,19 @@
                 });
                 
                 const allUsers = await Promise.all(userPromises);
-                return allUsers.filter(Boolean).sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+                const validUsers = allUsers.filter(Boolean);
+                
+                // Remove duplicates based on username
+                const uniqueUsers = validUsers.reduce((acc, user) => {
+                    const existing = acc.find(u => u.username === user.username);
+                    if (!existing) {
+                        acc.push(user);
+                    }
+                    return acc;
+                }, []);
+                
+                console.log(`Loaded ${uniqueUsers.length} unique users from ${actualUserKeys.length} user keys`);
+                return uniqueUsers.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
             } catch (error) {
                 console.error('Error loading all users:', error);
                 return [];
@@ -4922,18 +4948,63 @@
             }
         }
 
-        // Admin functions (keeping existing implementation)
+        // Admin functions (keeping existing implementation but fixing user counting)
         async function loadAdminStats() {
             try {
+                // Load actual approved users (not pending ones)
                 const userKeys = await blobAPI.list('user_');
+                const actualUserKeys = userKeys.filter(key => key.startsWith('user_') && !key.startsWith('user_follows_'));
+                
+                // Load and validate users to avoid counting invalid entries
+                const userPromises = actualUserKeys.map(async (key) => {
+                    try {
+                        const user = await blobAPI.get(key);
+                        return user && user.username ? user : null;
+                    } catch (error) {
+                        return null;
+                    }
+                });
+                
+                const validUsers = await Promise.all(userPromises);
+                const uniqueUsers = validUsers.filter(Boolean);
+                
+                // Remove duplicates based on username
+                const finalUsers = uniqueUsers.reduce((acc, user) => {
+                    const existing = acc.find(u => u.username === user.username);
+                    if (!existing) {
+                        acc.push(user);
+                    }
+                    return acc;
+                }, []);
+                
                 const pendingUserKeys = await blobAPI.list('pending_user_');
                 const postKeys = await blobAPI.list('post_');
                 const communityKeys = await blobAPI.list('community_');
 
-                document.getElementById('totalUsers').textContent = userKeys.length;
-                document.getElementById('pendingUsers').textContent = pendingUserKeys.length;
-                document.getElementById('totalPosts').textContent = postKeys.length;
-                document.getElementById('totalCommunities').textContent = communityKeys.length;
+                // Update the old admin panel stats if they exist
+                const totalUsersEl = document.getElementById('totalUsers');
+                const pendingUsersEl = document.getElementById('pendingUsers');
+                const totalPostsEl = document.getElementById('totalPosts');
+                const totalCommunitiesEl = document.getElementById('totalCommunities');
+                
+                if (totalUsersEl) totalUsersEl.textContent = finalUsers.length;
+                if (pendingUsersEl) pendingUsersEl.textContent = pendingUserKeys.length;
+                if (totalPostsEl) totalPostsEl.textContent = postKeys.length;
+                if (totalCommunitiesEl) totalCommunitiesEl.textContent = communityKeys.length;
+                
+                // Update the new admin page stats if they exist
+                const adminTotalUsersEl = document.getElementById('adminTotalUsers');
+                const adminPendingUsersEl = document.getElementById('adminPendingUsers');
+                const adminTotalPostsEl = document.getElementById('adminTotalPosts');
+                const adminTotalCommunitiesEl = document.getElementById('adminTotalCommunities');
+                
+                if (adminTotalUsersEl) adminTotalUsersEl.textContent = finalUsers.length;
+                if (adminPendingUsersEl) adminPendingUsersEl.textContent = pendingUserKeys.length;
+                if (adminTotalPostsEl) adminTotalPostsEl.textContent = postKeys.length;
+                if (adminTotalCommunitiesEl) adminTotalCommunitiesEl.textContent = communityKeys.length;
+                
+                console.log(`Admin stats: ${finalUsers.length} users, ${pendingUserKeys.length} pending, ${postKeys.length} posts, ${communityKeys.length} communities`);
+                
             } catch (error) {
                 console.error('Error loading admin stats:', error);
             }
