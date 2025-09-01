@@ -115,16 +115,25 @@
         }
 
         .profile-avatar {
-            width: 40px;
-            height: 40px;
+            width: 48px;
+            height: 48px;
             background: linear-gradient(135deg, var(--accent-emphasis), var(--accent-fg));
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 16px;
+            font-size: 18px;
             font-weight: 600;
             color: white;
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+
+        .profile-avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 50%;
         }
 
         .menu-user-details h4 {
@@ -191,14 +200,21 @@
             max-height: 300px;
         }
 
+        .hidden {
+            display: none;
+        }
+
+        /* Community dropdown enhancements */
         .community-item {
-            display: block;
+            display: flex;
+            align-items: center;
             padding: 8px 48px;
             color: var(--fg-muted);
             text-decoration: none;
             font-size: 13px;
             cursor: pointer;
             transition: all 0.2s ease;
+            gap: 8px;
         }
 
         .community-item:hover {
@@ -266,16 +282,25 @@
         }
 
         .post-avatar {
-            width: 24px;
-            height: 24px;
+            width: 32px;
+            height: 32px;
             background: linear-gradient(135deg, var(--accent-emphasis), var(--accent-fg));
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 12px;
+            font-size: 14px;
             font-weight: 600;
             color: white;
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+
+        .post-avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 50%;
         }
 
         .post-meta {
@@ -709,8 +734,211 @@
             background: var(--fg-subtle);
         }
 
-        .hidden {
+        /* Profile Page Styles */
+        .profile-header {
+            background-color: var(--bg-default);
+            border: 1px solid var(--border-default);
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 24px;
+            display: flex;
+            align-items: flex-start;
+            gap: 20px;
+        }
+
+        .profile-avatar-large {
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, var(--accent-emphasis), var(--accent-fg));
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 32px;
+            font-weight: 700;
+            color: white;
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+
+        .profile-avatar-large img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 50%;
+        }
+
+        .profile-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .profile-username {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--fg-default);
+            margin-bottom: 4px;
+        }
+
+        .profile-handle {
+            font-size: 16px;
+            color: var(--fg-muted);
+            margin-bottom: 12px;
+        }
+
+        .profile-bio {
+            font-size: 14px;
+            color: var(--fg-default);
+            line-height: 1.5;
+            margin-bottom: 16px;
+        }
+
+        .profile-stats {
+            display: flex;
+            gap: 24px;
+            color: var(--fg-muted);
+            font-size: 14px;
+        }
+
+        .profile-stat {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .profile-stat-number {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--fg-default);
+        }
+
+        .profile-nav {
+            display: flex;
+            background-color: var(--bg-default);
+            border: 1px solid var(--border-default);
+            border-radius: 8px;
+            margin-bottom: 16px;
+            overflow: hidden;
+        }
+
+        .profile-nav-btn {
+            flex: 1;
+            background: none;
+            border: none;
+            color: var(--fg-muted);
+            padding: 12px 16px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+
+        .profile-nav-btn.active {
+            background-color: var(--bg-subtle);
+            color: var(--fg-default);
+        }
+
+        .profile-nav-btn:hover:not(.active) {
+            background-color: var(--bg-overlay);
+        }
+
+        .post-count {
+            background-color: var(--bg-subtle);
+            color: var(--fg-muted);
+            font-size: 11px;
+            padding: 2px 6px;
+            border-radius: 10px;
+            margin-left: auto;
+        }
+
+        .profile-nav-btn.active .post-count {
+            background-color: var(--accent-emphasis);
+            color: white;
+        }
+
+        /* Community Header Styles */
+        .community-header {
+            background: linear-gradient(135deg, var(--bg-default), var(--bg-overlay));
+            border: 1px solid var(--border-default);
+            border-radius: 12px;
+            padding: 32px 24px;
+            margin-bottom: 24px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .community-header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, var(--accent-emphasis), var(--accent-fg));
+        }
+
+        .community-title {
+            font-size: 32px;
+            font-weight: 700;
+            color: var(--fg-default);
+            margin-bottom: 8px;
+        }
+
+        .community-handle {
+            font-size: 18px;
+            color: var(--accent-fg);
+            margin-bottom: 16px;
+            font-weight: 500;
+        }
+
+        .community-description {
+            font-size: 16px;
+            color: var(--fg-default);
+            line-height: 1.6;
+            margin-bottom: 24px;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .community-stats {
+            display: flex;
+            justify-content: center;
+            gap: 32px;
+            flex-wrap: wrap;
+        }
+
+        .community-stat {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .community-stat-number {
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--fg-default);
+        }
+
+        .community-stat-label {
+            font-size: 12px;
+            color: var(--fg-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .page-content {
             display: none;
+        }
+
+        .page-content.active {
+            display: block;
         }
 
         /* Markdown Content Styles */
@@ -888,8 +1116,45 @@
 
     <!-- Main Content -->
     <main class="main-container">
-        <div id="feed" class="loading">
-            Loading...
+        <!-- Feed Page -->
+        <div id="feedPage" class="page-content">
+            <div id="feed" class="loading">
+                Loading...
+            </div>
+        </div>
+
+        <!-- Profile Page -->
+        <div id="profilePage" class="page-content" style="display: none;">
+            <div class="profile-header" id="profileHeader">
+                <!-- Profile info will be inserted here -->
+            </div>
+            
+            <div class="profile-nav">
+                <button class="profile-nav-btn active" id="publicPostsBtn" onclick="showProfilePosts('public')">
+                    <span>📝</span>
+                    <span>Public Posts</span>
+                    <span class="post-count" id="publicPostCount">0</span>
+                </button>
+                <button class="profile-nav-btn" id="privatePostsBtn" onclick="showProfilePosts('private')">
+                    <span>🔒</span>
+                    <span>Private Posts</span>
+                    <span class="post-count" id="privatePostCount">0</span>
+                </button>
+            </div>
+            
+            <div id="profilePosts" class="profile-posts">
+                <!-- Profile posts will be inserted here -->
+            </div>
+        </div>
+
+        <!-- Community Page -->
+        <div id="communityPage" class="page-content" style="display: none;">
+            <div class="community-header" id="communityHeader">
+                <!-- Community info will be inserted here -->
+            </div>
+            <div id="communityPosts" class="community-posts">
+                <!-- Community posts will be inserted here -->
+            </div>
         </div>
     </main>
 
@@ -1019,15 +1284,62 @@
     <script>
         // App state
         let currentUser = null;
-        let currentPage = 'feed';
+        let currentPage = 'feed'; // 'feed', 'communities', 'community', 'profile'
         let communities = [];
         let posts = [];
         let currentCommunity = null;
+        let currentProfileUser = null;
         let isLoading = false;
         let adminData = null;
         let currentPostType = 'text';
         let uploadedMedia = null;
         let markdownRenderer;
+
+        // API Documentation (Internal Reference)
+        const API_STRUCTURE = {
+            // User object structure
+            user: {
+                username: "string",
+                password: "string", // Only on server
+                bio: "string",
+                profilePictureUrl: "string", // Base64 or URL
+                createdAt: "ISO string",
+                isAdmin: "boolean",
+                approvedAt: "ISO string"
+            },
+            // Community object structure
+            community: {
+                name: "string", // lowercase, unique
+                displayName: "string",
+                description: "string",
+                createdBy: "string",
+                createdAt: "ISO string",
+                isPrivate: "boolean",
+                moderators: ["array of usernames"],
+                members: ["array of usernames"],
+                rules: ["array of strings"]
+            },
+            // Post object structure  
+            post: {
+                id: "string",
+                type: "text|link",
+                title: "string",
+                content: "string", // for text posts
+                url: "string", // for link posts
+                description: "string", // for link posts
+                author: "string",
+                timestamp: "ISO string",
+                isPrivate: "boolean",
+                communityName: "string|null",
+                replies: ["array of reply objects"],
+                likes: ["array of like objects"],
+                media: {
+                    type: "image|video",
+                    data: "base64 string",
+                    name: "filename"
+                }
+            }
+        };
 
         // Menu functions
         function toggleMenu() {
@@ -1051,9 +1363,15 @@
             const menuLogout = document.getElementById('menuLogout');
             
             if (currentUser) {
+                const avatar = renderUserAvatar(
+                    currentUser.username, 
+                    currentUser.profile?.profilePictureUrl, 
+                    'menu'
+                );
+                
                 menuHeader.innerHTML = `
                     <div class="menu-user-info">
-                        <div class="profile-avatar">${currentUser.username.charAt(0).toUpperCase()}</div>
+                        ${avatar}
                         <div class="menu-user-details">
                             <h4>@${escapeHtml(currentUser.username)}</h4>
                             <p>${currentUser.profile?.isAdmin ? 'Administrator' : 'Member'}</p>
@@ -1111,7 +1429,11 @@
             } else {
                 dropdown.innerHTML = communities.map(community => `
                     <a href="#" class="community-item" onclick="navigateToCommunity('${community.name}'); return false;">
-                        c/${escapeHtml(community.displayName)}
+                        <span style="margin-right: 8px;">🏘️</span>
+                        <span>c/${escapeHtml(community.displayName)}</span>
+                        <span style="margin-left: auto; font-size: 11px; color: var(--fg-subtle);">
+                            ${posts.filter(p => p.communityName === community.name && !p.isPrivate).length}
+                        </span>
                     </a>
                 `).join('');
             }
@@ -1136,7 +1458,8 @@
             toggleMenu();
             currentPage = 'feed';
             updateActiveMenuItem('menuFeed');
-            updateUI();
+            showPage('feedPage');
+            renderCurrentPage();
         }
 
         function navigateToProfile() {
@@ -1319,6 +1642,7 @@
             });
         }
 
+        // Enhanced user profile loading with avatar support
         async function loadUser() {
             try {
                 const userData = await blobAPI.get('current_user');
@@ -1327,10 +1651,66 @@
                     const fullProfile = await blobAPI.get(`user_${userData.username}`);
                     if (fullProfile) {
                         currentUser.profile = fullProfile;
+                        // Ensure profile has avatar URL or generate one
+                        if (!currentUser.profile.profilePictureUrl) {
+                            currentUser.profile.profilePictureUrl = generateDefaultAvatar(currentUser.username);
+                        }
                     }
                 }
             } catch (error) {
                 console.error('Error loading user:', error);
+            }
+        }
+
+        // Generate default avatar for users without profile pictures
+        function generateDefaultAvatar(username) {
+            // Create a simple gradient avatar based on username
+            const colors = [
+                ['#667eea', '#764ba2'], ['#f093fb', '#f5576c'], ['#4facfe', '#00f2fe'],
+                ['#43e97b', '#38f9d7'], ['#fa709a', '#fee140'], ['#a8edea', '#fed6e3'],
+                ['#ff9a9e', '#fecfef'], ['#ffecd2', '#fcb69f'], ['#a18cd1', '#fbc2eb'],
+                ['#fad0c4', '#ffd1ff'], ['#d299c2', '#fef9d7'], ['#89f7fe', '#66a6ff']
+            ];
+            
+            const index = username.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % colors.length;
+            const [color1, color2] = colors[index];
+            
+            // Return null to use CSS gradients instead of generating actual images
+            return null;
+        }
+
+        // Get user profile with caching
+        async function getUserProfile(username) {
+            try {
+                const profile = await blobAPI.get(`user_${username}`);
+                if (profile && !profile.profilePictureUrl) {
+                    profile.profilePictureUrl = generateDefaultAvatar(username);
+                }
+                return profile;
+            } catch (error) {
+                console.error(`Error loading profile for ${username}:`, error);
+                return null;
+            }
+        }
+
+        // Render user avatar component
+        function renderUserAvatar(username, profilePictureUrl = null, size = 'default') {
+            let className = 'post-avatar';
+            if (size === 'large') className = 'profile-avatar-large';
+            else if (size === 'menu') className = 'profile-avatar';
+
+            if (profilePictureUrl && profilePictureUrl !== 'null') {
+                return `
+                    <div class="${className}">
+                        <img src="${profilePictureUrl}" alt="${username}">
+                    </div>
+                `;
+            } else {
+                return `
+                    <div class="${className}">
+                        ${username.charAt(0).toUpperCase()}
+                    </div>
+                `;
             }
         }
 
@@ -1392,7 +1772,10 @@
 
         function updateUI() {
             updateComposeButton();
-            renderCurrentPage();
+            if (currentPage === 'feed') {
+                renderCurrentPage();
+            }
+            // Other pages are handled by their specific load functions
         }
 
         function updateComposeButton() {
@@ -1449,32 +1832,45 @@
             updateFeedContent(communityHeader + renderPostList(communityPosts, 'No posts in this community yet!'));
         }
 
-        function renderPostList(postList, emptyMessage) {
+        async function renderPostList(postList, emptyMessage) {
             if (postList.length === 0) {
                 return `<div class="empty-state"><p>${emptyMessage}</p></div>`;
             }
 
+            // Get user profiles for all unique authors
+            const uniqueAuthors = [...new Set(postList.map(post => post.author))];
+            const authorProfiles = {};
+            
+            for (const author of uniqueAuthors) {
+                authorProfiles[author] = await getUserProfile(author);
+            }
+
             return postList.map(post => {
                 const community = communities.find(c => c.name === post.communityName);
+                const authorProfile = authorProfiles[post.author];
+                const avatar = renderUserAvatar(post.author, authorProfile?.profilePictureUrl);
                 
                 return `
                     <div class="post-card ${post.isPrivate ? 'private' : ''}">
                         <div class="post-header">
                             <div class="post-author">
-                                <div class="post-avatar">${post.author.charAt(0).toUpperCase()}</div>
+                                ${avatar}
                                 <div class="post-meta">
-                                    <a href="#" class="post-username">@${escapeHtml(post.author)}</a>
+                                    <a href="#" class="post-username" onclick="navigateToProfile('${post.author}'); return false;">
+                                        @${escapeHtml(post.author)}
+                                    </a>
                                     <div class="post-timestamp">${formatTimestamp(post.timestamp)}</div>
                                 </div>
                             </div>
                             <div class="post-badges">
                                 ${post.isPrivate ? '<span class="post-badge private">Private</span>' : ''}
                                 ${post.type === 'link' ? '<span class="post-badge link">Link</span>' : ''}
+                                ${authorProfile?.isAdmin ? '<span class="post-badge" style="background-color: var(--danger-fg); color: white;">Admin</span>' : ''}
                             </div>
                         </div>
                         
                         <div class="post-body">
-                            ${post.communityName && community && currentPage !== 'community' ? `
+                            ${post.communityName && community && currentPage !== 'community' && currentPage !== 'profile' ? `
                                 <div class="post-community">
                                     <a href="#" class="post-community-link" onclick="navigateToCommunity('${post.communityName}'); return false;">
                                         c/${escapeHtml(community.displayName)}
@@ -1493,6 +1889,10 @@
                             <button class="action-btn">
                                 <span>💬</span>
                                 <span>${post.replies ? post.replies.length : 0}</span>
+                            </button>
+                            <button class="action-btn">
+                                <span>🔗</span>
+                                <span>Share</span>
                             </button>
                             ${currentUser && (currentUser.username === post.author || currentUser.profile?.isAdmin) ? `
                                 <button class="action-btn" onclick="deletePost('${post.id}')">
