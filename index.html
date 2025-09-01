@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏘️</text></svg>">
-    <title>Blog Feed - Communities</title>
+    <title>Blog Feed - Communities v2.0</title>
     <!-- External Libraries for Media and Markdown -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
@@ -1582,6 +1582,18 @@
         // Initialize app with better error handling for production
         document.addEventListener('DOMContentLoaded', async () => {
             try {
+                console.log('🚀 Initializing Blog App v2.0...');
+                
+                // Verify required elements exist
+                const requiredElements = ['feedPage', 'profilePage', 'communityPage', 'slideMenu'];
+                const missingElements = requiredElements.filter(id => !document.getElementById(id));
+                
+                if (missingElements.length > 0) {
+                    console.error('❌ Missing required HTML elements:', missingElements);
+                    showGeneralError(`Missing page elements: ${missingElements.join(', ')}. Please refresh the page.`);
+                    return;
+                }
+
                 // Configure marked.js for markdown rendering
                 if (typeof marked !== 'undefined') {
                     marked.setOptions({
@@ -1613,23 +1625,32 @@
                     markdownRenderer.image = function(href, title, text) {
                         return `<img src="${href}" alt="${text}" ${title ? `title="${title}"` : ''} onclick="openImageModal('${href}')" style="cursor: pointer;">`;
                     };
+                    
+                    console.log('✅ Markdown renderer configured');
                 } else {
-                    console.warn('Marked.js not loaded, markdown rendering will be basic');
+                    console.warn('⚠️ Marked.js not loaded, markdown rendering will be basic');
                 }
 
                 // Initialize app data
                 showPage('feedPage'); // Show feed page by default
                 updateFeedContent('<div class="loading">Loading...</div>');
                 
+                console.log('📡 Loading user data...');
                 await loadUser();
+                
+                console.log('🏘️ Loading communities...');
                 await loadCommunities();
+                
+                console.log('📝 Loading posts...');
                 await loadPosts();
                 
+                console.log('🎨 Updating UI...');
                 updateUI();
                 setupEventListeners();
                 
                 // Load admin stats if user is admin
                 if (currentUser?.profile?.isAdmin) {
+                    console.log('👑 Loading admin stats...');
                     await loadAdminStats();
                 }
                 
@@ -1637,7 +1658,7 @@
                 
             } catch (error) {
                 console.error('❌ Error initializing app:', error);
-                showError('general', 'Failed to initialize the application. Please refresh the page.');
+                showGeneralError('Failed to initialize the application. Please refresh the page.');
             }
         });
 
