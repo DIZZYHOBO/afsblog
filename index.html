@@ -1062,6 +1062,123 @@
             transform: scale(1.05);
         }
 
+        /* Community Header Styles */
+        .community-header {
+            background: linear-gradient(135deg, var(--bg-default) 0%, var(--bg-overlay) 100%);
+            border: 1px solid var(--border-default);
+            border-radius: 16px;
+            padding: 32px;
+            margin-bottom: 24px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .community-header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, var(--accent-emphasis), var(--accent-fg), var(--success-fg));
+        }
+
+        .community-hero {
+            display: flex;
+            align-items: flex-start;
+            gap: 24px;
+            margin-bottom: 24px;
+        }
+
+        .community-avatar {
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, var(--accent-emphasis), var(--accent-fg));
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 36px;
+            font-weight: 700;
+            color: white;
+            box-shadow: 0 8px 24px rgba(88, 166, 255, 0.3);
+            flex-shrink: 0;
+        }
+
+        .community-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .community-title {
+            font-size: 32px;
+            font-weight: 700;
+            color: var(--fg-default);
+            margin: 0 0 8px 0;
+            line-height: 1.2;
+            word-wrap: break-word;
+        }
+
+        .community-handle {
+            font-size: 18px;
+            color: var(--accent-fg);
+            margin: 0 0 12px 0;
+            font-weight: 600;
+        }
+
+        .community-description {
+            font-size: 16px;
+            color: var(--fg-muted);
+            line-height: 1.5;
+            margin: 0;
+            max-width: 600px;
+        }
+
+        .community-actions {
+            flex-shrink: 0;
+            margin-top: 8px;
+        }
+
+        .community-stats {
+            display: flex;
+            align-items: center;
+            gap: 24px;
+            padding: 20px 0 0 0;
+            border-top: 1px solid var(--border-default);
+            flex-wrap: wrap;
+        }
+
+        .stat-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .stat-number {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--accent-fg);
+        }
+
+        .stat-label {
+            font-size: 14px;
+            color: var(--fg-muted);
+            font-weight: 500;
+        }
+
+        .stat-creator {
+            font-size: 14px;
+            color: var(--fg-default);
+            font-weight: 600;
+        }
+
+        .stat-divider {
+            width: 1px;
+            height: 20px;
+            background-color: var(--border-default);
+        }
+
         /* Responsive Design */
         @media (max-width: 768px) {
             .main-container {
@@ -1110,6 +1227,40 @@
                 bottom: 16px;
                 right: 16px;
                 font-size: 18px;
+            }
+
+            .community-header {
+                padding: 24px 20px;
+            }
+
+            .community-hero {
+                flex-direction: column;
+                align-items: center;
+                text-align: center;
+                gap: 20px;
+            }
+
+            .community-avatar {
+                width: 64px;
+                height: 64px;
+                font-size: 28px;
+            }
+
+            .community-title {
+                font-size: 28px;
+            }
+
+            .community-handle {
+                font-size: 16px;
+            }
+
+            .community-stats {
+                justify-content: center;
+                gap: 16px;
+            }
+
+            .stat-divider {
+                display: none;
             }
         }
 
@@ -1687,10 +1838,14 @@
             openModal('createCommunityModal');
         }
 
+        // FIXED: navigateToCommunity function with better debugging
         function navigateToCommunity(communityName) {
+            console.log('navigateToCommunity called with:', communityName);
             toggleMenu();
             currentPage = 'community';
             currentCommunity = communityName;
+            console.log('Set currentCommunity to:', currentCommunity);
+            console.log('Communities array:', communities.map(c => c.name));
             updateUI();
         }
 
@@ -2055,28 +2210,199 @@
             renderFeedWithTabs();
         }
 
-        function renderCommunityPage() {
-            if (!currentCommunity) return;
+        // FIXED: renderCommunityPage function with extensive debugging and improved button rendering
+        async function renderCommunityPage() {
+            console.log('renderCommunityPage called, currentCommunity:', currentCommunity);
+            
+            if (!currentCommunity) {
+                console.log('No currentCommunity set');
+                return;
+            }
             
             const community = communities.find(c => c.name === currentCommunity);
-            if (!community) return;
+            if (!community) {
+                console.log('Community not found in communities array:', currentCommunity);
+                updateFeedContent('<div class="empty-state"><p>Community not found.</p></div>');
+                return;
+            }
+
+            console.log('Found community:', community);
+
+            // Check if user is following this community (if logged in)
+            let isFollowing = false;
+            let followCheckComplete = false;
+            
+            if (currentUser) {
+                try {
+                    console.log('Checking follow status for authenticated user');
+                    // For now, simulate follow check since API might not exist
+                    // Replace with actual API call when available
+                    isFollowing = await simulateFollowCheck(currentCommunity);
+                    console.log('Follow status check result:', isFollowing);
+                } catch (error) {
+                    console.error('Error checking follow status:', error);
+                }
+                followCheckComplete = true;
+            } else {
+                console.log('User not authenticated, skipping follow status check');
+                followCheckComplete = true;
+            }
 
             const communityPosts = posts.filter(post => post.communityName === community.name && !post.isPrivate);
+            
+            // Create follow button HTML
+            let followButtonHtml = '';
+            
+            if (!currentUser) {
+                // User not logged in - show sign in button
+                followButtonHtml = `
+                    <button class="btn" 
+                            onclick="openAuthModal('signin')" 
+                            style="padding: 12px 24px; font-weight: 600; box-shadow: 0 2px 8px rgba(0,0,0,0.15);">
+                        + Follow (Sign In)
+                    </button>`;
+            } else {
+                // User is logged in - show actual follow/unfollow button
+                const buttonText = isFollowing ? '✓ Following' : '+ Follow';
+                const buttonClass = isFollowing ? 'btn btn-secondary' : 'btn';
+                
+                followButtonHtml = `
+                    <button class="${buttonClass}" 
+                            onclick="toggleCommunityFollow('${community.name}')" 
+                            id="followBtn-${community.name}"
+                            style="padding: 12px 24px; font-weight: 600; box-shadow: 0 2px 8px rgba(0,0,0,0.15);">
+                        ${buttonText}
+                    </button>`;
+            }
+            
+            console.log('Generated follow button HTML:', followButtonHtml);
+            
             const communityHeader = `
-                <div style="background-color: var(--bg-default); border: 1px solid var(--border-default); border-radius: 8px; padding: 24px; margin-bottom: 24px;">
-                    <h1 style="color: var(--accent-fg); font-size: 28px; margin-bottom: 8px;">${escapeHtml(community.displayName)}</h1>
-                    <p style="color: var(--fg-muted); margin-bottom: 4px;">c/${escapeHtml(community.name)}</p>
-                    ${community.description ? `<p style="color: var(--fg-default); margin-bottom: 16px;">${escapeHtml(community.description)}</p>` : ''}
-                    <div style="display: flex; gap: 20px; color: var(--fg-muted); font-size: 14px;">
-                        <span>${communityPosts.length} posts</span>
-                        <span>${community.members?.length || 1} members</span>
-                        <span>Created by @${escapeHtml(community.createdBy)}</span>
-                        <span>${formatDate(community.createdAt)}</span>
+                <div class="community-header">
+                    <div class="community-hero">
+                        <div class="community-avatar">
+                            ${community.displayName.charAt(0).toUpperCase()}
+                        </div>
+                        <div class="community-info">
+                            <h1 class="community-title">${escapeHtml(community.displayName)}</h1>
+                            <p class="community-handle">c/${escapeHtml(community.name)}</p>
+                            ${community.description ? `<p class="community-description">${escapeHtml(community.description)}</p>` : ''}
+                        </div>
+                        <div class="community-actions">
+                            ${followButtonHtml}
+                        </div>
+                    </div>
+                    <div class="community-stats">
+                        <div class="stat-item">
+                            <span class="stat-number">${communityPosts.length}</span>
+                            <span class="stat-label">posts</span>
+                        </div>
+                        <div class="stat-divider"></div>
+                        <div class="stat-item">
+                            <span class="stat-number">${community.members?.length || 1}</span>
+                            <span class="stat-label">members</span>
+                        </div>
+                        <div class="stat-divider"></div>
+                        <div class="stat-item">
+                            <span class="stat-label">Created by</span>
+                            <span class="stat-creator">@${escapeHtml(community.createdBy)}</span>
+                        </div>
+                        <div class="stat-divider"></div>
+                        <div class="stat-item">
+                            <span class="stat-label">${formatDate(community.createdAt)}</span>
+                        </div>
                     </div>
                 </div>
             `;
             
-            updateFeedContent(communityHeader + renderPostList(communityPosts, 'No posts in this community yet!'));
+            const finalHtml = communityHeader + renderPostList(communityPosts, 'No posts in this community yet!');
+            console.log('Updating feed content with community page');
+            updateFeedContent(finalHtml);
+        }
+
+        // FIXED: Improved toggleCommunityFollow function with better error handling
+        async function toggleCommunityFollow(communityName) {
+            console.log('toggleCommunityFollow called for:', communityName);
+            console.log('Current user:', currentUser);
+            
+            if (!currentUser) {
+                console.log('Not authenticated, opening auth modal');
+                openAuthModal('signin');
+                return;
+            }
+
+            const followBtn = document.getElementById(`followBtn-${communityName}`);
+            console.log('Follow button found:', followBtn);
+            
+            if (!followBtn) {
+                console.error('Follow button not found for community:', communityName);
+                // Try to find any button with the community name in onclick
+                const allButtons = document.querySelectorAll('button');
+                console.log('All buttons on page:', allButtons.length);
+                allButtons.forEach((btn, index) => {
+                    console.log(`Button ${index}:`, btn.textContent, btn.onclick);
+                });
+                return;
+            }
+            
+            const originalText = followBtn.textContent;
+            const wasFollowing = followBtn.classList.contains('btn-secondary');
+            
+            try {
+                followBtn.disabled = true;
+                followBtn.textContent = 'Loading...';
+                
+                console.log('Making API call to follow/unfollow community');
+                
+                // Use simulation for now - replace with actual API call when available
+                const response = await simulateFollowToggle(communityName, !wasFollowing);
+                
+                if (response.success) {
+                    // Update button appearance
+                    if (response.following) {
+                        followBtn.textContent = '✓ Following';
+                        followBtn.className = 'btn btn-secondary';
+                        followBtn.style.cssText = 'padding: 12px 24px; font-weight: 600; box-shadow: 0 2px 8px rgba(0,0,0,0.15);';
+                        showSuccessMessage(`Now following c/${communityName}!`);
+                    } else {
+                        followBtn.textContent = '+ Follow';
+                        followBtn.className = 'btn';
+                        followBtn.style.cssText = 'padding: 12px 24px; font-weight: 600; box-shadow: 0 2px 8px rgba(0,0,0,0.15);';
+                        showSuccessMessage(`Unfollowed c/${communityName}`);
+                    }
+                } else {
+                    throw new Error(response.error || 'Unknown error');
+                }
+                
+            } catch (error) {
+                console.error('Error toggling follow status:', error);
+                followBtn.textContent = originalText;
+                showSuccessMessage(error.message || 'Failed to update follow status. Please try again.');
+            } finally {
+                followBtn.disabled = false;
+            }
+        }
+
+        // Temporary simulation functions - replace with actual API calls when available
+        async function simulateFollowCheck(communityName) {
+            // Simulate API delay
+            await new Promise(resolve => setTimeout(resolve, 100));
+            
+            // For demo purposes, return false (not following)
+            // In real implementation, this would check the user's followed communities
+            return false;
+        }
+
+        async function simulateFollowToggle(communityName, shouldFollow) {
+            // Simulate API delay
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            // For now, just return success
+            return {
+                success: true,
+                following: shouldFollow,
+                message: shouldFollow ? 'Followed' : 'Unfollowed'
+            };
         }
 
         function renderPostList(postList, emptyMessage) {
