@@ -525,6 +525,26 @@
             font-size: 10px;
             font-weight: 600;
             color: white;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .reply-avatar-img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 50%;
+        }
+
+        .reply-avatar-text, .reply-avatar-fallback {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            font-weight: 600;
+            color: white;
         }
 
         .reply-author {
@@ -673,6 +693,7 @@
             flex: 1;
         }
 
+        /* Post Avatar Styles */
         .post-avatar {
             width: 24px;
             height: 24px;
@@ -682,6 +703,60 @@
             align-items: center;
             justify-content: center;
             font-size: 12px;
+            font-weight: 600;
+            color: white;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .post-avatar-img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 50%;
+        }
+
+        .post-avatar-text, .post-avatar-fallback {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: 600;
+            color: white;
+        }
+
+        /* Reply Avatar Styles */
+        .reply-avatar {
+            width: 20px;
+            height: 20px;
+            background: linear-gradient(135deg, var(--accent-emphasis), var(--accent-fg));
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            font-weight: 600;
+            color: white;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .reply-avatar-img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 50%;
+        }
+
+        .reply-avatar-text, .reply-avatar-fallback {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
             font-weight: 600;
             color: white;
         }
@@ -4196,11 +4271,23 @@
             return postList.map(post => {
                 const community = communities.find(c => c.name === post.communityName);
                 
+                // Get author's profile picture
+                const authorProfilePic = getAuthorProfilePicture(post.author);
+                
                 return `
                     <div class="post-card ${post.isPrivate ? 'private' : ''}">
                         <div class="post-header">
                             <div class="post-author">
-                                <div class="post-avatar">${post.author.charAt(0).toUpperCase()}</div>
+                                <div class="post-avatar">
+                                    ${authorProfilePic ? 
+                                        `<img src="${authorProfilePic}" 
+                                             alt="${post.author}" 
+                                             class="post-avatar-img"
+                                             onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                                         <div class="post-avatar-fallback" style="display: none;">${post.author.charAt(0).toUpperCase()}</div>` 
+                                        : `<div class="post-avatar-text">${post.author.charAt(0).toUpperCase()}</div>`
+                                    }
+                                </div>
                                 <div class="post-meta">
                                     <a href="#" class="post-username">@${escapeHtml(post.author)}</a>
                                     <div class="post-timestamp">${formatTimestamp(post.timestamp)}</div>
@@ -4272,6 +4359,24 @@
             }).join('');
         }
 
+        // Get author's profile picture from stored user data
+        function getAuthorProfilePicture(username) {
+            try {
+                // Check if we have this user's data loaded
+                if (currentUser && currentUser.username === username && currentUser.profile?.profilePicture) {
+                    return currentUser.profile.profilePicture;
+                }
+                
+                // For other users, we'd need to load their profile data
+                // For now, return null to use default avatar
+                // In a real app, you might cache user profiles or load them dynamically
+                return null;
+            } catch (error) {
+                console.error('Error getting author profile picture:', error);
+                return null;
+            }
+        }
+
         function renderPostContent(post) {
             let contentHtml = '';
 
@@ -4332,27 +4437,41 @@
                 return '<div class="no-replies">No replies yet. Be the first to reply!</div>';
             }
 
-            return replies.map(reply => `
-                <div class="reply-item" id="reply-${reply.id}">
-                    <div class="reply-header">
-                        <div class="reply-meta">
-                            <div class="reply-avatar">${reply.author.charAt(0).toUpperCase()}</div>
-                            <span class="reply-author">@${escapeHtml(reply.author)}</span>
-                            <span class="reply-timestamp">${formatTimestamp(reply.timestamp)}</span>
-                        </div>
-                        ${currentUser && (currentUser.username === reply.author || currentUser.profile?.isAdmin) ? `
-                            <div class="reply-actions">
-                                <button class="reply-delete-btn" onclick="deleteReply('${reply.postId || 'unknown'}', '${reply.id}')" title="Delete reply">
-                                    🗑️
-                                </button>
+            return replies.map(reply => {
+                // Get reply author's profile picture
+                const replyAuthorProfilePic = getAuthorProfilePicture(reply.author);
+                
+                return `
+                    <div class="reply-item" id="reply-${reply.id}">
+                        <div class="reply-header">
+                            <div class="reply-meta">
+                                <div class="reply-avatar">
+                                    ${replyAuthorProfilePic ? 
+                                        `<img src="${replyAuthorProfilePic}" 
+                                             alt="${reply.author}" 
+                                             class="reply-avatar-img"
+                                             onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                                         <div class="reply-avatar-fallback" style="display: none;">${reply.author.charAt(0).toUpperCase()}</div>` 
+                                        : `<div class="reply-avatar-text">${reply.author.charAt(0).toUpperCase()}</div>`
+                                    }
+                                </div>
+                                <span class="reply-author">@${escapeHtml(reply.author)}</span>
+                                <span class="reply-timestamp">${formatTimestamp(reply.timestamp)}</span>
                             </div>
-                        ` : ''}
+                            ${currentUser && (currentUser.username === reply.author || currentUser.profile?.isAdmin) ? `
+                                <div class="reply-actions">
+                                    <button class="reply-delete-btn" onclick="deleteReply('${reply.postId || 'unknown'}', '${reply.id}')" title="Delete reply">
+                                        🗑️
+                                    </button>
+                                </div>
+                            ` : ''}
+                        </div>
+                        <div class="reply-content markdown-content">
+                            ${renderMarkdown(reply.content)}
+                        </div>
                     </div>
-                    <div class="reply-content markdown-content">
-                        ${renderMarkdown(reply.content)}
-                    </div>
-                </div>
-            `).join('');
+                `;
+            }).join('');
         }
 
         function toggleReplies(postId) {
