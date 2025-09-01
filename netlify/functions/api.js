@@ -143,14 +143,14 @@
         }
 
         .feed-tab:disabled {
-            background-color: var(--bg-canvas);
+            background-color: var(--bg-subtle);
             color: var(--fg-subtle);
             cursor: not-allowed;
-            opacity: 0.6;
+            opacity: 0.5;
         }
 
         .feed-tab:disabled:hover {
-            background-color: var(--bg-canvas);
+            background-color: var(--bg-subtle);
             color: var(--fg-subtle);
         }
 
@@ -1715,8 +1715,22 @@
 
         // Feed Tab Functions
         function switchFeedTab(tabName) {
+            // Always allow switching to general tab
+            if (tabName === 'general') {
+                currentFeedTab = tabName;
+                
+                // Update tab visual states
+                document.querySelectorAll('.feed-tab').forEach(tab => {
+                    tab.classList.remove('active');
+                });
+                document.getElementById(`${tabName}Tab`).classList.add('active');
+                
+                renderCurrentPage();
+                return;
+            }
+
+            // For followed and private tabs, require authentication
             if (!currentUser || !sessionToken) {
-                // If user is not logged in, redirect to login
                 openAuthModal('signin');
                 return;
             }
@@ -1735,12 +1749,21 @@
 
         function updateFeedTabsVisibility() {
             const feedTabs = document.getElementById('feedTabs');
-            // Show tabs only on feed page when user is logged in
-            if (currentPage === 'feed' && currentUser) {
+            // Show tabs only on feed page
+            if (currentPage === 'feed') {
                 feedTabs.style.display = 'flex';
-                // Enable/disable followed tab based on auth
+                
+                // Enable/disable tabs based on auth status
                 const followedTab = document.getElementById('followedTab');
-                followedTab.disabled = false;
+                const privateTab = document.getElementById('privateTab');
+                
+                if (currentUser && sessionToken) {
+                    followedTab.disabled = false;
+                    privateTab.disabled = false;
+                } else {
+                    followedTab.disabled = true;
+                    privateTab.disabled = true;
+                }
             } else {
                 feedTabs.style.display = 'none';
             }
@@ -2007,10 +2030,18 @@
             }
         }
 
+        // Update the updateFeedTabsVisibility call to always show tabs
         function updateUI() {
             updateComposeButton();
             updateFeedTabsVisibility();
             renderCurrentPage();
+            
+            // Show admin panel if user is admin
+            if (currentUser?.profile?.isAdmin) {
+                document.getElementById('adminPanel').style.display = 'block';
+            } else {
+                document.getElementById('adminPanel').style.display = 'none';
+            }
         }
 
         function updateComposeButton() {
@@ -2039,29 +2070,8 @@
         }
 
         function renderFeedWithTabs() {
-            if (!currentUser) {
-                // If user is not logged in, show login required message
-                const loginRequiredHtml = `
-                    <div class="login-required">
-                        <div class="login-required-icon">🔒</div>
-                        <h2>Log in to view feed</h2>
-                        <p>You need to be signed in to view posts and interact with the community.</p>
-                        <div class="login-required-buttons">
-                            <button class="login-required-btn" onclick="openAuthModal('signin')">
-                                <span>🚪</span>
-                                <span>Sign In</span>
-                            </button>
-                            <button class="login-required-btn secondary" onclick="openAuthModal('signup')">
-                                <span>✨</span>
-                                <span>Sign Up</span>
-                            </button>
-                        </div>
-                    </div>
-                `;
-                updateFeedContent(loginRequiredHtml);
-                return;
-            }
-
+            // Always show the tabs, but handle auth in the individual functions
+            
             // User is logged in, render based on current tab
             switch (currentFeedTab) {
                 case 'general':
@@ -2079,6 +2089,22 @@
         }
 
         function renderGeneralFeed() {
+            if (!currentUser) {
+                // Show login prompt for general feed
+                const loginRequiredHtml = `
+                    <div class="feature-placeholder">
+                        <h3>🏘️ Welcome to the Community</h3>
+                        <p>Sign in to view posts, create content, and interact with the community.</p>
+                        <div style="display: flex; gap: 12px; justify-content: center; margin-top: 16px;">
+                            <button class="btn" onclick="openAuthModal('signin')">Sign In</button>
+                            <button class="btn btn-secondary" onclick="openAuthModal('signup')">Sign Up</button>
+                        </div>
+                    </div>
+                `;
+                updateFeedContent(loginRequiredHtml);
+                return;
+            }
+
             const publicPosts = posts.filter(post => !post.isPrivate);
             updateFeedContent(renderPostList(publicPosts, 'No public posts yet!'));
         }
@@ -2117,8 +2143,9 @@
                     const emptyHtml = `
                         <div class="feature-placeholder">
                             <h3>🏘️ No Posts Yet</h3>
-                            <p>You're following ${result.followedCommunities} communities, but there are no recent posts.</p>
-                            <p style="margin-top: 12px;">Try following more communities to see more content here!</p>
+                            <p>You're following ${result.followedCommunities || 0} communities, but there are no recent posts.</p>
+                            <p style="margin-top: 12px; color: var(--fg-muted);">Browse communities and follow some to see their content here!</p>
+                            <button class="btn" onclick="navigateToFeed(); switchFeedTab('general')" style="margin-top: 16px;">Browse General Feed</button>
                         </div>
                     `;
                     updateFeedContent(emptyHtml);
@@ -2132,7 +2159,10 @@
                     <div class="feature-placeholder">
                         <h3>❌ Error Loading Feed</h3>
                         <p>Unable to load your followed communities feed. Please try again.</p>
-                        <button class="btn" onclick="renderFollowedFeed()" style="margin-top: 16px;">Retry</button>
+                        <div style="display: flex; gap: 12px; justify-content: center; margin-top: 16px;">
+                            <button class="btn" onclick="renderFollowedFeed()">Retry</button>
+                            <button class="btn btn-secondary" onclick="switchFeedTab('general')">View General Feed</button>
+                        </div>
                     </div>
                 `;
                 updateFeedContent(errorHtml);
