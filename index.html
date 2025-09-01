@@ -1497,141 +1497,81 @@
             document.getElementById(activeId).classList.add('active');
         }
 
-        // Enhanced API integration - using both blobs and api endpoints
-        const blogAPI = {
-            // Test API connection
-            async testConnection() {
-                try {
-                    console.log('🔍 Testing API connections...');
-                    
-                    // Test blobs function
-                    const blobsResponse = await fetch('/.netlify/functions/blobs?list=true&prefix=test', {
-                        method: 'GET',
-                        headers: { 'Content-Type': 'application/json' }
-                    });
-                    console.log(`📡 Blobs API: ${blobsResponse.status} ${blobsResponse.statusText}`);
-                    
-                    // Test main API function
-                    const apiResponse = await fetch('/.netlify/functions/api', {
-                        method: 'GET',
-                        headers: { 'Content-Type': 'application/json' }
-                    });
-                    console.log(`📡 Main API: ${apiResponse.status} ${apiResponse.statusText}`);
-                    
-                    return {
-                        blobs: blobsResponse.ok,
-                        api: apiResponse.ok
-                    };
-                } catch (error) {
-                    console.error('❌ API connection test failed:', error);
-                    return { blobs: false, api: false };
-                }
-            }
-        };
-
-        // Netlify Blobs API implementation with comprehensive error handling
+        // Netlify Blobs API implementation - back to the working version
         const blobAPI = {
             async get(key) {
                 try {
-                    console.log(`📥 Getting blob: ${key}`);
                     const response = await fetch(`/.netlify/functions/blobs?key=${encodeURIComponent(key)}`, {
                         method: 'GET',
                         headers: { 'Content-Type': 'application/json' }
                     });
                     
-                    console.log(`📡 Blob GET response: ${response.status} for key: ${key}`);
-                    
                     if (!response.ok) {
-                        if (response.status === 404) {
-                            console.log(`📭 Key not found: ${key}`);
-                            return null;
-                        }
-                        console.warn(`⚠️ Blob API GET error for key ${key}: ${response.status} ${response.statusText}`);
-                        return null;
+                        if (response.status === 404) return null;
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                     }
                     
                     const result = await response.json();
-                    console.log(`✅ Retrieved blob: ${key}`, result.data ? 'with data' : 'empty');
                     return result.data;
                 } catch (error) {
-                    console.error(`❌ Error getting blob ${key}:`, error);
+                    console.error('Error getting blob:', error);
                     return null;
                 }
             },
             
             async set(key, value) {
                 try {
-                    console.log(`📤 Setting blob: ${key}`);
                     const response = await fetch('/.netlify/functions/blobs', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ key, value })
                     });
                     
-                    console.log(`📡 Blob SET response: ${response.status} for key: ${key}`);
-                    
                     if (!response.ok) {
-                        const errorText = await response.text();
-                        console.error(`❌ Blob SET error: ${response.status} ${response.statusText}`, errorText);
                         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                     }
                     
-                    const result = await response.json();
-                    console.log(`✅ Set blob: ${key}`);
-                    return result;
+                    return await response.json();
                 } catch (error) {
-                    console.error(`❌ Error setting blob ${key}:`, error);
+                    console.error('Error setting blob:', error);
                     throw error;
                 }
             },
             
             async list(prefix = '') {
                 try {
-                    console.log(`📋 Listing blobs with prefix: ${prefix}`);
                     const response = await fetch(`/.netlify/functions/blobs?list=true&prefix=${encodeURIComponent(prefix)}`, {
                         method: 'GET',
                         headers: { 'Content-Type': 'application/json' }
                     });
                     
-                    console.log(`📡 Blob LIST response: ${response.status} for prefix: ${prefix}`);
-                    
                     if (!response.ok) {
-                        console.warn(`⚠️ Blob API LIST error: ${response.status} ${response.statusText}`);
-                        return [];
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                     }
                     
                     const result = await response.json();
-                    const keys = result.keys || [];
-                    console.log(`✅ Listed ${keys.length} blobs with prefix: ${prefix}`);
-                    return keys;
+                    return result.keys || [];
                 } catch (error) {
-                    console.error(`❌ Error listing blobs with prefix ${prefix}:`, error);
+                    console.error('Error listing blobs:', error);
                     return [];
                 }
             },
             
             async delete(key) {
                 try {
-                    console.log(`🗑️ Deleting blob: ${key}`);
                     const response = await fetch('/.netlify/functions/blobs', {
                         method: 'DELETE',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ key })
                     });
                     
-                    console.log(`📡 Blob DELETE response: ${response.status} for key: ${key}`);
-                    
                     if (!response.ok) {
-                        const errorText = await response.text();
-                        console.error(`❌ Blob DELETE error: ${response.status} ${response.statusText}`, errorText);
                         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                     }
                     
-                    const result = await response.json();
-                    console.log(`✅ Deleted blob: ${key}`);
-                    return result;
+                    return await response.json();
                 } catch (error) {
-                    console.error(`❌ Error deleting blob ${key}:`, error);
+                    console.error('Error deleting blob:', error);
                     throw error;
                 }
             }
