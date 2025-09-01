@@ -45,7 +45,7 @@ export default async (req, context) => {
       return await handleLogout(req, store, headers);
     }
 
-    // Media detection endpoint
+    // Enhanced Media detection endpoint
     if (path === 'media/detect') {
       return await handleMediaDetection(req, headers);
     }
@@ -180,6 +180,98 @@ export default async (req, context) => {
     );
   }
 };
+
+// ENHANCED MEDIA DETECTION HANDLERS
+
+async function handleMediaDetection(req, headers) {
+  if (req.method !== 'POST') {
+    return new Response(
+      JSON.stringify({ error: "Method not allowed" }),
+      { status: 405, headers }
+    );
+  }
+
+  try {
+    const { url } = await req.json();
+
+    if (!url) {
+      return new Response(
+        JSON.stringify({ error: "URL is required" }),
+        { status: 400, headers }
+      );
+    }
+
+    const mediaInfo = detectMediaType(url);
+    
+    return new Response(
+      JSON.stringify({
+        success: true,
+        url: url,
+        mediaType: mediaInfo.type,
+        platform: mediaInfo.platform,
+        canEmbed: mediaInfo.embed,
+        metadata: {
+          isVideo: mediaInfo.type === 'video',
+          isAudio: mediaInfo.type === 'audio',
+          isImage: mediaInfo.type === 'image',
+          isWebsite: mediaInfo.type === 'website',
+          requiresNewTab: true
+        }
+      }),
+      { status: 200, headers }
+    );
+
+  } catch (error) {
+    console.error("Media detection error:", error);
+    return new Response(
+      JSON.stringify({ 
+        error: "Failed to analyze media", 
+        details: error.message 
+      }),
+      { status: 500, headers }
+    );
+  }
+}
+
+// Enhanced detectMediaType function
+function detectMediaType(url) {
+  if (!url) return { type: 'text', embed: false, platform: null };
+
+  // YouTube
+  if (url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)/)) {
+    return { type: 'video', embed: true, platform: 'youtube' };
+  }
+
+  // Dailymotion
+  if (url.match(/(?:dailymotion\.com\/video\/|dai\.ly\/)/)) {
+    return { type: 'video', embed: true, platform: 'dailymotion' };
+  }
+
+  // Suno
+  if (url.match(/suno\.com\/song\//)) {
+    return { type: 'audio', embed: true, platform: 'suno' };
+  }
+
+  // Direct media files
+  if (url.match(/\.(jpg|jpeg|png|gif|webp|svg)(\?.*)?$/i)) {
+    return { type: 'image', embed: true, platform: 'direct' };
+  }
+
+  if (url.match(/\.(mp4|webm|ogg|mov)(\?.*)?$/i)) {
+    return { type: 'video', embed: true, platform: 'direct' };
+  }
+
+  if (url.match(/\.(mp3|wav|ogg|m4a|aac|flac)(\?.*)?$/i)) {
+    return { type: 'audio', embed: true, platform: 'direct' };
+  }
+
+  // General website
+  if (url.match(/^https?:\/\/.+/i)) {
+    return { type: 'website', embed: true, platform: 'web' };
+  }
+
+  return { type: 'link', embed: false, platform: null };
+}
 
 // ADMIN USER MANAGEMENT HANDLERS
 
@@ -1015,134 +1107,7 @@ async function handleCommunityPosts(req, blogStore, headers, communityName) {
   }
 }
 
-// ADMIN COMMUNITY HANDLERS
-
-async function handleAdminCommunities(req, blogStore, headers, admin) {
-  if (req.method !== 'GET') {
-    return new Response(
-      JSON.stringify({ error: "Method not allowed" }),
-      { status: 405, headers }
-    );
-  }
-
-  try {
-    const { blobs } = await blogStore.list({ prefix: "community_" });
-    const communities = [];
-
-    for (const blob of blobs) {
-      try {
-        const community = await blogStore.get(blob.key, { type: "json" });
-        if (community) {
-          // Get post count for this community
-          const { blobs: postBlobs } = await blogStore.list({ prefix: "post_" });
-          let postCount = 0;
-          
-          for (const postBlob of postBlobs) {
-            try {
-              const post = await blogStore.get(postBlob.key, { type: "json" });
-              if (post && post.communityName === community.name) {
-                postCount++;
-              }
-            } catch (error) {
-              console.error(`Error loading post ${postBlob.key}:`, error);
-            }
-          }
-          
-          communities.push({
-            ...community,
-            postCount,
-            memberCount: community.members ? community.members.length : 0
-          });
-        }
-      } catch (error) {
-        console.error(`Error loading community ${blob.key}:`, error);
-      }
-    }
-
-    return new Response(
-      JSON.stringify({
-        success: true,
-        communities: communities.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-      }),
-      { status: 200, headers }
-    );
-
-  } catch (error) {
-    console.error("Get admin communities error:", error);
-    return new Response(
-      JSON.stringify({ error: "Failed to load communities" }),
-      { status: 500, headers }
-    );
-  }
-}
-
-async function handleDeleteCommunity(req, blogStore, headers, admin) {
-  if (req.method !== 'POST') {
-    return new Response(
-      JSON.stringify({ error: "Method not allowed" }),
-      { status: 405, headers }
-    );
-  }
-
-  try {
-    const { name } = await req.json();
-
-    if (!name) {
-      return new Response(
-        JSON.stringify({ error: "Community name is required" }),
-        { status: 400, headers }
-      );
-    }
-
-    // Get community to verify it exists
-    const community = await blogStore.get(`community_${name}`, { type: "json" });
-    if (!community) {
-      return new Response(
-        JSON.stringify({ error: "Community not found" }),
-        { status: 404, headers }
-      );
-    }
-
-    // Delete all posts in this community
-    const { blobs } = await blogStore.list({ prefix: "post_" });
-    let deletedPosts = 0;
-
-    for (const blob of blobs) {
-      try {
-        const post = await blogStore.get(blob.key, { type: "json" });
-        if (post && post.communityName === name) {
-          await blogStore.delete(blob.key);
-          deletedPosts++;
-        }
-      } catch (error) {
-        console.error(`Error deleting post ${blob.key}:`, error);
-      }
-    }
-
-    // Delete community
-    await blogStore.delete(`community_${name}`);
-
-    return new Response(
-      JSON.stringify({
-        success: true,
-        message: "Community and all associated posts deleted successfully",
-        deletedCommunity: name,
-        deletedPosts: deletedPosts,
-        deletedBy: admin.username
-      }),
-      { status: 200, headers }
-    );
-
-  } catch (error) {
-    console.error("Delete community error:", error);
-    return new Response(
-      JSON.stringify({ error: "Failed to delete community" }),
-      { status: 500, headers }
-    );
-  }
-}
-
-// UPDATED POST CREATION WITH COMMUNITY SUPPORT
+// UPDATED POST CREATION WITH COMMUNITY SUPPORT AND ENHANCED MEDIA DETECTION
 async function handleCreatePost(req, blogStore, headers, user) {
   if (req.method !== 'POST') {
     return new Response(
@@ -1251,6 +1216,7 @@ async function handleCreatePost(req, blogStore, headers, user) {
         post.description = description.trim();
       }
       
+      // Enhanced media detection
       const mediaInfo = detectMediaType(url);
       post.mediaType = mediaInfo.type;
       post.canEmbed = mediaInfo.embed;
@@ -1489,10 +1455,137 @@ async function handlePrivateFeed(req, blogStore, headers, user) {
   }
 }
 
+// ADMIN COMMUNITY HANDLERS
+
+async function handleAdminCommunities(req, blogStore, headers, admin) {
+  if (req.method !== 'GET') {
+    return new Response(
+      JSON.stringify({ error: "Method not allowed" }),
+      { status: 405, headers }
+    );
+  }
+
+  try {
+    const { blobs } = await blogStore.list({ prefix: "community_" });
+    const communities = [];
+
+    for (const blob of blobs) {
+      try {
+        const community = await blogStore.get(blob.key, { type: "json" });
+        if (community) {
+          // Get post count for this community
+          const { blobs: postBlobs } = await blogStore.list({ prefix: "post_" });
+          let postCount = 0;
+          
+          for (const postBlob of postBlobs) {
+            try {
+              const post = await blogStore.get(postBlob.key, { type: "json" });
+              if (post && post.communityName === community.name) {
+                postCount++;
+              }
+            } catch (error) {
+              console.error(`Error loading post ${postBlob.key}:`, error);
+            }
+          }
+          
+          communities.push({
+            ...community,
+            postCount,
+            memberCount: community.members ? community.members.length : 0
+          });
+        }
+      } catch (error) {
+        console.error(`Error loading community ${blob.key}:`, error);
+      }
+    }
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        communities: communities.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+      }),
+      { status: 200, headers }
+    );
+
+  } catch (error) {
+    console.error("Get admin communities error:", error);
+    return new Response(
+      JSON.stringify({ error: "Failed to load communities" }),
+      { status: 500, headers }
+    );
+  }
+}
+
+async function handleDeleteCommunity(req, blogStore, headers, admin) {
+  if (req.method !== 'POST') {
+    return new Response(
+      JSON.stringify({ error: "Method not allowed" }),
+      { status: 405, headers }
+    );
+  }
+
+  try {
+    const { name } = await req.json();
+
+    if (!name) {
+      return new Response(
+        JSON.stringify({ error: "Community name is required" }),
+        { status: 400, headers }
+      );
+    }
+
+    // Get community to verify it exists
+    const community = await blogStore.get(`community_${name}`, { type: "json" });
+    if (!community) {
+      return new Response(
+        JSON.stringify({ error: "Community not found" }),
+        { status: 404, headers }
+      );
+    }
+
+    // Delete all posts in this community
+    const { blobs } = await blogStore.list({ prefix: "post_" });
+    let deletedPosts = 0;
+
+    for (const blob of blobs) {
+      try {
+        const post = await blogStore.get(blob.key, { type: "json" });
+        if (post && post.communityName === name) {
+          await blogStore.delete(blob.key);
+          deletedPosts++;
+        }
+      } catch (error) {
+        console.error(`Error deleting post ${blob.key}:`, error);
+      }
+    }
+
+    // Delete community
+    await blogStore.delete(`community_${name}`);
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        message: "Community and all associated posts deleted successfully",
+        deletedCommunity: name,
+        deletedPosts: deletedPosts,
+        deletedBy: admin.username
+      }),
+      { status: 200, headers }
+    );
+
+  } catch (error) {
+    console.error("Delete community error:", error);
+    return new Response(
+      JSON.stringify({ error: "Failed to delete community" }),
+      { status: 500, headers }
+    );
+  }
+}
+
 // UPDATED DOCUMENTATION
 async function handleDefault(req, headers) {
   const docs = {
-    message: "Blog API v5.1 - Now with Admin User Management! 👑",
+    message: "Blog API v6.0 - Now with Enhanced Media Support! 🎥🎵🌐",
     endpoints: {
       // Authentication
       "POST /api/auth/login": "Login with username/password",
@@ -1524,8 +1617,8 @@ async function handleDefault(req, headers) {
       "POST /api/admin/delete-user": "Delete user and all their posts",
       "GET /api/admin/stats": "Get admin dashboard statistics",
       
-      // Media Detection
-      "POST /api/media/detect": "Detect media type and generate embed HTML",
+      // Enhanced Media Detection
+      "POST /api/media/detect": "Detect media type and generate embed info for YouTube, Dailymotion, Suno, images, videos, audio, and websites",
       
       // Search endpoint
       "GET /api/search/posts": "Search public posts",
@@ -1535,8 +1628,8 @@ async function handleDefault(req, headers) {
       "GET /api/feeds/private": "Get user's private posts",
       "GET /api/feeds/following": "Get posts from followed communities",
       
-      // Posts (requires auth) - now support community posting
-      "POST /api/posts/create": "Create new post (can specify communityName)",
+      // Posts (requires auth) - now support community posting and enhanced media
+      "POST /api/posts/create": "Create new post with enhanced media detection (YouTube, Dailymotion, Suno, etc.)",
       "GET /api/posts": "Get user's posts with pagination",
       "GET /api/posts/{postId}": "Get specific post by ID",
       "PUT /api/posts/{postId}/edit": "Edit specific post",
@@ -1554,7 +1647,29 @@ async function handleDefault(req, headers) {
       "GET /api/profile": "Get user profile with stats",
       "PUT /api/profile/update": "Update user profile"
     },
-    newFeatures: {
+    newFeaturesV6: {
+      enhancedMediaSupport: {
+        description: "Comprehensive media support with intelligent embedding! 🎥🎵🌐",
+        supportedPlatforms: [
+          "YouTube videos (youtube.com, youtu.be)",
+          "Dailymotion videos (dailymotion.com, dai.ly)",
+          "Suno AI music (suno.com/song/)",
+          "Direct images (jpg, png, gif, webp, svg)",
+          "Direct videos (mp4, webm, ogg, mov)",
+          "Direct audio (mp3, wav, ogg, m4a, aac, flac)",
+          "General websites with favicon and preview cards"
+        ],
+        features: [
+          "Automatic platform detection and embedding",
+          "Responsive video players with 16:9 aspect ratio",
+          "Custom Suno music cards with gradient backgrounds",
+          "Audio players for direct audio files",
+          "Interactive website preview cards with hover effects",
+          "Clickable image modals with full-screen viewing",
+          "Favicon integration for website previews",
+          "Mobile-optimized responsive design"
+        ]
+      },
       adminUserManagement: {
         description: "Full admin user management with protected admin! 👑",
         features: [
@@ -1564,21 +1679,6 @@ async function handleDefault(req, headers) {
           "Self-demotion prevention for security",
           "Track promotion/demotion history with timestamps",
           "Admin action logging and attribution"
-        ],
-        protections: [
-          "@dumbass user is permanently protected from demotion",
-          "Admins cannot demote themselves",
-          "All admin actions are logged with timestamps and attribution"
-        ]
-      },
-      replies: {
-        description: "Full reply management with API endpoints! 💬",
-        features: [
-          "Create replies with content validation",
-          "Delete replies with permission checks",
-          "Author and admin deletion rights",
-          "Real-time reply counts",
-          "Markdown support in replies"
         ]
       },
       communities: {
@@ -1602,14 +1702,28 @@ async function handleDefault(req, headers) {
         ]
       }
     },
-    protectedUsers: {
-      dumbass: {
-        description: "Special protected admin user",
-        protections: [
-          "Cannot be demoted by any admin",
-          "Permanent admin privileges",
-          "API returns 403 Forbidden with specific error message when demotion is attempted"
-        ]
+    mediaSupport: {
+      youtube: {
+        patterns: ["youtube.com/watch?v=", "youtu.be/"],
+        embedding: "Full embedded player with controls"
+      },
+      dailymotion: {
+        patterns: ["dailymotion.com/video/", "dai.ly/"],
+        embedding: "Full embedded player with controls"
+      },
+      suno: {
+        patterns: ["suno.com/song/"],
+        embedding: "Custom music card with link to Suno"
+      },
+      directMedia: {
+        images: ["jpg", "jpeg", "png", "gif", "webp", "svg"],
+        videos: ["mp4", "webm", "ogg", "mov"],
+        audio: ["mp3", "wav", "ogg", "m4a", "aac", "flac"],
+        embedding: "Native browser controls with custom styling"
+      },
+      websites: {
+        pattern: "Any valid HTTP/HTTPS URL",
+        embedding: "Preview card with favicon, domain, and hover effects"
       }
     }
   };
@@ -1620,7 +1734,8 @@ async function handleDefault(req, headers) {
   );
 }
 
-// UTILITY FUNCTION: Enrich posts with author profile data
+// UTILITY FUNCTIONS
+
 async function enrichPostWithAuthorProfile(post, blogStore) {
   if (!post || !post.author) {
     return post;
@@ -1657,7 +1772,6 @@ async function enrichPostWithAuthorProfile(post, blogStore) {
   return post;
 }
 
-// UTILITY FUNCTION: Enrich multiple posts with author profiles
 async function enrichPostsWithAuthorProfiles(posts, blogStore) {
   if (!posts || !Array.isArray(posts)) {
     return posts;
@@ -1978,17 +2092,6 @@ async function handlePostOperations(req, blogStore, headers, user, path) {
     JSON.stringify({ success: true, post: {} }),
     { status: 200, headers }
   );
-}
-
-async function handleMediaDetection(req, headers) {
-  return new Response(
-    JSON.stringify({ success: true, mediaType: "text" }),
-    { status: 200, headers }
-  );
-}
-
-function detectMediaType(url) {
-  return { type: 'link', embed: false };
 }
 
 // Utility functions
