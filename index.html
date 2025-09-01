@@ -9,7 +9,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/DOMPurify/3.0.7/purify.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.7/purify.min.js"></script>
     <style>
         :root {
             /* GitHub Dark Theme Colors */
@@ -1816,7 +1816,7 @@
             
             // Custom image renderer
             markdownRenderer.image = function(href, title, text) {
-                return `<img src="${href}" alt="${text}" ${title ? `title="${title}"` : ''} onclick="openImageModal('${href}')" style="cursor: pointer;">`;
+                return `<img src="${href}" alt="${text || 'Image'}" ${title ? `title="${title}"` : ''} onclick="openImageModal('${href}')" style="cursor: pointer;">`;
             };
 
             await loadUser();
@@ -2077,7 +2077,7 @@
                                 <span>⬆️</span>
                                 <span>Vote</span>
                             </button>
-                            <button class="action-btn">
+                            <button class="action-btn" onclick="toggleReplies('${post.id}')">
                                 <span>💬</span>
                                 <span>${post.replies ? post.replies.length : 0}</span>
                             </button>
@@ -2087,6 +2087,33 @@
                                     <span>Delete</span>
                                 </button>
                             ` : ''}
+                        </div>
+                        
+                        <!-- Replies Section -->
+                        <div class="replies-section" id="replies-${post.id}">
+                            <div class="replies-container">
+                                <div class="replies-list" id="replies-list-${post.id}">
+                                    ${renderReplies(post.replies || [])}
+                                </div>
+                                
+                                ${currentUser ? `
+                                    <div class="reply-form">
+                                        <textarea 
+                                            class="reply-input" 
+                                            id="reply-input-${post.id}"
+                                            placeholder="Write a reply... (Markdown supported)"
+                                            maxlength="2000"></textarea>
+                                        <div class="reply-form-buttons">
+                                            <button class="reply-btn-cancel" onclick="toggleReplies('${post.id}')">Cancel</button>
+                                            <button class="reply-btn-submit" onclick="submitReply('${post.id}')">Reply</button>
+                                        </div>
+                                    </div>
+                                ` : `
+                                    <div style="text-align: center; padding: 16px; color: var(--fg-muted); font-size: 13px;">
+                                        <a href="#" onclick="openAuthModal('signin'); return false;" style="color: var(--accent-fg);">Sign in</a> to reply
+                                    </div>
+                                `}
+                            </div>
                         </div>
                     </div>
                 `;
@@ -2148,12 +2175,128 @@
             return null;
         }
 
+        function renderReplies(replies) {
+            if (!replies || replies.length === 0) {
+                return '<div class="no-replies">No replies yet. Be the first to reply!</div>';
+            }
+
+            return replies.map(reply => `
+                <div class="reply-item">
+                    <div class="reply-header">
+                        <div class="reply-avatar">${reply.author.charAt(0).toUpperCase()}</div>
+                        <span class="reply-author">@${escapeHtml(reply.author)}</span>
+                        <span class="reply-timestamp">${formatTimestamp(reply.timestamp)}</span>
+                    </div>
+                    <div class="reply-content markdown-content">
+                        ${renderMarkdown(reply.content)}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function toggleReplies(postId) {
+            const repliesSection = document.getElementById(`replies-${postId}`);
+            const isOpen = repliesSection.classList.contains('open');
+            
+            if (isOpen) {
+                repliesSection.classList.remove('open');
+            } else {
+                repliesSection.classList.add('open');
+                // Focus on reply input if user is logged in
+                if (currentUser) {
+                    setTimeout(() => {
+                        const replyInput = document.getElementById(`reply-input-${postId}`);
+                        if (replyInput) {
+                            replyInput.focus();
+                        }
+                    }, 300); // Wait for animation to complete
+                }
+            }
+        }
+
+        async function submitReply(postId) {
+            if (!currentUser) {
+                openAuthModal('signin');
+                return;
+            }
+
+            const replyInput = document.getElementById(`reply-input-${postId}`);
+            const content = replyInput.value.trim();
+            
+            if (!content) {
+                showSuccessMessage('Please write a reply before submitting.');
+                return;
+            }
+
+            if (content.length > 2000) {
+                showSuccessMessage('Reply must be 2000 characters or less.');
+                return;
+            }
+
+            try {
+                // Find the post
+                const post = posts.find(p => p.id === postId);
+                if (!post) {
+                    showSuccessMessage('Post not found.');
+                    return;
+                }
+
+                // Create reply object
+                const reply = {
+                    id: `reply_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                    author: currentUser.username,
+                    content: content,
+                    timestamp: new Date().toISOString()
+                };
+
+                // Add reply to post
+                if (!post.replies) {
+                    post.replies = [];
+                }
+                post.replies.push(reply);
+
+                // Update post in storage
+                await blobAPI.set(postId, post);
+
+                // Update local posts array
+                const postIndex = posts.findIndex(p => p.id === postId);
+                if (postIndex !== -1) {
+                    posts[postIndex] = post;
+                }
+
+                // Clear input
+                replyInput.value = '';
+
+                // Update replies display
+                const repliesList = document.getElementById(`replies-list-${postId}`);
+                if (repliesList) {
+                    repliesList.innerHTML = renderReplies(post.replies);
+                }
+
+                // Update reply count in button
+                updateReplyCount(postId, post.replies.length);
+
+                showSuccessMessage('Reply added successfully!');
+
+            } catch (error) {
+                console.error('Error submitting reply:', error);
+                showSuccessMessage('Failed to submit reply. Please try again.');
+            }
+        }
+
         function renderMarkdown(text) {
             if (!text) return '';
             
             try {
                 const html = marked.parse(text, { renderer: markdownRenderer });
-                return DOMPurify.sanitize(html);
+                
+                // Use DOMPurify if available, otherwise return the HTML as-is
+                if (typeof DOMPurify !== 'undefined') {
+                    return DOMPurify.sanitize(html);
+                } else {
+                    console.warn('DOMPurify not available, returning unsanitized HTML');
+                    return html;
+                }
             } catch (error) {
                 console.error('Markdown rendering error:', error);
                 return escapeHtml(text);
