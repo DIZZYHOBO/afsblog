@@ -1013,7 +1013,106 @@
             font-size: 14px;
         }
 
-        /* Modal Styles */
+        /* Markdown Toolbar Styles */
+        .markdown-toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            padding: 8px;
+            background: var(--bg-subtle);
+            border: 1px solid var(--border-default);
+            border-bottom: none;
+            border-radius: 6px 6px 0 0;
+            align-items: center;
+        }
+
+        .markdown-btn {
+            background: var(--bg-default);
+            border: 1px solid var(--border-default);
+            border-radius: 4px;
+            color: var(--fg-default);
+            cursor: pointer;
+            padding: 6px 8px;
+            font-size: 12px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            min-width: 28px;
+            height: 28px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .markdown-btn:hover {
+            background: var(--btn-secondary-hover-bg);
+            border-color: var(--accent-emphasis);
+        }
+
+        .markdown-btn:active {
+            transform: scale(0.95);
+        }
+
+        .toolbar-divider {
+            width: 1px;
+            height: 20px;
+            background: var(--border-default);
+            margin: 0 4px;
+        }
+
+        .markdown-preview {
+            border: 1px solid var(--border-default);
+            border-radius: 6px;
+            background: var(--bg-default);
+            margin-top: 8px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .preview-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 12px;
+            background: var(--bg-subtle);
+            border-bottom: 1px solid var(--border-default);
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--fg-muted);
+        }
+
+        .preview-header .btn-small {
+            padding: 4px 8px;
+            font-size: 11px;
+        }
+
+        #previewContent {
+            padding: 12px;
+        }
+
+        /* Adjust textarea when toolbar is present */
+        .markdown-toolbar + textarea {
+            border-radius: 0 0 6px 6px;
+            border-top: none;
+        }
+
+        /* Responsive toolbar */
+        @media (max-width: 480px) {
+            .markdown-toolbar {
+                gap: 2px;
+                padding: 6px;
+            }
+            
+            .markdown-btn {
+                padding: 4px 6px;
+                font-size: 11px;
+                min-width: 24px;
+                height: 24px;
+            }
+            
+            .toolbar-divider {
+                margin: 0 2px;
+            }
+        }
         .modal {
             display: none;
             position: fixed;
@@ -2247,7 +2346,56 @@
         </div>
     </div>
 
-    <!-- Edit Profile Modal -->
+    <!-- Image Insert Modal -->
+    <div class="modal" id="imageInsertModal">
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header">
+                <h3>Insert Image</h3>
+                <button class="close-btn" onclick="closeModal('imageInsertModal')">&times;</button>
+            </div>
+            <form id="imageInsertForm" onsubmit="handleImageInsert(event)">
+                <div class="form-group">
+                    <label for="imageUrl">Image URL</label>
+                    <input type="url" id="imageUrl" placeholder="https://example.com/image.jpg" required>
+                    <small>Enter a direct link to an image (jpg, png, gif, webp)</small>
+                </div>
+                <div class="form-group">
+                    <label for="imageAltText">Alt Text (Optional)</label>
+                    <input type="text" id="imageAltText" placeholder="Description of the image" maxlength="200">
+                    <small>Describes the image for accessibility and if the image fails to load</small>
+                </div>
+                <div class="form-group">
+                    <label for="imageTitle">Title (Optional)</label>
+                    <input type="text" id="imageTitle" placeholder="Image title" maxlength="200">
+                    <small>Shows as a tooltip when hovering over the image</small>
+                </div>
+                <button type="submit" class="btn">Insert Image</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Link Insert Modal -->
+    <div class="modal" id="linkInsertModal">
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header">
+                <h3>Insert Link</h3>
+                <button class="close-btn" onclick="closeModal('linkInsertModal')">&times;</button>
+            </div>
+            <form id="linkInsertForm" onsubmit="handleLinkInsert(event)">
+                <div class="form-group">
+                    <label for="linkUrl">URL</label>
+                    <input type="url" id="linkUrl" placeholder="https://example.com" required>
+                    <small>The web address you want to link to</small>
+                </div>
+                <div class="form-group">
+                    <label for="linkText">Link Text</label>
+                    <input type="text" id="linkText" placeholder="Click here" maxlength="200" required>
+                    <small>The text that will be clickable</small>
+                </div>
+                <button type="submit" class="btn">Insert Link</button>
+            </form>
+        </div>
+    </div>
     <div class="modal" id="editProfileModal">
         <div class="modal-content">
             <div class="modal-header">
@@ -2307,8 +2455,69 @@
                 <div id="textPostFields">
                     <div class="form-group">
                         <label for="postContent">Content</label>
+                        
+                        <!-- Markdown Toolbar -->
+                        <div class="markdown-toolbar">
+                            <button type="button" class="markdown-btn" onclick="insertMarkdown('**', '**', 'Bold text')" title="Bold">
+                                <strong>B</strong>
+                            </button>
+                            <button type="button" class="markdown-btn" onclick="insertMarkdown('*', '*', 'Italic text')" title="Italic">
+                                <em>I</em>
+                            </button>
+                            <button type="button" class="markdown-btn" onclick="insertMarkdown('`', '`', 'Code')" title="Inline Code">
+                                <code>&lt;/&gt;</code>
+                            </button>
+                            <button type="button" class="markdown-btn" onclick="insertMarkdown('```\n', '\n```', 'Code block')" title="Code Block">
+                                <span>{ }</span>
+                            </button>
+                            <div class="toolbar-divider"></div>
+                            <button type="button" class="markdown-btn" onclick="insertMarkdown('# ', '', 'Heading 1')" title="Heading 1">
+                                H1
+                            </button>
+                            <button type="button" class="markdown-btn" onclick="insertMarkdown('## ', '', 'Heading 2')" title="Heading 2">
+                                H2
+                            </button>
+                            <button type="button" class="markdown-btn" onclick="insertMarkdown('### ', '', 'Heading 3')" title="Heading 3">
+                                H3
+                            </button>
+                            <div class="toolbar-divider"></div>
+                            <button type="button" class="markdown-btn" onclick="insertMarkdown('> ', '', 'Quote text')" title="Quote">
+                                <span>"</span>
+                            </button>
+                            <button type="button" class="markdown-btn" onclick="insertMarkdown('- ', '', 'List item')" title="Bullet List">
+                                •
+                            </button>
+                            <button type="button" class="markdown-btn" onclick="insertMarkdown('1. ', '', 'List item')" title="Numbered List">
+                                1.
+                            </button>
+                            <div class="toolbar-divider"></div>
+                            <button type="button" class="markdown-btn" onclick="insertLink()" title="Add Link">
+                                🔗
+                            </button>
+                            <button type="button" class="markdown-btn" onclick="insertImage()" title="Add Image">
+                                🖼️
+                            </button>
+                            <button type="button" class="markdown-btn" onclick="insertMarkdown('~~', '~~', 'Strikethrough text')" title="Strikethrough">
+                                <s>S</s>
+                            </button>
+                            <div class="toolbar-divider"></div>
+                            <button type="button" class="markdown-btn" onclick="previewMarkdown()" title="Preview" id="previewBtn">
+                                👁️
+                            </button>
+                        </div>
+                        
                         <textarea id="postContent" required placeholder="Share your thoughts... (Markdown supported)" maxlength="10000"></textarea>
-                        <small>Supports Markdown formatting, including **bold**, *italic*, `code`, links, images, and more!</small>
+                        
+                        <!-- Preview Area -->
+                        <div id="markdownPreview" class="markdown-preview" style="display: none;">
+                            <div class="preview-header">
+                                <span>Preview:</span>
+                                <button type="button" class="btn-small" onclick="hidePreview()">Edit</button>
+                            </div>
+                            <div id="previewContent" class="markdown-content"></div>
+                        </div>
+                        
+                        <small>Supports Markdown formatting. Use the toolbar buttons above for quick formatting!</small>
                     </div>
                 </div>
 
@@ -5209,10 +5418,175 @@
             return div.innerHTML;
         }
 
-        // Image modal functions (placeholder)
-        function openImageModal(src) {
-            // TODO: Implement image modal
-            window.open(src, '_blank');
+        // Markdown toolbar functionality
+        let currentTextarea = null;
+
+        function insertMarkdown(prefix, suffix, placeholder) {
+            const textarea = document.getElementById('postContent');
+            if (!textarea) return;
+            
+            const start = textarea.selectionStart;
+            const end = textarea.selectionEnd;
+            const selectedText = textarea.value.substring(start, end);
+            const replacement = selectedText || placeholder;
+            
+            const newText = textarea.value.substring(0, start) + 
+                           prefix + replacement + suffix + 
+                           textarea.value.substring(end);
+            
+            textarea.value = newText;
+            
+            // Set cursor position
+            const newCursorPos = start + prefix.length + replacement.length;
+            textarea.focus();
+            textarea.setSelectionRange(newCursorPos, newCursorPos);
+            
+            // Trigger input event for any listeners
+            textarea.dispatchEvent(new Event('input'));
+        }
+
+        function insertImage() {
+            // Reset the form
+            document.getElementById('imageInsertForm').reset();
+            currentTextarea = document.getElementById('postContent');
+            openModal('imageInsertModal');
+        }
+
+        function handleImageInsert(e) {
+            e.preventDefault();
+            
+            const url = document.getElementById('imageUrl').value.trim();
+            const alt = document.getElementById('imageAltText').value.trim() || 'Image';
+            const title = document.getElementById('imageTitle').value.trim();
+            
+            if (!url) {
+                showSuccessMessage('Please enter an image URL');
+                return;
+            }
+            
+            // Validate URL format
+            try {
+                new URL(url);
+            } catch {
+                showSuccessMessage('Please enter a valid URL');
+                return;
+            }
+            
+            let markdown = `![${alt}](${url}`;
+            if (title) {
+                markdown += ` "${title}"`;
+            }
+            markdown += ')';
+            
+            if (currentTextarea) {
+                const start = currentTextarea.selectionStart;
+                const end = currentTextarea.selectionEnd;
+                
+                const newText = currentTextarea.value.substring(0, start) + 
+                               markdown + 
+                               currentTextarea.value.substring(end);
+                
+                currentTextarea.value = newText;
+                currentTextarea.focus();
+                currentTextarea.setSelectionRange(start + markdown.length, start + markdown.length);
+                currentTextarea.dispatchEvent(new Event('input'));
+            }
+            
+            closeModal('imageInsertModal');
+            showSuccessMessage('Image inserted successfully!');
+        }
+
+        function insertLink() {
+            // Reset the form
+            document.getElementById('linkInsertForm').reset();
+            currentTextarea = document.getElementById('postContent');
+            
+            // Pre-fill with selected text if any
+            const start = currentTextarea.selectionStart;
+            const end = currentTextarea.selectionEnd;
+            const selectedText = currentTextarea.value.substring(start, end);
+            
+            if (selectedText) {
+                document.getElementById('linkText').value = selectedText;
+            }
+            
+            openModal('linkInsertModal');
+        }
+
+        function handleLinkInsert(e) {
+            e.preventDefault();
+            
+            const url = document.getElementById('linkUrl').value.trim();
+            const text = document.getElementById('linkText').value.trim();
+            
+            if (!url || !text) {
+                showSuccessMessage('Please enter both URL and link text');
+                return;
+            }
+            
+            // Validate URL format
+            try {
+                new URL(url);
+            } catch {
+                showSuccessMessage('Please enter a valid URL');
+                return;
+            }
+            
+            const markdown = `[${text}](${url})`;
+            
+            if (currentTextarea) {
+                const start = currentTextarea.selectionStart;
+                const end = currentTextarea.selectionEnd;
+                
+                const newText = currentTextarea.value.substring(0, start) + 
+                               markdown + 
+                               currentTextarea.value.substring(end);
+                
+                currentTextarea.value = newText;
+                currentTextarea.focus();
+                currentTextarea.setSelectionRange(start + markdown.length, start + markdown.length);
+                currentTextarea.dispatchEvent(new Event('input'));
+            }
+            
+            closeModal('linkInsertModal');
+            showSuccessMessage('Link inserted successfully!');
+        }
+
+        function previewMarkdown() {
+            const textarea = document.getElementById('postContent');
+            const preview = document.getElementById('markdownPreview');
+            const previewContent = document.getElementById('previewContent');
+            const previewBtn = document.getElementById('previewBtn');
+            
+            if (!textarea.value.trim()) {
+                showSuccessMessage('Write some content to preview');
+                return;
+            }
+            
+            if (preview.style.display === 'none') {
+                // Show preview
+                const html = renderMarkdown(textarea.value);
+                previewContent.innerHTML = html;
+                preview.style.display = 'block';
+                textarea.style.display = 'none';
+                previewBtn.textContent = '✏️';
+                previewBtn.title = 'Edit';
+            } else {
+                // Hide preview
+                hidePreview();
+            }
+        }
+
+        function hidePreview() {
+            const textarea = document.getElementById('postContent');
+            const preview = document.getElementById('markdownPreview');
+            const previewBtn = document.getElementById('previewBtn');
+            
+            preview.style.display = 'none';
+            textarea.style.display = 'block';
+            previewBtn.textContent = '👁️';
+            previewBtn.title = 'Preview';
+            textarea.focus();
         }
 
     </script>
