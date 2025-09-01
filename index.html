@@ -366,6 +366,87 @@
             transition: all 0.3s ease;
         }
 
+        /* Feed Tabs */
+        .feed-tabs {
+            background-color: var(--bg-default);
+            border: 1px solid var(--border-default);
+            border-radius: 8px;
+            padding: 4px;
+            margin-bottom: 24px;
+            display: flex;
+            gap: 4px;
+        }
+
+        .feed-tab {
+            flex: 1;
+            background: none;
+            border: none;
+            color: var(--fg-muted);
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            padding: 8px 16px;
+            border-radius: 6px;
+            transition: all 0.2s ease;
+            text-align: center;
+        }
+
+        .feed-tab:hover {
+            background-color: var(--btn-secondary-hover-bg);
+            color: var(--fg-default);
+        }
+
+        .feed-tab.active {
+            background-color: var(--btn-primary-bg);
+            color: white;
+        }
+
+        .feed-tab.active:hover {
+            background-color: var(--btn-primary-hover-bg);
+        }
+
+        .feed-tab:disabled {
+            background-color: var(--bg-subtle);
+            color: var(--fg-subtle);
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+
+        .feed-tab:disabled:hover {
+            background-color: var(--bg-subtle);
+            color: var(--fg-subtle);
+        }
+
+        /* Tab Content */
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* Placeholder for future features */
+        .feature-placeholder {
+            background-color: var(--bg-default);
+            border: 1px solid var(--border-default);
+            border-radius: 8px;
+            padding: 40px 20px;
+            text-align: center;
+            color: var(--fg-muted);
+        }
+
+        .feature-placeholder h3 {
+            color: var(--fg-default);
+            font-size: 18px;
+            margin-bottom: 8px;
+        }
+
+        .feature-placeholder p {
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
         /* Post Cards - GitHub styled */
         .post-card {
             background-color: var(--bg-default);
@@ -1021,8 +1102,22 @@
 
     <!-- Main Content -->
     <main class="main-container">
-        <div id="feed" class="loading">
-            Loading...
+        <!-- Feed Tabs (only show when on feed page and user is logged in) -->
+        <div id="feedTabs" class="feed-tabs" style="display: none;">
+            <button class="feed-tab active" id="generalTab" onclick="switchFeedTab('general')">
+                General
+            </button>
+            <button class="feed-tab" id="followedTab" onclick="switchFeedTab('followed')" disabled>
+                Followed
+            </button>
+            <button class="feed-tab" id="privateTab" onclick="switchFeedTab('private')">
+                Private
+            </button>
+        </div>
+
+        <!-- Feed Content -->
+        <div id="feed">
+            <div class="loading">Loading...</div>
         </div>
     </main>
 
@@ -1162,6 +1257,7 @@
         let uploadedMedia = null;
         let markdownRenderer;
         let inlineLoginFormOpen = false;
+        let currentFeedTab = 'general'; // Track current feed tab
 
         // Menu functions
         function toggleMenu() {
@@ -1400,6 +1496,35 @@
             document.getElementById(activeId).classList.add('active');
         }
 
+        // Feed Tab Functions
+        function switchFeedTab(tabName) {
+            if (tabName === 'followed') {
+                // Followed tab is disabled for now
+                return;
+            }
+
+            currentFeedTab = tabName;
+            
+            // Update tab visual states
+            document.querySelectorAll('.feed-tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.getElementById(`${tabName}Tab`).classList.add('active');
+            
+            // Re-render the current page with new tab
+            renderCurrentPage();
+        }
+
+        function updateFeedTabsVisibility() {
+            const feedTabs = document.getElementById('feedTabs');
+            // Show tabs only on feed page when user is logged in
+            if (currentPage === 'feed' && currentUser) {
+                feedTabs.style.display = 'flex';
+            } else {
+                feedTabs.style.display = 'none';
+            }
+        }
+
         // Netlify Blobs API implementation (keeping the existing implementation)
         const blobAPI = {
             async get(key) {
@@ -1618,6 +1743,7 @@
 
         function updateUI() {
             updateComposeButton();
+            updateFeedTabsVisibility();
             renderCurrentPage();
         }
 
@@ -1640,15 +1766,66 @@
 
         function renderCurrentPage() {
             if (currentPage === 'feed') {
-                renderFeed();
+                renderFeedWithTabs();
             } else if (currentPage === 'community') {
                 renderCommunityPage();
             }
         }
 
+        function renderFeedWithTabs() {
+            if (!currentUser) {
+                // If user is not logged in, show public feed without tabs
+                const publicPosts = posts.filter(post => !post.isPrivate);
+                updateFeedContent(renderPostList(publicPosts, 'No public posts yet!'));
+                return;
+            }
+
+            // User is logged in, render based on current tab
+            switch (currentFeedTab) {
+                case 'general':
+                    renderGeneralFeed();
+                    break;
+                case 'followed':
+                    renderFollowedFeed();
+                    break;
+                case 'private':
+                    renderPrivateFeed();
+                    break;
+                default:
+                    renderGeneralFeed();
+            }
+        }
+
+        function renderGeneralFeed() {
+            const publicPosts = posts.filter(post => !post.isPrivate);
+            updateFeedContent(renderPostList(publicPosts, 'No public posts yet!'));
+        }
+
+        function renderFollowedFeed() {
+            // Placeholder for followed communities feed
+            const placeholderHtml = `
+                <div class="feature-placeholder">
+                    <h3>🏘️ Followed Communities</h3>
+                    <p>This feature is coming soon! You'll be able to follow your favorite communities and see their posts in a dedicated feed.</p>
+                    <p style="margin-top: 16px; font-size: 12px; color: var(--fg-subtle);">Follow communities to see their content here</p>
+                </div>
+            `;
+            updateFeedContent(placeholderHtml);
+        }
+
+        function renderPrivateFeed() {
+            if (!currentUser) {
+                updateFeedContent('<div class="empty-state"><p>Please sign in to view private posts.</p></div>');
+                return;
+            }
+            
+            const privatePosts = posts.filter(post => post.isPrivate && post.author === currentUser.username);
+            updateFeedContent(renderPostList(privatePosts, 'You haven\'t created any private posts yet!'));
+        }
+
         function renderFeed() {
-            const filteredPosts = posts.filter(post => !post.isPrivate);
-            updateFeedContent(renderPostList(filteredPosts, 'No public posts yet!'));
+            // Legacy function - now redirects to renderFeedWithTabs
+            renderFeedWithTabs();
         }
 
         function renderCommunityPage() {
