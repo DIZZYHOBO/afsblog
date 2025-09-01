@@ -40,6 +40,160 @@
             display: none;
         }
 
+        /* Community Header Styles */
+        .community-header {
+            background: linear-gradient(135deg, var(--bg-default) 0%, var(--bg-overlay) 100%);
+            border: 1px solid var(--border-default);
+            border-radius: 16px;
+            padding: 32px;
+            margin-bottom: 24px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .community-header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, var(--accent-emphasis), var(--accent-fg), var(--success-fg));
+        }
+
+        .community-hero {
+            display: flex;
+            align-items: flex-start;
+            gap: 24px;
+            margin-bottom: 24px;
+        }
+
+        .community-avatar {
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, var(--accent-emphasis), var(--accent-fg));
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 36px;
+            font-weight: 700;
+            color: white;
+            box-shadow: 0 8px 24px rgba(88, 166, 255, 0.3);
+            flex-shrink: 0;
+        }
+
+        .community-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .community-title {
+            font-size: 32px;
+            font-weight: 700;
+            color: var(--fg-default);
+            margin: 0 0 8px 0;
+            line-height: 1.2;
+            word-wrap: break-word;
+        }
+
+        .community-handle {
+            font-size: 18px;
+            color: var(--accent-fg);
+            margin: 0 0 12px 0;
+            font-weight: 600;
+        }
+
+        .community-description {
+            font-size: 16px;
+            color: var(--fg-muted);
+            line-height: 1.5;
+            margin: 0;
+            max-width: 600px;
+        }
+
+        .community-actions {
+            flex-shrink: 0;
+            margin-top: 8px;
+        }
+
+        .community-stats {
+            display: flex;
+            align-items: center;
+            gap: 24px;
+            padding: 20px 0 0 0;
+            border-top: 1px solid var(--border-default);
+            flex-wrap: wrap;
+        }
+
+        .stat-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .stat-number {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--accent-fg);
+        }
+
+        .stat-label {
+            font-size: 14px;
+            color: var(--fg-muted);
+            font-weight: 500;
+        }
+
+        .stat-creator {
+            font-size: 14px;
+            color: var(--fg-default);
+            font-weight: 600;
+        }
+
+        .stat-divider {
+            width: 1px;
+            height: 20px;
+            background-color: var(--border-default);
+        }
+
+        /* Responsive design for community header */
+        @media (max-width: 768px) {
+            .community-header {
+                padding: 24px 20px;
+            }
+
+            .community-hero {
+                flex-direction: column;
+                align-items: center;
+                text-align: center;
+                gap: 20px;
+            }
+
+            .community-avatar {
+                width: 64px;
+                height: 64px;
+                font-size: 28px;
+            }
+
+            .community-title {
+                font-size: 28px;
+            }
+
+            .community-handle {
+                font-size: 16px;
+            }
+
+            .community-stats {
+                justify-content: center;
+                gap: 16px;
+            }
+
+            .stat-divider {
+                display: none;
+            }
+        }
+
         * {
             margin: 0;
             padding: 0;
