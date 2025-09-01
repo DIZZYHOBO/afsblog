@@ -449,7 +449,150 @@
             display: block;
         }
 
-        /* Placeholder for future features */
+        /* Replies Section */
+        .replies-section {
+            border-top: 1px solid var(--border-default);
+            background-color: var(--bg-subtle);
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+        }
+
+        .replies-section.open {
+            max-height: 800px; /* Adjust as needed */
+            overflow-y: auto;
+        }
+
+        .replies-container {
+            padding: 16px;
+        }
+
+        .replies-list {
+            margin-bottom: 16px;
+        }
+
+        .reply-item {
+            background-color: var(--bg-default);
+            border: 1px solid var(--border-default);
+            border-radius: 6px;
+            padding: 12px;
+            margin-bottom: 8px;
+        }
+
+        .reply-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .reply-avatar {
+            width: 20px;
+            height: 20px;
+            background: linear-gradient(135deg, var(--accent-emphasis), var(--accent-fg));
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            font-weight: 600;
+            color: white;
+        }
+
+        .reply-author {
+            color: var(--fg-default);
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .reply-timestamp {
+            color: var(--fg-muted);
+            font-size: 11px;
+        }
+
+        .reply-content {
+            color: var(--fg-default);
+            font-size: 13px;
+            line-height: 1.5;
+            margin-left: 28px; /* Align with avatar */
+        }
+
+        .reply-form {
+            background-color: var(--bg-canvas);
+            border: 1px solid var(--border-default);
+            border-radius: 6px;
+            padding: 12px;
+        }
+
+        .reply-input {
+            width: 100%;
+            background: var(--bg-default);
+            border: 1px solid var(--border-default);
+            border-radius: 4px;
+            padding: 8px;
+            color: var(--fg-default);
+            font-size: 13px;
+            font-family: inherit;
+            resize: vertical;
+            min-height: 60px;
+            margin-bottom: 8px;
+        }
+
+        .reply-input:focus {
+            outline: none;
+            border-color: var(--accent-emphasis);
+            box-shadow: 0 0 0 2px rgba(31, 111, 235, 0.1);
+        }
+
+        .reply-form-buttons {
+            display: flex;
+            gap: 8px;
+            justify-content: flex-end;
+        }
+
+        .reply-btn-submit {
+            background-color: var(--btn-primary-bg);
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+        }
+
+        .reply-btn-submit:hover {
+            background-color: var(--btn-primary-hover-bg);
+        }
+
+        .reply-btn-submit:disabled {
+            background-color: var(--bg-subtle);
+            color: var(--fg-muted);
+            cursor: not-allowed;
+        }
+
+        .reply-btn-cancel {
+            background: none;
+            border: 1px solid var(--border-default);
+            color: var(--fg-muted);
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+        }
+
+        .reply-btn-cancel:hover {
+            background-color: var(--btn-secondary-hover-bg);
+            color: var(--fg-default);
+        }
+
+        .no-replies {
+            color: var(--fg-muted);
+            font-size: 13px;
+            font-style: italic;
+            margin-bottom: 16px;
+        }
         .feature-placeholder {
             background-color: var(--bg-default);
             border: 1px solid var(--border-default);
