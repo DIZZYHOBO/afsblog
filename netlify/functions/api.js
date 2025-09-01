@@ -133,12 +133,20 @@ export default async (req, context) => {
         return await handlePublicFeed(req, blogStore, headers, authResult.user);
       case 'feeds/private':
         return await handlePrivateFeed(req, blogStore, headers, authResult.user);
+      case 'feeds/following':
+        return await handleFollowingFeed(req, blogStore, headers, authResult.user);
       case 'posts':
         return await handlePosts(req, blogStore, headers, authResult.user);
       case 'posts/create':
         return await handleCreatePost(req, blogStore, headers, authResult.user);
       case 'replies/create':
         return await handleCreateReply(req, blogStore, headers, authResult.user);
+      case 'replies/delete':
+        return await handleDeleteReply(req, blogStore, headers, authResult.user);
+      case 'communities/follow':
+        return await handleFollowCommunity(req, blogStore, headers, authResult.user);
+      case 'communities/following':
+        return await handleGetFollowedCommunities(req, blogStore, headers, authResult.user);
       case 'likes/toggle':
         return await handleToggleLike(req, blogStore, headers, authResult.user);
       case 'profile':
@@ -167,6 +175,377 @@ export default async (req, context) => {
     );
   }
 };
+
+// REPLY HANDLERS (IMPLEMENTED)
+
+async function handleCreateReply(req, blogStore, headers, user) {
+  if (req.method !== 'POST') {
+    return new Response(
+      JSON.stringify({ error: "Method not allowed" }),
+      { status: 405, headers }
+    );
+  }
+
+  try {
+    const { postId, content } = await req.json();
+
+    if (!postId || !content) {
+      return new Response(
+        JSON.stringify({ error: "Post ID and content are required" }),
+        { status: 400, headers }
+      );
+    }
+
+    if (content.trim().length === 0) {
+      return new Response(
+        JSON.stringify({ error: "Reply content cannot be empty" }),
+        { status: 400, headers }
+      );
+    }
+
+    if (content.length > 2000) {
+      return new Response(
+        JSON.stringify({ error: "Reply must be 2000 characters or less" }),
+        { status: 400, headers }
+      );
+    }
+
+    // Get the post
+    const post = await blogStore.get(postId, { type: "json" });
+    if (!post) {
+      return new Response(
+        JSON.stringify({ error: "Post not found" }),
+        { status: 404, headers }
+      );
+    }
+
+    // Create reply
+    const reply = {
+      id: `reply_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      author: user.username,
+      content: content.trim(),
+      timestamp: new Date().toISOString(),
+      postId: postId
+    };
+
+    // Add reply to post
+    if (!post.replies) {
+      post.replies = [];
+    }
+    post.replies.push(reply);
+
+    // Save updated post
+    await blogStore.set(postId, JSON.stringify(post));
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        message: "Reply created successfully",
+        reply: reply,
+        replyCount: post.replies.length
+      }),
+      { status: 201, headers }
+    );
+
+  } catch (error) {
+    console.error("Create reply error:", error);
+    return new Response(
+      JSON.stringify({ error: "Failed to create reply" }),
+      { status: 500, headers }
+    );
+  }
+}
+
+async function handleDeleteReply(req, blogStore, headers, user) {
+  if (req.method !== 'DELETE') {
+    return new Response(
+      JSON.stringify({ error: "Method not allowed" }),
+      { status: 405, headers }
+    );
+  }
+
+  try {
+    const { postId, replyId } = await req.json();
+
+    if (!postId || !replyId) {
+      return new Response(
+        JSON.stringify({ error: "Post ID and Reply ID are required" }),
+        { status: 400, headers }
+      );
+    }
+
+    // Get the post
+    const post = await blogStore.get(postId, { type: "json" });
+    if (!post) {
+      return new Response(
+        JSON.stringify({ error: "Post not found" }),
+        { status: 404, headers }
+      );
+    }
+
+    // Find reply
+    const replyIndex = post.replies.findIndex(r => r.id === replyId);
+    if (replyIndex === -1) {
+      return new Response(
+        JSON.stringify({ error: "Reply not found" }),
+        { status: 404, headers }
+      );
+    }
+
+    const reply = post.replies[replyIndex];
+
+    // Check permissions
+    if (reply.author !== user.username && !user.isAdmin) {
+      return new Response(
+        JSON.stringify({ error: "You can only delete your own replies" }),
+        { status: 403, headers }
+      );
+    }
+
+    // Remove reply
+    post.replies.splice(replyIndex, 1);
+
+    // Save updated post
+    await blogStore.set(postId, JSON.stringify(post));
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        message: "Reply deleted successfully",
+        replyCount: post.replies.length
+      }),
+      { status: 200, headers }
+    );
+
+  } catch (error) {
+    console.error("Delete reply error:", error);
+    return new Response(
+      JSON.stringify({ error: "Failed to delete reply" }),
+      { status: 500, headers }
+    );
+  }
+}
+
+// COMMUNITY FOLLOWING HANDLERS
+
+async function handleFollowCommunity(req, blogStore, headers, user) {
+  if (req.method !== 'POST') {
+    return new Response(
+      JSON.stringify({ error: "Method not allowed" }),
+      { status: 405, headers }
+    );
+  }
+
+  try {
+    const { communityName, action = 'toggle' } = await req.json();
+
+    if (!communityName) {
+      return new Response(
+        JSON.stringify({ error: "Community name is required" }),
+        { status: 400, headers }
+      );
+    }
+
+    // Check if community exists
+    const community = await blogStore.get(`community_${communityName}`, { type: "json" });
+    if (!community) {
+      return new Response(
+        JSON.stringify({ error: "Community not found" }),
+        { status: 404, headers }
+      );
+    }
+
+    // Get user's followed communities
+    let followedCommunities = await blogStore.get(`user_following_${user.username}`, { type: "json" }) || [];
+    
+    const isFollowing = followedCommunities.includes(communityName);
+    let newFollowStatus = false;
+
+    if (action === 'follow' || (action === 'toggle' && !isFollowing)) {
+      if (!isFollowing) {
+        followedCommunities.push(communityName);
+        newFollowStatus = true;
+      } else {
+        newFollowStatus = true; // Already following
+      }
+    } else if (action === 'unfollow' || (action === 'toggle' && isFollowing)) {
+      followedCommunities = followedCommunities.filter(name => name !== communityName);
+      newFollowStatus = false;
+    }
+
+    // Save updated following list
+    await blogStore.set(`user_following_${user.username}`, JSON.stringify(followedCommunities));
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        message: newFollowStatus ? `Now following c/${communityName}` : `Unfollowed c/${communityName}`,
+        following: newFollowStatus,
+        communityName: communityName,
+        totalFollowing: followedCommunities.length
+      }),
+      { status: 200, headers }
+    );
+
+  } catch (error) {
+    console.error("Follow community error:", error);
+    return new Response(
+      JSON.stringify({ error: "Failed to update follow status" }),
+      { status: 500, headers }
+    );
+  }
+}
+
+async function handleGetFollowedCommunities(req, blogStore, headers, user) {
+  if (req.method !== 'GET') {
+    return new Response(
+      JSON.stringify({ error: "Method not allowed" }),
+      { status: 405, headers }
+    );
+  }
+
+  try {
+    // Get user's followed communities
+    const followedCommunityNames = await blogStore.get(`user_following_${user.username}`, { type: "json" }) || [];
+    
+    // Get community details
+    const communities = [];
+    for (const communityName of followedCommunityNames) {
+      try {
+        const community = await blogStore.get(`community_${communityName}`, { type: "json" });
+        if (community) {
+          communities.push(community);
+        }
+      } catch (error) {
+        console.error(`Error loading community ${communityName}:`, error);
+      }
+    }
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        communities: communities.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)),
+        totalFollowing: communities.length
+      }),
+      { status: 200, headers }
+    );
+
+  } catch (error) {
+    console.error("Get followed communities error:", error);
+    return new Response(
+      JSON.stringify({ error: "Failed to get followed communities" }),
+      { status: 500, headers }
+    );
+  }
+}
+
+async function handleFollowingFeed(req, blogStore, headers, user) {
+  if (req.method !== 'GET') {
+    return new Response(
+      JSON.stringify({ error: "Method not allowed" }),
+      { status: 405, headers }
+    );
+  }
+
+  try {
+    const url = new URL(req.url);
+    const { page, limit, skip } = getPaginationParams(url);
+    const includeReplies = url.searchParams.get('includeReplies') !== 'false';
+
+    // Get user's followed communities
+    const followedCommunityNames = await blogStore.get(`user_following_${user.username}`, { type: "json" }) || [];
+
+    if (followedCommunityNames.length === 0) {
+      return new Response(
+        JSON.stringify({
+          success: true,
+          feed: "following",
+          posts: [],
+          pagination: createPaginationMeta(0, page, limit),
+          user: user.username,
+          followedCommunities: 0,
+          message: "You're not following any communities yet"
+        }),
+        { status: 200, headers }
+      );
+    }
+
+    // Get all posts
+    const { blobs } = await blogStore.list({ prefix: "post_" });
+    
+    const postPromises = blobs.map(async (blob) => {
+      try {
+        const post = await blogStore.get(blob.key, { type: "json" });
+        // Only include posts from followed communities that are not private
+        if (post && !post.isPrivate && post.communityName && followedCommunityNames.includes(post.communityName)) {
+          // Add community info
+          try {
+            const community = await blogStore.get(`community_${post.communityName}`, { type: "json" });
+            if (community) {
+              post.communityInfo = {
+                name: community.name,
+                displayName: community.displayName,
+                isPrivate: community.isPrivate
+              };
+            }
+          } catch (error) {
+            console.error(`Error loading community ${post.communityName}:`, error);
+          }
+
+          // Add like information
+          post.likes = post.likes || [];
+          post.likesCount = post.likes.length;
+          post.userLiked = post.likes.some(like => like.username === user.username);
+          
+          post.replies = post.replies || [];
+          post.replyCount = post.replies.length;
+          
+          if (!includeReplies) {
+            const replyCount = post.replies.length;
+            delete post.replies;
+            post.replyCount = replyCount;
+          }
+          
+          return post;
+        }
+        return null;
+      } catch (error) {
+        console.error(`Error loading post ${blob.key}:`, error);
+        return null;
+      }
+    });
+    
+    const loadedPosts = await Promise.all(postPromises);
+    const followingPosts = loadedPosts.filter(Boolean);
+    const sortedPosts = sortPostsByTimestamp(followingPosts);
+    const paginatedPosts = sortedPosts.slice(skip, skip + limit);
+    
+    // Enrich posts with author profile data
+    const enrichedPosts = await enrichPostsWithAuthorProfiles(paginatedPosts, blogStore);
+    
+    const paginationMeta = createPaginationMeta(sortedPosts.length, page, limit);
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        feed: "following",
+        posts: enrichedPosts,
+        pagination: paginationMeta,
+        user: user.username,
+        followedCommunities: followedCommunityNames.length,
+        includeReplies: includeReplies
+      }),
+      { status: 200, headers }
+    );
+
+  } catch (error) {
+    console.error("Following feed error:", error);
+    return new Response(
+      JSON.stringify({ error: "Failed to load following feed" }),
+      { status: 500, headers }
+    );
+  }
+}
 
 // COMMUNITY HANDLERS
 
@@ -965,7 +1344,7 @@ async function handlePrivateFeed(req, blogStore, headers, user) {
 // UPDATED DOCUMENTATION
 async function handleDefault(req, headers) {
   const docs = {
-    message: "Blog API v5.0 - Now with Communities! 🏘️",
+    message: "Blog API v5.0 - Now with Communities and Reply Management! 🏘️",
     endpoints: {
       // Authentication
       "POST /api/auth/login": "Login with username/password",
@@ -977,6 +1356,11 @@ async function handleDefault(req, headers) {
       "POST /api/communities": "Create a new community (requires authentication)",
       "GET /api/communities/{name}": "Get specific community details",
       "GET /api/communities/{name}/posts": "Get all posts in a community",
+      
+      // Community Following (requires auth)
+      "POST /api/communities/follow": "Follow or unfollow a community",
+      "GET /api/communities/following": "Get user's followed communities",
+      "GET /api/feeds/following": "Get posts from followed communities",
       
       // Admin community endpoints
       "GET /api/admin/communities": "Get all communities for admin management",
@@ -999,6 +1383,7 @@ async function handleDefault(req, headers) {
       // Feeds (requires auth) - now include community info
       "GET /api/feeds/public": "Get public posts feed with community information",
       "GET /api/feeds/private": "Get user's private posts",
+      "GET /api/feeds/following": "Get posts from followed communities",
       
       // Posts (requires auth) - now support community posting
       "POST /api/posts/create": "Create new post (can specify communityName)",
@@ -1011,14 +1396,25 @@ async function handleDefault(req, headers) {
       "POST /api/likes/toggle": "Like or unlike a post",
       "GET /api/posts/{postId}/likes": "Get all likes for a specific post",
       
-      // Replies/Comments (requires auth)
+      // Replies/Comments (requires auth) - FULLY IMPLEMENTED
       "POST /api/replies/create": "Create reply to a post",
+      "DELETE /api/replies/delete": "Delete a reply",
       
       // Profile (requires auth)
       "GET /api/profile": "Get user profile with stats",
       "PUT /api/profile/update": "Update user profile"
     },
     newFeatures: {
+      replies: {
+        description: "Full reply management with API endpoints! 💬",
+        features: [
+          "Create replies with content validation",
+          "Delete replies with permission checks",
+          "Author and admin deletion rights",
+          "Real-time reply counts",
+          "Markdown support in replies"
+        ]
+      },
       communities: {
         description: "Create and manage communities for organized discussions! 🏘️",
         features: [
@@ -1028,82 +1424,16 @@ async function handleDefault(req, headers) {
           "Community metadata (member count, post count)",
           "Private communities (coming soon)",
           "Community moderation tools (admin only)"
-        ],
-        createCommunity: {
-          endpoint: "POST /api/communities",
-          requestBody: {
-            name: "Unique community name (3-25 chars, lowercase, alphanumeric + underscores)",
-            displayName: "Human-readable display name (max 50 chars)",
-            description: "Optional community description (max 500 chars)",
-            isPrivate: "Boolean - whether community is private (default: false)"
-          }
-        },
-        postToCommunity: {
-          endpoint: "POST /api/posts/create",
-          requestBody: {
-            title: "Post title",
-            content: "Post content (for text posts)",
-            type: "Post type ('text' or 'link')",
-            communityName: "Optional - community to post to",
-            isPrivate: "Boolean - private post visibility"
-          }
-        }
+        ]
       },
-      communityIntegration: {
-        description: "All posts now include community information when applicable",
-        includedFields: [
-          "communityName - name of community if posted to one",
-          "communityInfo.name - community name",
-          "communityInfo.displayName - community display name", 
-          "communityInfo.isPrivate - whether community is private"
-        ],
-        availability: "Available in all post responses (feeds, individual posts, search results)"
-      }
-    },
-    communityExamples: {
-      createCommunity: {
-        request: {
-          name: "programming",
-          displayName: "Programming",
-          description: "A community for programming discussions and help",
-          isPrivate: false
-        },
-        response: {
-          success: true,
-          message: "Community created successfully",
-          community: {
-            name: "programming",
-            displayName: "Programming",
-            description: "A community for programming discussions and help",
-            createdBy: "username",
-            createdAt: "2024-01-01T12:00:00.000Z",
-            isPrivate: false,
-            postCount: 0,
-            memberCount: 1
-          }
-        }
-      },
-      postWithCommunity: {
-        request: {
-          title: "How to learn React?",
-          content: "I'm new to React and looking for advice...",
-          type: "text",
-          communityName: "programming"
-        },
-        response: {
-          success: true,
-          post: {
-            id: "post_123",
-            title: "How to learn React?",
-            content: "I'm new to React and looking for advice...",
-            communityName: "programming",
-            communityInfo: {
-              name: "programming",
-              displayName: "Programming",
-              isPrivate: false
-            }
-          }
-        }
+      following: {
+        description: "Follow communities and get personalized feeds! 👥",
+        features: [
+          "Follow/unfollow any public community",
+          "Personal following feed with posts from followed communities",
+          "Track following count and community details",
+          "Toggle follow status with single API call"
+        ]
       }
     }
   };
@@ -1470,13 +1800,6 @@ async function handlePosts(req, blogStore, headers, user) {
 async function handlePostOperations(req, blogStore, headers, user, path) {
   return new Response(
     JSON.stringify({ success: true, post: {} }),
-    { status: 200, headers }
-  );
-}
-
-async function handleCreateReply(req, blogStore, headers, user) {
-  return new Response(
-    JSON.stringify({ success: true, message: "Reply created" }),
     { status: 200, headers }
   );
 }
