@@ -7,7 +7,7 @@ class FeedTabsManager {
 
     setupEventListeners() {
         // Subscribe to authentication changes
-        State.subscribe('currentUser', (user) => {
+        State.addListener('currentUser', (user) => {
             this.updateTabsVisibility(user);
             if (user) {
                 this.enableAllTabs();
@@ -16,10 +16,33 @@ class FeedTabsManager {
             }
         });
 
-        // Subscribe to page changes
-        State.subscribe('currentPage', (page) => {
+        // Subscribe to view changes
+        State.addListener('currentView', (view) => {
             this.updateTabsVisibility();
         });
+
+        // Set up click handlers for tabs
+        const tabs = ['generalTab', 'followedTab', 'privateTab'];
+        tabs.forEach(tabId => {
+            const tabElement = document.getElementById(tabId);
+            if (tabElement) {
+                tabElement.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const tabName = this.getTabNameFromId(tabId);
+                    this.switch(tabName);
+                });
+            }
+        });
+    }
+
+    // Get tab name from element ID
+    getTabNameFromId(id) {
+        const mapping = {
+            'generalTab': 'general',
+            'followedTab': 'followed',
+            'privateTab': 'private'
+        };
+        return mapping[id] || 'general';
     }
 
     // Switch to a different feed tab
@@ -30,8 +53,9 @@ class FeedTabsManager {
         }
 
         // Check authentication for protected tabs
-        if (this.requiresAuth(tabName) && !State.isAuthenticated()) {
-            Modals.openAuth('signin');
+        if (this.requiresAuth(tabName) && !State.getCurrentUser()) {
+            Modals.switchAuthTab('login');
+            Modals.open('authModal');
             return;
         }
 
@@ -71,22 +95,27 @@ class FeedTabsManager {
     // Update tab content based on current tab
     updateTabContent() {
         // Trigger re-render of current page if it's the feed page
-        if (State.get('currentPage') === 'feed') {
-            App.renderFeedPage();
+        const currentView = State.get('currentView');
+        if (currentView === 'feed') {
+            Posts.renderFeedPosts();
         }
     }
 
     // Update tabs visibility based on current page and user
     updateTabsVisibility(user = State.getCurrentUser()) {
         const feedTabs = document.getElementById('feedTabs');
-        const currentPage = State.get('currentPage');
+        const currentView = State.get('currentView');
         
         if (!feedTabs) return;
         
         // Show tabs only on feed page when user is logged in
-        if (currentPage === 'feed' && user) {
+        if (currentView === 'feed' && user) {
             feedTabs.style.display = 'flex';
             this.enableAllTabs();
+        } else if (currentView === 'feed') {
+            // Show tabs but disable auth-required tabs when not logged in
+            feedTabs.style.display = 'flex';
+            this.disableAuthTabs();
         } else {
             feedTabs.style.display = 'none';
         }
@@ -99,31 +128,39 @@ class FeedTabsManager {
         
         if (followedTab) {
             followedTab.disabled = false;
+            followedTab.style.opacity = '1';
+            followedTab.style.cursor = 'pointer';
             followedTab.title = '';
         }
         
         if (privateTab) {
             privateTab.disabled = false;
+            privateTab.style.opacity = '1';
+            privateTab.style.cursor = 'pointer';
             privateTab.title = '';
         }
     }
 
-    // Disable authentication-required tabs
+    // Disable auth-required tabs for unauthenticated users
     disableAuthTabs() {
         const followedTab = document.getElementById('followedTab');
         const privateTab = document.getElementById('privateTab');
         
         if (followedTab) {
             followedTab.disabled = true;
-            followedTab.title = 'Sign in to view followed communities';
+            followedTab.style.opacity = '0.5';
+            followedTab.style.cursor = 'not-allowed';
+            followedTab.title = 'Login required';
         }
         
         if (privateTab) {
             privateTab.disabled = true;
-            privateTab.title = 'Sign in to view private posts';
+            privateTab.style.opacity = '0.5';
+            privateTab.style.cursor = 'not-allowed';
+            privateTab.title = 'Login required';
         }
-        
-        // Switch to general tab if currently on a protected tab
+
+        // Switch to general tab if currently on an auth tab
         if (this.requiresAuth(this.currentTab)) {
             this.switch('general');
         }
@@ -134,32 +171,51 @@ class FeedTabsManager {
         return this.currentTab;
     }
 
-    // Update tab badges/counts
-    updateTabCounts() {
-        if (!State.isAuthenticated()) return;
-        
-        const posts = State.get('posts');
+    // Get visible posts based on current tab
+    getVisiblePosts() {
+        const posts = State.getPosts();
         const currentUser = State.getCurrentUser();
-        const followedCommunities = State.get('followedCommunities');
-        
-        // Count posts for each tab
+        const follows = State.getFollows();
+
+        switch (this.currentTab) {
+            case 'followed':
+                if (!currentUser) return [];
+                return posts.filter(post => 
+                    follows[post.community] === true && !post.isPrivate
+                );
+            
+            case 'private':
+                if (!currentUser) return [];
+                return posts.filter(post => 
+                    post.isPrivate && post.authorId === currentUser.id
+                );
+            
+            case 'general':
+            default:
+                return posts.filter(post => !post.isPrivate);
+        }
+    }
+
+    // Update tab counts (optional feature)
+    updateTabCounts() {
+        const posts = State.getPosts();
+        const currentUser = State.getCurrentUser();
+        const follows = State.getFollows();
+
         const counts = {
             general: posts.filter(p => !p.isPrivate).length,
-            followed: posts.filter(p => 
-                !p.isPrivate && 
-                p.communityName && 
-                followedCommunities.has(p.communityName)
-            ).length,
-            private: posts.filter(p => 
-                p.isPrivate && 
-                p.author === currentUser.username
-            ).length
+            followed: currentUser ? posts.filter(p => 
+                follows[p.community] === true && !p.isPrivate
+            ).length : 0,
+            private: currentUser ? posts.filter(p => 
+                p.isPrivate && p.authorId === currentUser.id
+            ).length : 0
         };
         
         // Update tab text with counts (optional feature)
-        this.updateTabText('general', `General (${counts.general})`);
-        this.updateTabText('followed', `Followed (${counts.followed})`);
-        this.updateTabText('private', `Private (${counts.private})`);
+        this.updateTabText('general', `General${counts.general > 0 ? ` (${counts.general})` : ''}`);
+        this.updateTabText('followed', `Followed${counts.followed > 0 ? ` (${counts.followed})` : ''}`);
+        this.updateTabText('private', `Private${counts.private > 0 ? ` (${counts.private})` : ''}`);
     }
 
     // Update tab text
@@ -228,7 +284,42 @@ class FeedTabsManager {
             }
         });
     }
+
+    // Filter posts based on search term (for future search feature)
+    filterPosts(searchTerm = '') {
+        const posts = this.getVisiblePosts();
+        
+        if (!searchTerm) return posts;
+        
+        const term = searchTerm.toLowerCase();
+        return posts.filter(post => 
+            post.title.toLowerCase().includes(term) ||
+            post.content.toLowerCase().includes(term) ||
+            post.author.toLowerCase().includes(term) ||
+            post.community.toLowerCase().includes(term)
+        );
+    }
+
+    // Sort posts (for future sorting feature)
+    sortPosts(posts, sortBy = 'newest') {
+        switch (sortBy) {
+            case 'oldest':
+                return [...posts].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+            case 'most_liked':
+                return [...posts].sort((a, b) => (b.likes || 0) - (a.likes || 0));
+            case 'most_replies':
+                return [...posts].sort((a, b) => (b.replyCount || 0) - (a.replyCount || 0));
+            case 'newest':
+            default:
+                return [...posts].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+        }
+    }
 }
 
 // Create global feed tabs instance
-const FeedTabs = new FeedTabsManager();
+window.FeedTabs = new FeedTabsManager();
+
+// Export for module use
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = { FeedTabsManager, FeedTabs: window.FeedTabs };
+}
