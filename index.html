@@ -27,77 +27,63 @@
     <!-- Navigation Components -->
     <div class="top-nav">
         <div id="feedTabs" class="feed-tabs">
-            <button class="feed-tab active" id="generalTab" onclick="FeedTabs.switch('general')">General</button>
-            <button class="feed-tab" id="followedTab" onclick="FeedTabs.switch('followed')">Followed</button>
-            <button class="feed-tab" id="privateTab" onclick="FeedTabs.switch('private')">Private</button>
+            <button class="feed-tab active" id="generalTab">General</button>
+            <button class="feed-tab" id="followedTab">Followed</button>
+            <button class="feed-tab" id="privateTab">Private</button>
+        </div>
+        
+        <!-- User Menu -->
+        <div class="user-menu">
+            <!-- Auth UI (shown when logged out) -->
+            <div id="authContainer" class="auth-container">
+                <div class="inline-auth">
+                    <input type="text" id="inlineUsername" placeholder="Username" maxlength="20">
+                    <input type="password" id="inlinePassword" placeholder="Password">
+                    <button id="inlineLogin" class="btn-primary">Login</button>
+                    <button id="inlineRegister" class="btn-secondary">Register</button>
+                </div>
+            </div>
+            
+            <!-- User Info (shown when logged in) -->
+            <div id="userInfo" class="user-info" style="display: none;">
+                <img id="userAvatar" class="user-avatar" src="">
+                <span id="userDisplayName" class="user-display-name"></span>
+                <button id="userMenuToggle" class="user-menu-toggle">▼</button>
+            </div>
         </div>
     </div>
 
-    <div class="menu-overlay" id="menuOverlay"></div>
-    
-    <!-- Slide Menu -->
-    <div class="slide-menu" id="slideMenu">
-        <div class="menu-header">
-            <div class="login-prompt">
-                <div class="login-prompt-title">Welcome to Blog Communities</div>
-                <button class="login-toggle-btn" onclick="Navigation.toggleInlineLoginForm()">Login</button>
-                <div class="inline-login-form" id="inlineLoginForm">
-                    <div id="inlineLoginError"></div>
-                    <form id="inlineLoginFormElement" onsubmit="Navigation.handleInlineLogin(event)">
-                        <div class="inline-form-group">
-                            <label for="inlineUsername">Username</label>
-                            <input type="text" id="inlineUsername" required minlength="3" maxlength="20">
-                        </div>
-                        <div class="inline-form-group">
-                            <label for="inlinePassword">Password</label>
-                            <input type="password" id="inlinePassword" required minlength="6">
-                        </div>
-                        <div class="inline-form-buttons">
-                            <button type="submit" class="inline-btn-primary" id="inlineLoginBtn">Sign In</button>
-                            <button type="button" class="inline-btn-secondary" onclick="Modals.openAuth('signup'); Navigation.toggleMenu();">Sign Up</button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        </div>
-        
-        <div class="menu-nav">
-            <button class="menu-item active" id="menuFeed" onclick="Navigation.navigateToFeed()">
+    <!-- Navigation menu -->
+    <div class="navigation-menu" id="navigationMenu">
+        <div class="menu-content">
+            <button class="menu-item" id="menuHome">
                 <span>🏠</span>
-                <span>Home Feed</span>
+                <span>Home</span>
             </button>
-            <button class="menu-item" id="menuProfile" onclick="Navigation.navigateToProfile()" style="display: none;">
+            <button class="menu-item" id="menuCommunities">
+                <span>👥</span>
+                <span>Communities</span>
+            </button>
+            <button class="menu-item" id="menuProfile" style="display: none;">
                 <span>👤</span>
                 <span>Profile</span>
             </button>
-            <button class="menu-item" id="menuCreateCommunity" onclick="Navigation.openCreateCommunity()" style="display: none;">
-                <span>🏘️</span>
-                <span>Create Community</span>
+            <button class="menu-item" id="menuAdmin" style="display: none;">
+                <span>🛠️</span>
+                <span>Admin</span>
             </button>
-            <button class="menu-item" id="menuBrowseCommunities" onclick="Navigation.toggleCommunitiesDropdown()" style="display: none;">
-                <span>🌍</span>
-                <span>Browse Communities</span>
-                <span id="communitiesToggle" style="margin-left: auto;">▼</span>
-            </button>
-            <div id="communitiesDropdown" class="communities-dropdown">
-                <div class="community-item">Loading communities...</div>
-            </div>
-            <button class="menu-item" id="menuAdmin" onclick="Navigation.navigateToAdmin()" style="display: none;">
-                <span>🔧</span>
-                <span>Admin Panel</span>
-            </button>
-            <button class="menu-item" id="menuSettings" onclick="Navigation.navigateToSettings()" style="display: none;">
+            <button class="menu-item" id="menuSettings" style="display: none;">
                 <span>⚙️</span>
                 <span>Settings</span>
             </button>
-            <button class="menu-item" id="menuLogout" onclick="Navigation.logout()" style="display: none;">
+            <button class="menu-item" id="menuLogout" style="display: none;">
                 <span>🚪</span>
                 <span>Logout</span>
             </button>
         </div>
     </div>
     
-    <button class="menu-toggle" id="menuToggle" onclick="Navigation.toggleMenu()">☰</button>
+    <button class="menu-toggle" id="menuToggle">☰</button>
 
     <!-- Main Content -->
     <main class="main-container">
@@ -106,7 +92,7 @@
         </div>
     </main>
 
-    <button class="compose-btn" id="composeBtn" style="display: none;" onclick="Modals.open('composeModal')">+</button>
+    <button class="compose-btn" id="composeBtn" style="display: none;">+</button>
 
     <!-- Modals -->
     <div id="modals-container"></div>
