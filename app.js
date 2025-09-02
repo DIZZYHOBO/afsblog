@@ -2171,8 +2171,9 @@
                 const videoId = dailymotionMatch[1];
                 return `
                     <div style="position: relative; width: 100%; height: 0; padding-bottom: 56.25%; overflow: hidden; border-radius: 8px; background: var(--bg-canvas);">
-                        <iframe src="https://www.dailymotion.com/embed/video/${videoId}?autoplay=0" 
+                        <iframe src="https://www.dailymotion.com/embed/video/${videoId}?autoplay=0&mute=0&queue-autoplay-next=0&queue-enable=0&ui-start-screen-info=0&ui-logo=0" 
                                 style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none; border-radius: 8px;"
+                                allow="autoplay 'none'"
                                 allowfullscreen></iframe>
                     </div>
                 `;
