@@ -1,0 +1,61 @@
+/* css/variables.css - Global CSS Variables */
+:root {
+    /* GitHub Dark Theme Colors */
+    --bg-canvas: #0d1117;
+    --bg-default: #161b22;
+    --bg-overlay: #21262d;
+    --bg-subtle: #30363d;
+    --border-default: #30363d;
+    --border-muted: #21262d;
+    --fg-default: #f0f6fc;
+    --fg-muted: #8b949e;
+    --fg-subtle: #6e7681;
+    --accent-fg: #58a6ff;
+    --accent-emphasis: #1f6feb;
+    --attention-fg: #d29922;
+    --success-fg: #3fb950;
+    --danger-fg: #f85149;
+    --severe-fg: #f85149;
+    --done-fg: #a5a5a5;
+    --header-bg: #161b22;
+    --overlay-shadow: 0 16px 32px rgba(1,4,9,0.85);
+    --btn-primary-bg: #238636;
+    --btn-primary-hover-bg: #2ea043;
+    --btn-secondary-bg: transparent;
+    --btn-secondary-border: #f0f6fc1a;
+    --btn-secondary-hover-bg: #30363d;
+}
+
+/* Animation Variables */
+:root {
+    --transition-fast: 0.15s ease;
+    --transition-normal: 0.2s ease;
+    --transition-slow: 0.3s ease;
+    --border-radius-small: 4px;
+    --border-radius-medium: 6px;
+    --border-radius-large: 8px;
+    --border-radius-xl: 12px;
+    --spacing-xs: 4px;
+    --spacing-sm: 8px;
+    --spacing-md: 12px;
+    --spacing-lg: 16px;
+    --spacing-xl: 20px;
+    --spacing-2xl: 24px;
+}
+
+/* Typography Variables */
+:root {
+    --font-family-base: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif;
+    --font-family-mono: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    --font-size-xs: 11px;
+    --font-size-sm: 12px;
+    --font-size-base: 14px;
+    --font-size-lg: 16px;
+    --font-size-xl: 18px;
+    --font-size-2xl: 20px;
+    --font-size-3xl: 24px;
+    --font-size-4xl: 32px;
+    --line-height-tight: 1.2;
+    --line-height-base: 1.5;
+    --line-height-relaxed: 1.6;
+}
