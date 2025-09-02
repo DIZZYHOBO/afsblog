@@ -220,7 +220,7 @@
             } else {
                 dropdown.innerHTML = communities.map(community => `
                     <a href="#" class="community-item" onclick="navigateToCommunity('${community.name}'); return false;">
-                        c/${escapeHtml(community.displayName)}
+                        s/${escapeHtml(community.displayName)}
                     </a>
                 `).join('');
             }
@@ -616,7 +616,7 @@
                             </div>
                             <div class="community-card-info">
                                 <h4 class="community-card-name">${escapeHtml(community.displayName)}</h4>
-                                <p class="community-card-handle">c/${escapeHtml(community.name)}</p>
+                                <p class="community-card-handle">s/${escapeHtml(community.name)}</p>
                                 ${community.description ? `<p class="community-card-description">${escapeHtml(community.description)}</p>` : ''}
                             </div>
                             <div class="community-card-actions">
@@ -654,7 +654,7 @@
                             </div>
                             <div class="community-card-info">
                                 <h4 class="community-card-name">${escapeHtml(community.displayName)}</h4>
-                                <p class="community-card-handle">c/${escapeHtml(community.name)}</p>
+                                <p class="community-card-handle">s/${escapeHtml(community.name)}</p>
                                 ${community.description ? `<p class="community-card-description">${escapeHtml(community.description)}</p>` : ''}
                             </div>
                             <div class="community-card-actions">
@@ -1308,7 +1308,7 @@
                                     </div>
                                     <div class="admin-community-details">
                                         <h4>${escapeHtml(community.displayName)}</h4>
-                                        <p class="admin-community-handle">c/${escapeHtml(community.name)}</p>
+                                        <p class="admin-community-handle">s/${escapeHtml(community.name)}</p>
                                         <p class="admin-community-description">${escapeHtml(community.description || 'No description')}</p>
                                         <div class="admin-community-meta">
                                             <span>👤 Created by @${escapeHtml(community.createdBy)}</span>
@@ -1467,7 +1467,7 @@
         }
 
         async function deleteCommunity(communityName) {
-            if (!confirm(`Delete community c/${communityName}? This will also delete all posts in this shed. This action cannot be undone.`)) return;
+            if (!confirm(`Delete community s/${communityName}? This will also delete all posts in this shed. This action cannot be undone.`)) return;
             
             try {
                 // Delete community
@@ -1479,7 +1479,7 @@
                     await blobAPI.delete(post.id);
                 }
 
-                showSuccessMessage(`Community c/${communityName} deleted successfully.`);
+                showSuccessMessage(`Community s/${communityName} deleted successfully.`);
                 
                 // Refresh data and admin page
                 await loadPosts();
@@ -1637,7 +1637,7 @@
                         <h3>🏘️ No Posts Yet</h3>
                         <p>You're following ${followedCommunities.size} ${followedCommunities.size === 1 ? 'community' : 'communities'}, but there are no recent posts.</p>
                         <div style="margin-top: 16px; color: var(--fg-muted); font-size: 14px;">
-                            <p><strong>Following:</strong> ${Array.from(followedCommunities).map(name => `c/${name}`).join(', ')}</p>
+                            <p><strong>Following:</strong> ${Array.from(followedCommunities).map(name => `s/${name}`).join(', ')}</p>
                         </div>
                         <div style="margin-top: 20px;">
                             <button class="btn" onclick="switchFeedTab('general')" style="margin-right: 12px;">
@@ -1667,7 +1667,7 @@
                                       class="post-community-link" 
                                       onclick="navigateToCommunity('${name}'); return false;"
                                       style="font-size: 12px;">
-                                c/${community ? escapeHtml(community.displayName) : escapeHtml(name)}
+                                s/${community ? escapeHtml(community.displayName) : escapeHtml(name)}
                             </a>`;
                         }).join('')}
                     </div>
@@ -1770,7 +1770,7 @@
                         </div>
                         <div class="community-info">
                             <h1 class="community-title">${escapeHtml(community.displayName)}</h1>
-                            <p class="community-handle">c/${escapeHtml(community.name)}</p>
+                            <p class="community-handle">s/${escapeHtml(community.name)}</p>
                             ${community.description ? `<p class="community-description">${escapeHtml(community.description)}</p>` : ''}
                         </div>
                         <div class="community-actions">
@@ -1843,12 +1843,12 @@
                         followBtn.textContent = '✓ Following';
                         followBtn.className = 'btn btn-secondary';
                         followBtn.style.cssText = 'padding: 12px 24px; font-weight: 600; box-shadow: 0 2px 8px rgba(0,0,0,0.15);';
-                        showSuccessMessage(`Now following c/${communityName}! 🎉`);
+                        showSuccessMessage(`Now following s/${communityName}! 🎉`);
                     } else {
                         followBtn.textContent = '+ Follow';
                         followBtn.className = 'btn';
                         followBtn.style.cssText = 'padding: 12px 24px; font-weight: 600; box-shadow: 0 2px 8px rgba(0,0,0,0.15);';
-                        showSuccessMessage(`Unfollowed c/${communityName}`);
+                        showSuccessMessage(`Unfollowed s/${communityName}`);
                     }
                     
                     console.log(`Follow toggle successful. New member count: ${response.memberCount}`);
@@ -2049,7 +2049,7 @@
                             ${post.communityName && community && currentPage !== 'community' ? `
                                 <div class="post-community">
                                     <a href="#" class="post-community-link" onclick="navigateToCommunity('${post.communityName}'); return false;">
-                                        c/${escapeHtml(community.displayName)}
+                                        s/${escapeHtml(community.displayName)}
                                     </a>
                                 </div>
                             ` : ''}
