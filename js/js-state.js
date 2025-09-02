@@ -1,229 +1,349 @@
-// js/state.js - Global State Management
-class AppState {
+// js/state.js - Application State Management
+class StateManager {
     constructor() {
-        this.data = {
+        this.state = {
             currentUser: null,
-            currentPage: 'feed',
-            currentFeedTab: 'general',
-            currentCommunity: null,
             posts: [],
             communities: [],
-            followedCommunities: new Set(),
-            isLoading: false,
-            markdownRenderer: null,
-            currentPostType: 'text',
-            adminData: null
+            replies: {},
+            follows: {},
+            currentFeed: 'general',
+            currentView: 'feed',
+            loading: false,
+            initialized: false
         };
         
-        this.subscribers = new Map();
-        this.init();
+        this.listeners = {};
+        this.setupDefaults();
     }
 
-    init() {
-        // Initialize marked.js configuration
-        if (typeof marked !== 'undefined') {
-            marked.setOptions({
-                highlight: function(code, lang) {
-                    if (typeof hljs !== 'undefined' && lang && hljs.getLanguage(lang)) {
-                        return hljs.highlight(code, { language: lang }).value;
-                    }
-                    return typeof hljs !== 'undefined' ? hljs.highlightAuto(code).value : code;
-                },
-                breaks: true,
-                gfm: true
-            });
-        }
-    }
-
-    // Subscribe to state changes
-    subscribe(key, callback) {
-        if (!this.subscribers.has(key)) {
-            this.subscribers.set(key, new Set());
-        }
-        this.subscribers.get(key).add(callback);
-        
-        // Return unsubscribe function
-        return () => {
-            this.subscribers.get(key)?.delete(callback);
-        };
+    setupDefaults() {
+        // Initialize any default state values
+        this.state.replies = {};
+        this.state.follows = {};
     }
 
     // Get state value
     get(key) {
-        return this.data[key];
+        return this.state[key];
     }
 
-    // Set state value and notify subscribers
+    // Set state value and notify listeners
     set(key, value) {
-        const oldValue = this.data[key];
-        this.data[key] = value;
+        const oldValue = this.state[key];
+        this.state[key] = value;
         
-        // Notify subscribers
-        if (this.subscribers.has(key)) {
-            this.subscribers.get(key).forEach(callback => {
-                callback(value, oldValue);
-            });
+        // Notify listeners if value changed
+        if (JSON.stringify(oldValue) !== JSON.stringify(value)) {
+            this.notifyListeners(key, value, oldValue);
         }
+    }
+
+    // Update nested state object
+    update(key, updates) {
+        const current = this.state[key] || {};
+        this.set(key, { ...current, ...updates });
+    }
+
+    // Add listener for state changes
+    addListener(key, callback) {
+        if (!this.listeners[key]) {
+            this.listeners[key] = [];
+        }
+        this.listeners[key].push(callback);
         
-        // Notify global subscribers
-        if (this.subscribers.has('*')) {
-            this.subscribers.get('*').forEach(callback => {
-                callback(key, value, oldValue);
+        // Return unsubscribe function
+        return () => {
+            const index = this.listeners[key].indexOf(callback);
+            if (index > -1) {
+                this.listeners[key].splice(index, 1);
+            }
+        };
+    }
+
+    // Remove listener
+    removeListener(key, callback) {
+        if (this.listeners[key]) {
+            const index = this.listeners[key].indexOf(callback);
+            if (index > -1) {
+                this.listeners[key].splice(index, 1);
+            }
+        }
+    }
+
+    // Notify all listeners for a key
+    notifyListeners(key, newValue, oldValue) {
+        if (this.listeners[key]) {
+            this.listeners[key].forEach(callback => {
+                try {
+                    callback(newValue, oldValue);
+                } catch (error) {
+                    console.error('Error in state listener:', error);
+                }
             });
         }
     }
 
-    // Batch update multiple values
-    update(updates) {
-        Object.entries(updates).forEach(([key, value]) => {
-            this.set(key, value);
+    // Get all state
+    getState() {
+        return { ...this.state };
+    }
+
+    // Reset state to defaults
+    reset() {
+        const initialState = {
+            currentUser: null,
+            posts: [],
+            communities: [],
+            replies: {},
+            follows: {},
+            currentFeed: 'general',
+            currentView: 'feed',
+            loading: false,
+            initialized: false
+        };
+        
+        Object.keys(initialState).forEach(key => {
+            this.set(key, initialState[key]);
         });
     }
 
-    // Get current user
-    getCurrentUser() {
-        return this.get('currentUser');
-    }
-
-    // Set current user (helper method)
+    // User management methods
     setCurrentUser(user) {
         this.set('currentUser', user);
     }
 
-    // Check if user is authenticated
-    isAuthenticated() {
-        return this.getCurrentUser() !== null;
+    getCurrentUser() {
+        return this.get('currentUser');
     }
 
-    // Check if current user is admin
-    isAdmin() {
-        const user = this.getCurrentUser();
-        return user?.profile?.isAdmin === true;
+    clearCurrentUser() {
+        this.set('currentUser', null);
     }
 
-    // Get posts for current feed tab
-    getCurrentFeedPosts() {
-        const currentTab = this.get('currentFeedTab');
-        const allPosts = this.get('posts');
-        const user = this.getCurrentUser();
-        const followedCommunities = this.get('followedCommunities');
+    // Posts management
+    setPosts(posts) {
+        this.set('posts', posts || []);
+    }
 
-        if (!user) return [];
+    getPosts() {
+        return this.get('posts') || [];
+    }
 
-        switch (currentTab) {
-            case 'general':
-                return allPosts.filter(post => !post.isPrivate);
-            
-            case 'followed':
-                return allPosts.filter(post => 
-                    !post.isPrivate && 
-                    post.communityName && 
-                    followedCommunities.has(post.communityName)
-                );
-            
-            case 'private':
-                return allPosts.filter(post => 
-                    post.isPrivate && 
-                    post.author === user.username
-                );
-            
-            default:
-                return [];
+    addPost(post) {
+        const posts = this.getPosts();
+        this.set('posts', [post, ...posts]);
+    }
+
+    updatePost(postId, updates) {
+        const posts = this.getPosts();
+        const updatedPosts = posts.map(post => 
+            post.id === postId ? { ...post, ...updates } : post
+        );
+        this.set('posts', updatedPosts);
+    }
+
+    removePost(postId) {
+        const posts = this.getPosts();
+        const filteredPosts = posts.filter(post => post.id !== postId);
+        this.set('posts', filteredPosts);
+    }
+
+    // Communities management
+    setCommunities(communities) {
+        this.set('communities', communities || []);
+    }
+
+    getCommunities() {
+        return this.get('communities') || [];
+    }
+
+    addCommunity(community) {
+        const communities = this.getCommunities();
+        this.set('communities', [...communities, community]);
+    }
+
+    updateCommunity(communityId, updates) {
+        const communities = this.getCommunities();
+        const updatedCommunities = communities.map(community => 
+            community.id === communityId ? { ...community, ...updates } : community
+        );
+        this.set('communities', updatedCommunities);
+    }
+
+    // Replies management
+    setReplies(postId, replies) {
+        const allReplies = this.get('replies') || {};
+        this.set('replies', { ...allReplies, [postId]: replies });
+    }
+
+    getReplies(postId) {
+        const allReplies = this.get('replies') || {};
+        return allReplies[postId] || [];
+    }
+
+    addReply(postId, reply) {
+        const replies = this.getReplies(postId);
+        this.setReplies(postId, [...replies, reply]);
+    }
+
+    // Follows management
+    setFollows(follows) {
+        this.set('follows', follows || {});
+    }
+
+    getFollows() {
+        return this.get('follows') || {};
+    }
+
+    setFollowing(communityName, isFollowing) {
+        const follows = this.getFollows();
+        if (isFollowing) {
+            follows[communityName] = true;
+        } else {
+            delete follows[communityName];
         }
+        this.set('follows', follows);
     }
 
-    // Reset state (for logout)
-    reset() {
-        this.data = {
-            currentUser: null,
-            currentPage: 'feed',
-            currentFeedTab: 'general',
-            currentCommunity: null,
-            posts: [],
-            communities: [],
-            followedCommunities: new Set(),
-            isLoading: false,
-            markdownRenderer: this.data.markdownRenderer, // Keep renderer
-            currentPostType: 'text',
-            adminData: null
-        };
-        
-        // Notify all subscribers of reset
-        this.subscribers.forEach((callbacks, key) => {
-            callbacks.forEach(callback => {
-                callback(this.data[key], undefined);
-            });
-        });
+    isFollowing(communityName) {
+        const follows = this.getFollows();
+        return follows[communityName] === true;
+    }
+
+    // Loading state
+    setLoading(loading) {
+        this.set('loading', Boolean(loading));
+    }
+
+    isLoading() {
+        return this.get('loading');
+    }
+
+    // Navigation state
+    setCurrentFeed(feed) {
+        this.set('currentFeed', feed);
+    }
+
+    getCurrentFeed() {
+        return this.get('currentFeed');
+    }
+
+    setCurrentView(view) {
+        this.set('currentView', view);
+    }
+
+    getCurrentView() {
+        return this.get('currentView');
+    }
+
+    // Initialization
+    setInitialized(initialized) {
+        this.set('initialized', Boolean(initialized));
+    }
+
+    isInitialized() {
+        return this.get('initialized');
     }
 }
 
-// Create global state instance
-const State = new AppState();
-
 // Helper functions for common state operations
-const StateHelpers = {
-    // Navigation helpers
-    navigateToPage(page, data = {}) {
-        State.update({
-            currentPage: page,
-            ...data
-        });
-    },
-
-    navigateToCommunity(communityName) {
-        State.update({
-            currentPage: 'community',
-            currentCommunity: communityName
-        });
-    },
-
-    // Post helpers
-    addPost(post) {
-        const posts = State.get('posts');
-        State.set('posts', [post, ...posts]);
-    },
-
-    removePost(postId) {
-        const posts = State.get('posts').filter(p => p.id !== postId);
-        State.set('posts', posts);
-    },
-
-    updatePost(postId, updates) {
-        const posts = State.get('posts').map(post => 
-            post.id === postId ? { ...post, ...updates } : post
-        );
-        State.set('posts', posts);
-    },
-
-    // Community helpers
-    addCommunity(community) {
-        const communities = State.get('communities');
-        State.set('communities', [community, ...communities]);
-    },
-
-    followCommunity(communityName) {
-        const followed = State.get('followedCommunities');
-        followed.add(communityName);
-        State.set('followedCommunities', new Set(followed));
-    },
-
-    unfollowCommunity(communityName) {
-        const followed = State.get('followedCommunities');
-        followed.delete(communityName);
-        State.set('followedCommunities', new Set(followed));
-    },
-
-    // Loading helpers
-    setLoading(isLoading) {
-        State.set('isLoading', isLoading);
-    },
-
-    // User helpers
-    setCurrentUser(user) {
-        State.set('currentUser', user);
-    },
-
-    clearCurrentUser() {
-        State.set('currentUser', null);
+class StateHelpers {
+    static setLoading(loading) {
+        State.setLoading(loading);
     }
-};
+
+    static showLoading() {
+        State.setLoading(true);
+    }
+
+    static hideLoading() {
+        State.setLoading(false);
+    }
+
+    static isUserLoggedIn() {
+        return State.getCurrentUser() !== null;
+    }
+
+    static isUserAdmin() {
+        const user = State.getCurrentUser();
+        return user && user.role === 'admin';
+    }
+
+    static getCurrentUserId() {
+        const user = State.getCurrentUser();
+        return user ? user.id : null;
+    }
+
+    static getCurrentUsername() {
+        const user = State.getCurrentUser();
+        return user ? user.username : null;
+    }
+
+    static canUserEdit(item) {
+        const user = State.getCurrentUser();
+        if (!user) return false;
+        
+        // Admin can edit anything
+        if (user.role === 'admin') return true;
+        
+        // User can edit their own items
+        return item.authorId === user.id;
+    }
+
+    static canUserDelete(item) {
+        const user = State.getCurrentUser();
+        if (!user) return false;
+        
+        // Admin can delete anything
+        if (user.role === 'admin') return true;
+        
+        // User can delete their own items
+        return item.authorId === user.id;
+    }
+
+    static getVisiblePosts() {
+        const posts = State.getPosts();
+        const currentFeed = State.getCurrentFeed();
+        const user = State.getCurrentUser();
+        const follows = State.getFollows();
+
+        switch (currentFeed) {
+            case 'followed':
+                if (!user) return [];
+                return posts.filter(post => 
+                    follows[post.community] === true
+                );
+            
+            case 'private':
+                if (!user) return [];
+                return posts.filter(post => 
+                    post.isPrivate && (post.authorId === user.id || user.role === 'admin')
+                );
+            
+            case 'general':
+            default:
+                return posts.filter(post => !post.isPrivate);
+        }
+    }
+
+    static getFilteredCommunities(searchTerm = '') {
+        const communities = State.getCommunities();
+        if (!searchTerm) return communities;
+        
+        const term = searchTerm.toLowerCase();
+        return communities.filter(community => 
+            community.name.toLowerCase().includes(term) ||
+            community.displayName.toLowerCase().includes(term) ||
+            community.description.toLowerCase().includes(term)
+        );
+    }
+}
+
+// Create global State instance
+window.State = new StateManager();
+
+// Export for module use
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = { StateManager, StateHelpers, State: window.State };
+}
