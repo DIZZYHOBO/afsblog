@@ -11,16 +11,592 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.7/purify.min.js"></script>
     
-    <!-- Component Styles -->
-    <link rel="stylesheet" href="css/variables.css">
-    <link rel="stylesheet" href="css/base.css">
-    <link rel="stylesheet" href="css/navigation.css">
-    <link rel="stylesheet" href="css/posts.css">
-    <link rel="stylesheet" href="css/modals.css">
-    <link rel="stylesheet" href="css/admin.css">
-    <link rel="stylesheet" href="css/profile.css">
-    <link rel="stylesheet" href="css/community.css">
-    <link rel="stylesheet" href="css/responsive.css">
+    <!-- Component Styles - Using inline styles to fix MIME issues -->
+    <style>
+        :root {
+            --bg-default: #0d1117;
+            --bg-overlay: #161b22;
+            --bg-subtle: #21262d;
+            --fg-default: #e6edf3;
+            --fg-muted: #7d8590;
+            --fg-subtle: #6e7681;
+            --accent-fg: #2f81f7;
+            --accent-emphasis: #0969da;
+            --border-default: #30363d;
+            --border-muted: #21262d;
+            --btn-primary-bg: #238636;
+            --btn-primary-hover-bg: #2ea043;
+            --btn-secondary-bg: #21262d;
+            --btn-secondary-hover-bg: #30363d;
+            --overlay-shadow: 0 16px 32px rgba(1, 4, 9, 0.85);
+            --success-bg: #238636;
+            --success-border: #2ea043;
+            --error-bg: #da3633;
+            --error-border: #f85149;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif;
+            background: var(--bg-default);
+            color: var(--fg-default);
+            line-height: 1.5;
+            min-height: 100vh;
+        }
+
+        .top-nav {
+            background: var(--bg-overlay);
+            border-bottom: 1px solid var(--border-default);
+            padding: 0 16px;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 100;
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .feed-tabs {
+            display: none;
+            gap: 8px;
+        }
+
+        .feed-tab {
+            background: var(--btn-secondary-bg);
+            color: var(--fg-default);
+            border: 1px solid var(--border-default);
+            border-radius: 8px;
+            padding: 8px 16px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .feed-tab:hover {
+            background: var(--btn-secondary-hover-bg);
+        }
+
+        .feed-tab.active {
+            background: var(--btn-primary-bg);
+            border-color: var(--btn-primary-bg);
+            color: white;
+        }
+
+        .menu-toggle {
+            position: fixed;
+            top: 15px;
+            left: 16px;
+            z-index: 101;
+            background: var(--btn-secondary-bg);
+            color: var(--fg-default);
+            border: 1px solid var(--border-default);
+            border-radius: 8px;
+            width: 40px;
+            height: 40px;
+            cursor: pointer;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .menu-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 200;
+            display: none;
+        }
+
+        .menu-overlay.active {
+            display: block;
+        }
+
+        .slide-menu {
+            position: fixed;
+            top: 0;
+            left: -300px;
+            width: 280px;
+            height: 100%;
+            background: var(--bg-overlay);
+            border-right: 1px solid var(--border-default);
+            z-index: 201;
+            transition: left 0.3s ease;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .slide-menu.open {
+            left: 0;
+        }
+
+        .menu-header {
+            padding: 20px;
+            border-bottom: 1px solid var(--border-default);
+        }
+
+        .menu-user-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .profile-avatar {
+            width: 40px;
+            height: 40px;
+            background: var(--btn-primary-bg);
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 16px;
+        }
+
+        .menu-user-details h4 {
+            color: var(--fg-default);
+            font-size: 16px;
+            margin-bottom: 4px;
+        }
+
+        .menu-user-details p {
+            color: var(--fg-muted);
+            font-size: 12px;
+        }
+
+        .menu-nav {
+            flex: 1;
+            padding: 16px 0;
+        }
+
+        .menu-item {
+            display: flex;
+            align-items: center;
+            padding: 12px 20px;
+            color: var(--fg-default);
+            text-decoration: none;
+            cursor: pointer;
+            transition: background 0.2s;
+            gap: 12px;
+            border: none;
+            background: none;
+            width: 100%;
+            text-align: left;
+        }
+
+        .menu-item:hover {
+            background: var(--btn-secondary-hover-bg);
+        }
+
+        .menu-item.active {
+            background: var(--btn-primary-bg);
+            color: white;
+        }
+
+        .login-prompt {
+            text-align: center;
+        }
+
+        .login-prompt-title {
+            color: var(--fg-default);
+            font-size: 16px;
+            margin-bottom: 12px;
+        }
+
+        .login-toggle-btn {
+            background: var(--btn-primary-bg);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 8px 16px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .inline-login-form {
+            margin-top: 16px;
+            display: none;
+            text-align: left;
+        }
+
+        .inline-login-form.open {
+            display: block;
+        }
+
+        .inline-form-group {
+            margin-bottom: 12px;
+        }
+
+        .inline-form-group label {
+            display: block;
+            color: var(--fg-default);
+            margin-bottom: 4px;
+            font-size: 12px;
+        }
+
+        .inline-form-group input {
+            width: 100%;
+            background: var(--bg-subtle);
+            border: 1px solid var(--border-default);
+            border-radius: 6px;
+            padding: 8px 10px;
+            color: var(--fg-default);
+            font-size: 12px;
+        }
+
+        .inline-form-buttons {
+            display: flex;
+            gap: 8px;
+        }
+
+        .inline-btn-primary {
+            background: var(--btn-primary-bg);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: 6px 12px;
+            cursor: pointer;
+            font-size: 12px;
+            flex: 1;
+        }
+
+        .inline-btn-secondary {
+            background: var(--btn-secondary-bg);
+            color: var(--fg-default);
+            border: 1px solid var(--border-default);
+            border-radius: 6px;
+            padding: 6px 12px;
+            cursor: pointer;
+            font-size: 12px;
+            flex: 1;
+        }
+
+        .inline-error-message {
+            background: var(--error-bg);
+            color: white;
+            padding: 6px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            margin-bottom: 8px;
+        }
+
+        .main-container {
+            margin-top: 60px;
+            padding: 20px;
+            max-width: 800px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .compose-btn {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 60px;
+            height: 60px;
+            background: var(--btn-primary-bg);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            font-size: 24px;
+            cursor: pointer;
+            box-shadow: var(--overlay-shadow);
+            z-index: 99;
+        }
+
+        .loading {
+            text-align: center;
+            color: var(--fg-muted);
+            padding: 40px;
+        }
+
+        .login-required {
+            text-align: center;
+            padding: 60px 20px;
+            max-width: 500px;
+            margin: 0 auto;
+        }
+
+        .login-required-icon {
+            font-size: 64px;
+            margin-bottom: 20px;
+        }
+
+        .login-required h2 {
+            color: var(--fg-default);
+            margin-bottom: 12px;
+            font-size: 28px;
+        }
+
+        .login-required p {
+            color: var(--fg-muted);
+            margin-bottom: 32px;
+            font-size: 16px;
+        }
+
+        .login-required-buttons {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .login-required-btn {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: var(--btn-primary-bg);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 12px 24px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 500;
+            text-decoration: none;
+            transition: background 0.2s;
+        }
+
+        .login-required-btn:hover {
+            background: var(--btn-primary-hover-bg);
+        }
+
+        .login-required-btn.secondary {
+            background: var(--btn-secondary-bg);
+            border: 1px solid var(--border-default);
+        }
+
+        .login-required-btn.secondary:hover {
+            background: var(--btn-secondary-hover-bg);
+        }
+
+        .btn {
+            background: var(--btn-primary-bg);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 8px 16px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            text-decoration: none;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn:hover {
+            background: var(--btn-primary-hover-bg);
+        }
+
+        .btn-secondary {
+            background: var(--btn-secondary-bg);
+            border: 1px solid var(--border-default);
+        }
+
+        .btn-secondary:hover {
+            background: var(--btn-secondary-hover-bg);
+        }
+
+        .btn-danger {
+            background: var(--error-bg);
+            border-color: var(--error-bg);
+        }
+
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .modal-content {
+            background: var(--bg-overlay);
+            border: 1px solid var(--border-default);
+            border-radius: 12px;
+            padding: 24px;
+            max-width: 500px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .modal-header h3 {
+            color: var(--fg-default);
+            font-size: 20px;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            color: var(--fg-muted);
+            font-size: 24px;
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 4px;
+        }
+
+        .close-btn:hover {
+            background: var(--btn-secondary-hover-bg);
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-group label {
+            display: block;
+            color: var(--fg-default);
+            margin-bottom: 6px;
+            font-weight: 500;
+        }
+
+        .form-group input, .form-group textarea, .form-group select {
+            width: 100%;
+            background: var(--bg-subtle);
+            border: 1px solid var(--border-default);
+            border-radius: 8px;
+            padding: 10px 12px;
+            color: var(--fg-default);
+            font-size: 14px;
+        }
+
+        .form-group input:focus, .form-group textarea:focus, .form-group select:focus {
+            outline: none;
+            border-color: var(--accent-emphasis);
+        }
+
+        .form-group small {
+            color: var(--fg-muted);
+            font-size: 12px;
+            margin-top: 4px;
+            display: block;
+        }
+
+        .error-message {
+            background: var(--error-bg);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 14px;
+            margin-bottom: 16px;
+        }
+
+        .success-message {
+            background: var(--success-bg);
+            color: white;
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-size: 14px;
+            position: fixed;
+            top: 80px;
+            right: 20px;
+            z-index: 1000;
+            box-shadow: var(--overlay-shadow);
+        }
+
+        .communities-dropdown {
+            display: none;
+            padding-left: 40px;
+        }
+
+        .communities-dropdown.open {
+            display: block;
+        }
+
+        .community-item {
+            padding: 8px 12px;
+            color: var(--fg-muted);
+            cursor: pointer;
+            border-radius: 4px;
+            text-decoration: none;
+            display: block;
+        }
+
+        .community-item:hover {
+            background: var(--btn-secondary-hover-bg);
+            color: var(--fg-default);
+        }
+
+        /* Basic post styles */
+        .post-card {
+            background: var(--bg-subtle);
+            border: 1px solid var(--border-default);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 16px;
+        }
+
+        .empty-state {
+            text-align: center;
+            color: var(--fg-muted);
+            padding: 40px 20px;
+        }
+
+        .feature-placeholder {
+            text-align: center;
+            padding: 60px 20px;
+            background: var(--bg-subtle);
+            border: 1px solid var(--border-default);
+            border-radius: 12px;
+            margin: 20px 0;
+        }
+
+        .feature-placeholder h3 {
+            color: var(--fg-default);
+            margin-bottom: 12px;
+            font-size: 24px;
+        }
+
+        .feature-placeholder p {
+            color: var(--fg-muted);
+            margin-bottom: 20px;
+        }
+
+        @media (max-width: 768px) {
+            .main-container {
+                padding: 10px;
+            }
+            
+            .modal-content {
+                width: 95%;
+                padding: 20px;
+            }
+            
+            .menu-toggle {
+                top: 10px;
+                left: 10px;
+            }
+        }
+    </style>
 </head>
 <body>
     <!-- Navigation Components -->
@@ -33,7 +609,69 @@
     </div>
 
     <div class="menu-overlay" id="menuOverlay"></div>
-    <div class="slide-menu" id="slideMenu"></div>
+    
+    <!-- Slide Menu with proper structure -->
+    <div class="slide-menu" id="slideMenu">
+        <div class="menu-header">
+            <div class="login-prompt">
+                <div class="login-prompt-title">Welcome to Blog Communities</div>
+                <button class="login-toggle-btn" onclick="Navigation.toggleInlineLoginForm()">Login</button>
+                <div class="inline-login-form" id="inlineLoginForm">
+                    <div id="inlineLoginError"></div>
+                    <form id="inlineLoginFormElement" onsubmit="Navigation.handleInlineLogin(event)">
+                        <div class="inline-form-group">
+                            <label for="inlineUsername">Username</label>
+                            <input type="text" id="inlineUsername" required minlength="3" maxlength="20">
+                        </div>
+                        <div class="inline-form-group">
+                            <label for="inlinePassword">Password</label>
+                            <input type="password" id="inlinePassword" required minlength="6">
+                        </div>
+                        <div class="inline-form-buttons">
+                            <button type="submit" class="inline-btn-primary" id="inlineLoginBtn">Sign In</button>
+                            <button type="button" class="inline-btn-secondary" onclick="Modals.openAuth('signup'); Navigation.toggleMenu();">Sign Up</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <div class="menu-nav">
+            <button class="menu-item active" id="menuFeed" onclick="Navigation.navigateToFeed()">
+                <span>🏠</span>
+                <span>Home Feed</span>
+            </button>
+            <button class="menu-item" id="menuProfile" onclick="Navigation.navigateToProfile()" style="display: none;">
+                <span>👤</span>
+                <span>Profile</span>
+            </button>
+            <button class="menu-item" id="menuCreateCommunity" onclick="Navigation.openCreateCommunity()" style="display: none;">
+                <span>🏘️</span>
+                <span>Create Community</span>
+            </button>
+            <button class="menu-item" id="menuBrowseCommunities" onclick="Navigation.toggleCommunitiesDropdown()" style="display: none;">
+                <span>🌍</span>
+                <span>Browse Communities</span>
+                <span id="communitiesToggle" style="margin-left: auto;">▼</span>
+            </button>
+            <div id="communitiesDropdown" class="communities-dropdown">
+                <div class="community-item">Loading communities...</div>
+            </div>
+            <button class="menu-item" id="menuAdmin" onclick="Navigation.navigateToAdmin()" style="display: none;">
+                <span>🔧</span>
+                <span>Admin Panel</span>
+            </button>
+            <button class="menu-item" id="menuSettings" onclick="Navigation.navigateToSettings()" style="display: none;">
+                <span>⚙️</span>
+                <span>Settings</span>
+            </button>
+            <button class="menu-item" id="menuLogout" onclick="Navigation.logout()" style="display: none;">
+                <span>🚪</span>
+                <span>Logout</span>
+            </button>
+        </div>
+    </div>
+    
     <button class="menu-toggle" id="menuToggle" onclick="Navigation.toggleMenu()">☰</button>
 
     <!-- Main Content -->
@@ -48,10 +686,54 @@
     <!-- Modals -->
     <div id="modals-container"></div>
 
-    <!-- Component Scripts -->
-    <script src="js/config.js"></script>
-    <script src="js/api.js"></script>
+    <!-- Your Original Component Scripts in Order -->
+    <script>
+        // Inline js/config.js content
+        const CONFIG = {
+            APP_NAME: 'Blog Communities',
+            VERSION: '1.0.0',
+            API_BASE: '/.netlify/functions',
+            PROTECTED_ADMIN: 'dumbass',
+            POSTS_PER_PAGE: 20,
+            REPLIES_PER_PAGE: 50,
+            MAX_TITLE_LENGTH: 200,
+            MAX_CONTENT_LENGTH: 10000,
+            MAX_BIO_LENGTH: 500,
+            MAX_REPLY_LENGTH: 2000,
+            MAX_COMMUNITY_NAME_LENGTH: 25,
+            MAX_COMMUNITY_DISPLAY_NAME_LENGTH: 50,
+            MAX_COMMUNITY_DESCRIPTION_LENGTH: 500,
+            ANIMATION_DURATION: 300,
+            SUCCESS_MESSAGE_DURATION: 4000,
+            STORAGE_KEYS: {
+                CURRENT_USER: 'current_user',
+                FOLLOWED_COMMUNITIES: 'user_follows_',
+                USER_PREFIX: 'user_',
+                PENDING_USER_PREFIX: 'pending_user_',
+                POST_PREFIX: 'post_',
+                COMMUNITY_PREFIX: 'community_'
+            },
+            MEDIA_PATTERNS: {
+                YOUTUBE: /(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]+)/,
+                DAILYMOTION: /(?:dailymotion\.com\/video\/|dai\.ly\/)([a-zA-Z0-9_-]+)/,
+                SUNO: /suno\.com\/song\/([a-zA-Z0-9_-]+)/,
+                IMAGE: /\.(jpg|jpeg|png|gif|webp|svg)(\?.*)?$/i,
+                VIDEO: /\.(mp4|webm|ogg|mov)(\?.*)?$/i,
+                AUDIO: /\.(mp3|wav|ogg|m4a|aac|flac)(\?.*)?$/i
+            },
+            VALIDATION: {
+                USERNAME: /^[a-zA-Z0-9_]{3,20}$/,
+                COMMUNITY_NAME: /^[a-z0-9_]{3,25}$/,
+                URL: /^https?:\/\/.+/i
+            },
+            DEFAULTS: {
+                BIO: 'Hello! I\'m new here.',
+                AVATAR_FALLBACK: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgdmlld0JveD0iMCAwIDEwMCAxMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iNTAiIGN5PSI1MCIgcj0iNTAiIGZpbGw9IiM0Yjc2ODgiLz48Y2lyY2xlIGN4PSI1MCIgY3k9IjM3LjUiIHI9IjEyLjUiIGZpbGw9IndoaXRlIi8+PHBhdGggZD0iTTI1IDc3LjVDMjUgNjcuODM1IDMyLjgzNSA2MCA0Mi41IDYwaDE1QzY3LjE2NSA2MCA3NSA2Ny44MzUgNzUgNzcuNVY4MEgyNVY3Ny41WiIgZmlsbD0id2hpdGUiLz48L3N2Zz4='
+            }
+        };
+    </script>
     <script src="js/state.js"></script>
+    <script src="js/api.js"></script>
     <script src="js/utils.js"></script>
     <script src="js/auth.js"></script>
     <script src="js/navigation.js"></script>
@@ -63,6 +745,7 @@
     <script src="js/admin.js"></script>
     <script src="js/modals.js"></script>
     <script src="js/markdown.js"></script>
+    <script src="js/media-renderer.js"></script>
     <script src="js/app.js"></script>
 </body>
 </html>
