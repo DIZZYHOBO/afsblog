@@ -173,7 +173,7 @@ class ModalManager {
                                     <button type="button" title="Italic" onclick="MarkdownEditor.insertMarkdown('composeContent', '_', '_')">I</button>
                                     <button type="button" title="Link" onclick="Modals.open('linkInsertModal'); Modals.setLinkTarget('composeContent')">🔗</button>
                                     <button type="button" title="Image" onclick="Modals.open('imageInsertModal'); Modals.setImageTarget('composeContent')">🖼️</button>
-                                    <button type="button" title="Code" onclick="MarkdownEditor.insertMarkdown('composeContent', '\\`', '\\`')">{ }</button>
+                                    <button type="button" title="Code" onclick="MarkdownEditor.insertMarkdown('composeContent', '`', '`')">{ }</button>
                                     <button type="button" title="Quote" onclick="MarkdownEditor.insertMarkdown('composeContent', '> ', '')">❝</button>
                                     <button type="button" title="List" onclick="MarkdownEditor.insertMarkdown('composeContent', '- ', '')">•</button>
                                 </div>
