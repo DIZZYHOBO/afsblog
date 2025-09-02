@@ -212,6 +212,9 @@ class NavigationManager {
             // Close menu
             this.toggleMenu();
             
+            // Update the app UI
+            App.updateUI();
+            
             Utils.showSuccessMessage('Welcome back!');
             
         } catch (error) {
@@ -338,6 +341,8 @@ class NavigationManager {
         try {
             await Auth.logout();
             this.toggleMenu();
+            App.updateUI();
+            Utils.showSuccessMessage('Logged out successfully!');
         } catch (error) {
             console.error('Logout error:', error);
             // Still proceed with logout even if API call fails
