@@ -1,28 +1,43 @@
 // js/api.js - API Communication Layer
+class ApiError extends Error {
+    constructor(message, status, details = null) {
+        super(message);
+        this.name = 'ApiError';
+        this.status = status;
+        this.details = details;
+    }
+}
+
 class ApiClient {
-    constructor() {
-        this.baseUrl = CONFIG.API_BASE;
+    constructor(baseUrl = CONFIG.API_BASE) {
+        this.baseUrl = baseUrl;
+        this.headers = {
+            'Content-Type': 'application/json'
+        };
     }
 
-    // Generic request handler
     async request(endpoint, options = {}) {
         const url = `${this.baseUrl}${endpoint}`;
         
-        const defaultOptions = {
-            method: 'GET',
-            headers: {
-                'Content-Type': 'application/json'
-            }
-        };
-
-        const finalOptions = { ...defaultOptions, ...options };
-
         try {
-            const response = await fetch(url, finalOptions);
-            
+            const response = await fetch(url, {
+                headers: { ...this.headers, ...options.headers },
+                ...options
+            });
+
             if (!response.ok) {
-                const errorData = await response.json().catch(() => ({ error: response.statusText }));
-                throw new ApiError(errorData.error || 'Request failed', response.status, errorData);
+                let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+                let errorDetails = null;
+                
+                try {
+                    const errorData = await response.json();
+                    errorMessage = errorData.error || errorMessage;
+                    errorDetails = errorData.details || null;
+                } catch (e) {
+                    // Failed to parse error response as JSON
+                }
+                
+                throw new ApiError(errorMessage, response.status, errorDetails);
             }
 
             return await response.json();
@@ -30,311 +45,507 @@ class ApiClient {
             if (error instanceof ApiError) {
                 throw error;
             }
-            throw new ApiError('Network error', 0, { originalError: error });
+            throw new ApiError('Network error', 0, error.message);
         }
     }
 
-    // GET request
     async get(endpoint, params = {}) {
-        const url = new URL(`${this.baseUrl}${endpoint}`, window.location.origin);
-        Object.entries(params).forEach(([key, value]) => {
-            if (value !== null && value !== undefined) {
-                url.searchParams.append(key, value);
-            }
-        });
-        
-        return await this.request(url.pathname + url.search);
+        const queryString = new URLSearchParams(params).toString();
+        const url = queryString ? `${endpoint}?${queryString}` : endpoint;
+        return this.request(url, { method: 'GET' });
     }
 
-    // POST request
     async post(endpoint, data = {}) {
-        return await this.request(endpoint, {
+        return this.request(endpoint, {
             method: 'POST',
             body: JSON.stringify(data)
         });
     }
 
-    // PUT request
     async put(endpoint, data = {}) {
-        return await this.request(endpoint, {
+        return this.request(endpoint, {
             method: 'PUT',
             body: JSON.stringify(data)
         });
     }
 
-    // DELETE request
-    async delete(endpoint, data = {}) {
-        return await this.request(endpoint, {
-            method: 'DELETE',
-            body: JSON.stringify(data)
-        });
+    async delete(endpoint) {
+        return this.request(endpoint, { method: 'DELETE' });
     }
 }
 
-// Custom error class for API errors
-class ApiError extends Error {
-    constructor(message, status, data = {}) {
-        super(message);
-        this.name = 'ApiError';
-        this.status = status;
-        this.data = data;
-    }
-
-    isNetworkError() {
-        return this.status === 0;
-    }
-
-    isClientError() {
-        return this.status >= 400 && this.status < 500;
-    }
-
-    isServerError() {
-        return this.status >= 500;
-    }
-}
-
-// Blob API for legacy compatibility
 class BlobApi {
-    constructor() {
-        this.apiClient = new ApiClient();
+    constructor(apiClient) {
+        this.api = apiClient;
     }
 
     async get(key) {
         try {
-            const response = await fetch('/.netlify/functions/blobs', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    method: 'GET',
-                    key: key
-                })
+            const response = await this.api.post('/blobs', {
+                method: 'GET',
+                key: key
             });
-            
-            if (!response.ok) {
-                if (response.status === 404) {
-                    return null;
-                }
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-            }
-            
-            const result = await response.json();
-            return result.data;
+            return response.data;
         } catch (error) {
             console.error('Error getting blob:', error);
-            return null;
+            throw error;
         }
     }
 
-    async set(key, value) {
+    async set(key, data) {
         try {
-            const response = await fetch('/.netlify/functions/blobs', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    method: 'SET',
-                    key: key,
-                    value: value
-                })
+            const response = await this.api.post('/blobs', {
+                method: 'PUT',
+                key: key,
+                data: data
             });
-            
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-            }
-            
-            return await response.json();
+            return response;
         } catch (error) {
             console.error('Error setting blob:', error);
             throw error;
         }
     }
 
-    async list(prefix = '') {
-        try {
-            const response = await fetch('/.netlify/functions/blobs', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    method: 'LIST',
-                    prefix: prefix
-                })
-            });
-            
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-            }
-            
-            const result = await response.json();
-            return result.keys || [];
-        } catch (error) {
-            console.error('Error listing blobs:', error);
-            return [];
-        }
-    }
-
     async delete(key) {
         try {
-            const response = await fetch('/.netlify/functions/blobs', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    method: 'DELETE',
-                    key: key
-                })
+            const response = await this.api.post('/blobs', {
+                method: 'DELETE',
+                key: key
             });
-            
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-            }
-            
-            return await response.json();
+            return response;
         } catch (error) {
             console.error('Error deleting blob:', error);
             throw error;
         }
     }
+
+    async list(prefix = '') {
+        try {
+            const response = await this.api.post('/blobs', {
+                method: 'LIST',
+                prefix: prefix
+            });
+            return response.keys || [];
+        } catch (error) {
+            console.error('Error listing blobs:', error);
+            throw error;
+        }
+    }
+
+    async exists(key) {
+        try {
+            await this.get(key);
+            return true;
+        } catch (error) {
+            if (error.status === 404) {
+                return false;
+            }
+            throw error;
+        }
+    }
 }
 
-// Specific API methods
-class BlogApi {
-    constructor() {
-        this.apiClient = new ApiClient();
-        this.blobApi = new BlobApi(); // For backward compatibility
+class AuthApi {
+    constructor(apiClient, blobApi) {
+        this.api = apiClient;
+        this.blobs = blobApi;
     }
 
-    // Auth methods
     async login(username, password) {
-        return await this.apiClient.post('/api/auth/login', { username, password });
+        try {
+            // Get user data
+            const userKey = `${CONFIG.STORAGE_KEYS.USER_PREFIX}${username}`;
+            const userData = await this.blobs.get(userKey);
+            
+            if (!userData || userData.password !== password) {
+                throw new ApiError('Invalid username or password', 401);
+            }
+
+            // Check if user is pending approval
+            if (userData.status === 'pending') {
+                throw new ApiError('Account pending admin approval', 403);
+            }
+
+            if (userData.status === 'banned') {
+                throw new ApiError('Account has been banned', 403);
+            }
+
+            // Update last login
+            userData.lastLogin = new Date().toISOString();
+            await this.blobs.set(userKey, userData);
+
+            return userData;
+        } catch (error) {
+            throw error instanceof ApiError ? error : new ApiError('Login failed', 500);
+        }
     }
 
-    async register(username, password, bio) {
-        return await this.apiClient.post('/api/auth/register', { username, password, bio });
+    async register(username, password, displayName, bio) {
+        try {
+            // Validate username
+            if (!CONFIG.VALIDATION.USERNAME.test(username)) {
+                throw new ApiError('Username must be 3-20 characters, letters, numbers, and underscores only', 400);
+            }
+
+            // Check if username already exists
+            const userKey = `${CONFIG.STORAGE_KEYS.USER_PREFIX}${username}`;
+            const exists = await this.blobs.exists(userKey);
+            
+            if (exists) {
+                throw new ApiError('Username already taken', 409);
+            }
+
+            // Create user data
+            const userData = {
+                id: Utils.generateId('user_'),
+                username: username,
+                password: password,
+                displayName: displayName || username,
+                bio: bio || CONFIG.DEFAULTS.BIO,
+                avatar: CONFIG.DEFAULTS.AVATAR_FALLBACK,
+                role: 'user',
+                status: 'active',
+                createdAt: new Date().toISOString(),
+                lastLogin: new Date().toISOString()
+            };
+
+            // Save user
+            await this.blobs.set(userKey, userData);
+
+            return userData;
+        } catch (error) {
+            throw error instanceof ApiError ? error : new ApiError('Registration failed', 500);
+        }
     }
 
-    async logout() {
-        return await this.apiClient.post('/api/auth/logout');
+    async updateProfile(username, updates) {
+        try {
+            const userKey = `${CONFIG.STORAGE_KEYS.USER_PREFIX}${username}`;
+            const userData = await this.blobs.get(userKey);
+            
+            if (!userData) {
+                throw new ApiError('User not found', 404);
+            }
+
+            // Update allowed fields
+            const updatedUser = {
+                ...userData,
+                ...updates,
+                updatedAt: new Date().toISOString()
+            };
+
+            await this.blobs.set(userKey, updatedUser);
+            return updatedUser;
+        } catch (error) {
+            throw error instanceof ApiError ? error : new ApiError('Profile update failed', 500);
+        }
+    }
+}
+
+class PostsApi {
+    constructor(apiClient, blobApi) {
+        this.api = apiClient;
+        this.blobs = blobApi;
     }
 
-    // Posts
     async createPost(postData) {
-        return await this.apiClient.post('/api/posts/create', postData);
+        try {
+            const post = {
+                id: Utils.generateId('post_'),
+                ...postData,
+                timestamp: new Date().toISOString(),
+                likes: 0,
+                likedBy: [],
+                replyCount: 0
+            };
+
+            const postKey = `${CONFIG.STORAGE_KEYS.POST_PREFIX}${post.id}`;
+            await this.blobs.set(postKey, post);
+            
+            return post;
+        } catch (error) {
+            throw error instanceof ApiError ? error : new ApiError('Failed to create post', 500);
+        }
     }
 
-    async getPosts(params = {}) {
-        return await this.apiClient.get('/api/posts', params);
+    async updatePost(postId, updates) {
+        try {
+            const postKey = `${CONFIG.STORAGE_KEYS.POST_PREFIX}${postId}`;
+            const post = await this.blobs.get(postKey);
+            
+            if (!post) {
+                throw new ApiError('Post not found', 404);
+            }
+
+            const updatedPost = {
+                ...post,
+                ...updates,
+                updatedAt: new Date().toISOString()
+            };
+
+            await this.blobs.set(postKey, updatedPost);
+            return updatedPost;
+        } catch (error) {
+            throw error instanceof ApiError ? error : new ApiError('Failed to update post', 500);
+        }
     }
 
     async deletePost(postId) {
-        return await this.apiClient.delete(`/api/posts/${postId}`);
+        try {
+            const postKey = `${CONFIG.STORAGE_KEYS.POST_PREFIX}${postId}`;
+            await this.blobs.delete(postKey);
+            
+            // Also delete associated replies
+            const replyKey = `replies_${postId}`;
+            try {
+                await this.blobs.delete(replyKey);
+            } catch (e) {
+                // Reply data might not exist, which is fine
+            }
+            
+            return true;
+        } catch (error) {
+            throw error instanceof ApiError ? error : new ApiError('Failed to delete post', 500);
+        }
     }
 
-    // Feeds
-    async getPublicFeed(params = {}) {
-        return await this.apiClient.get('/api/feeds/public', params);
+    async likePost(postId, userId, isLiking) {
+        try {
+            const postKey = `${CONFIG.STORAGE_KEYS.POST_PREFIX}${postId}`;
+            const post = await this.blobs.get(postKey);
+            
+            if (!post) {
+                throw new ApiError('Post not found', 404);
+            }
+
+            let likedBy = post.likedBy || [];
+            
+            if (isLiking) {
+                if (!likedBy.includes(userId)) {
+                    likedBy.push(userId);
+                }
+            } else {
+                likedBy = likedBy.filter(id => id !== userId);
+            }
+
+            const updatedPost = {
+                ...post,
+                likes: likedBy.length,
+                likedBy: likedBy,
+                updatedAt: new Date().toISOString()
+            };
+
+            await this.blobs.set(postKey, updatedPost);
+            return updatedPost;
+        } catch (error) {
+            throw error instanceof ApiError ? error : new ApiError('Failed to update like', 500);
+        }
     }
 
-    async getPrivateFeed(params = {}) {
-        return await this.apiClient.get('/api/feeds/private', params);
+    async getReplies(postId) {
+        try {
+            const replyKey = `replies_${postId}`;
+            const replies = await this.blobs.get(replyKey);
+            return replies || [];
+        } catch (error) {
+            if (error.status === 404) {
+                return [];
+            }
+            throw error;
+        }
     }
 
-    async getFollowingFeed(params = {}) {
-        return await this.apiClient.get('/api/feeds/following', params);
-    }
+    async addReply(postId, replyData) {
+        try {
+            const replies = await this.getReplies(postId);
+            
+            const reply = {
+                id: Utils.generateId('reply_'),
+                ...replyData,
+                timestamp: new Date().toISOString()
+            };
 
-    // Communities
-    async getCommunities(params = {}) {
-        return await this.apiClient.get('/api/communities', params);
-    }
-
-    async createCommunity(communityData) {
-        return await this.apiClient.post('/api/communities', communityData);
-    }
-
-    async getCommunity(name) {
-        return await this.apiClient.get(`/api/communities/${name}`);
-    }
-
-    async getCommunityPosts(name, params = {}) {
-        return await this.apiClient.get(`/api/communities/${name}/posts`, params);
-    }
-
-    // Following
-    async followCommunity(communityName, action = 'toggle') {
-        return await this.apiClient.post('/api/communities/follow', { communityName, action });
-    }
-
-    async getFollowedCommunities() {
-        return await this.apiClient.get('/api/communities/following');
-    }
-
-    // Replies
-    async createReply(postId, content) {
-        return await this.apiClient.post('/api/replies/create', { postId, content });
-    }
-
-    async deleteReply(postId, replyId) {
-        return await this.apiClient.delete('/api/replies/delete', { postId, replyId });
-    }
-
-    // Profile
-    async getProfile() {
-        return await this.apiClient.get('/api/profile');
-    }
-
-    async updateProfile(profileData) {
-        return await this.apiClient.put('/api/profile/update', profileData);
-    }
-
-    // Admin
-    async getPendingUsers() {
-        return await this.apiClient.get('/api/admin/pending-users');
-    }
-
-    async approveUser(username) {
-        return await this.apiClient.post('/api/admin/approve-user', { username });
-    }
-
-    async rejectUser(username) {
-        return await this.apiClient.post('/api/admin/reject-user', { username });
-    }
-
-    async promoteUser(username) {
-        return await this.apiClient.post('/api/admin/promote-user', { username });
-    }
-
-    async demoteUser(username) {
-        return await this.apiClient.post('/api/admin/demote-user', { username });
-    }
-
-    async deleteUser(username) {
-        return await this.apiClient.post('/api/admin/delete-user', { username });
-    }
-
-    async getAdminStats() {
-        return await this.apiClient.get('/api/admin/stats');
-    }
-
-    // Media detection
-    async detectMedia(url) {
-        return await this.apiClient.post('/api/media/detect', { url });
-    }
-
-    // Search
-    async searchPosts(query, params = {}) {
-        return await this.apiClient.get('/api/search/posts', { query, ...params });
+            replies.push(reply);
+            
+            const replyKey = `replies_${postId}`;
+            await this.blobs.set(replyKey, replies);
+            
+            // Update post reply count
+            await this.updatePost(postId, { 
+                replyCount: replies.length 
+            });
+            
+            return reply;
+        } catch (error) {
+            throw error instanceof ApiError ? error : new ApiError('Failed to add reply', 500);
+        }
     }
 }
 
-// Create global API instances
-window.api = new BlogApi();
-window.blobAPI = new BlobApi(); // For backward compatibility
+class CommunitiesApi {
+    constructor(apiClient, blobApi) {
+        this.api = apiClient;
+        this.blobs = blobApi;
+    }
 
-// Export error class
-window.ApiError = ApiError;
+    async createCommunity(communityData) {
+        try {
+            // Validate community name
+            if (!CONFIG.VALIDATION.COMMUNITY_NAME.test(communityData.name)) {
+                throw new ApiError('Invalid community name format', 400);
+            }
+
+            // Check if community already exists
+            const communityKey = `${CONFIG.STORAGE_KEYS.COMMUNITY_PREFIX}${communityData.name}`;
+            const exists = await this.blobs.exists(communityKey);
+            
+            if (exists) {
+                throw new ApiError('Community name already taken', 409);
+            }
+
+            const community = {
+                id: Utils.generateId('community_'),
+                ...communityData,
+                memberCount: 0,
+                postCount: 0,
+                createdAt: new Date().toISOString()
+            };
+
+            await this.blobs.set(communityKey, community);
+            return community;
+        } catch (error) {
+            throw error instanceof ApiError ? error : new ApiError('Failed to create community', 500);
+        }
+    }
+
+    async updateCommunity(communityName, updates) {
+        try {
+            const communityKey = `${CONFIG.STORAGE_KEYS.COMMUNITY_PREFIX}${communityName}`;
+            const community = await this.blobs.get(communityKey);
+            
+            if (!community) {
+                throw new ApiError('Community not found', 404);
+            }
+
+            const updatedCommunity = {
+                ...community,
+                ...updates,
+                updatedAt: new Date().toISOString()
+            };
+
+            await this.blobs.set(communityKey, updatedCommunity);
+            return updatedCommunity;
+        } catch (error) {
+            throw error instanceof ApiError ? error : new ApiError('Failed to update community', 500);
+        }
+    }
+
+    async setFollowing(userId, communityName, isFollowing) {
+        try {
+            const followKey = `${CONFIG.STORAGE_KEYS.FOLLOWED_COMMUNITIES}${userId}`;
+            let follows = {};
+            
+            try {
+                follows = await this.blobs.get(followKey) || {};
+            } catch (e) {
+                // Follow data doesn't exist yet, which is fine
+            }
+
+            if (isFollowing) {
+                follows[communityName] = true;
+            } else {
+                delete follows[communityName];
+            }
+
+            await this.blobs.set(followKey, follows);
+            return follows;
+        } catch (error) {
+            throw error instanceof ApiError ? error : new ApiError('Failed to update follow status', 500);
+        }
+    }
+
+    async getFollowing(userId) {
+        try {
+            const followKey = `${CONFIG.STORAGE_KEYS.FOLLOWED_COMMUNITIES}${userId}`;
+            return await this.blobs.get(followKey) || {};
+        } catch (error) {
+            if (error.status === 404) {
+                return {};
+            }
+            throw error;
+        }
+    }
+}
+
+class MediaApi {
+    constructor(apiClient) {
+        this.api = apiClient;
+    }
+
+    async detectMedia(url) {
+        try {
+            const response = await this.api.post('/media-detection', { url });
+            return response;
+        } catch (error) {
+            // Fallback to client-side detection
+            return {
+                success: true,
+                url: url,
+                mediaType: this.detectMediaTypeClient(url),
+                canEmbed: true
+            };
+        }
+    }
+
+    detectMediaTypeClient(url) {
+        if (!url) return 'text';
+        
+        if (url.match(CONFIG.MEDIA_PATTERNS.YOUTUBE)) return 'video';
+        if (url.match(CONFIG.MEDIA_PATTERNS.DAILYMOTION)) return 'video';
+        if (url.match(CONFIG.MEDIA_PATTERNS.SUNO)) return 'audio';
+        if (url.match(CONFIG.MEDIA_PATTERNS.IMAGE)) return 'image';
+        if (url.match(CONFIG.MEDIA_PATTERNS.VIDEO)) return 'video';
+        if (url.match(CONFIG.MEDIA_PATTERNS.AUDIO)) return 'audio';
+        
+        return 'website';
+    }
+}
+
+// Initialize API instances
+const apiClient = new ApiClient();
+const blobAPI = new BlobApi(apiClient);
+const authAPI = new AuthApi(apiClient, blobAPI);
+const postsAPI = new PostsApi(apiClient, blobAPI);
+const communitiesAPI = new CommunitiesApi(apiClient, blobAPI);
+const mediaAPI = new MediaApi(apiClient);
+
+// Export for global use
+window.API = {
+    client: apiClient,
+    blobs: blobAPI,
+    auth: authAPI,
+    posts: postsAPI,
+    communities: communitiesAPI,
+    media: mediaAPI
+};
+
+// Backward compatibility exports
+window.blobAPI = blobAPI;
+window.authAPI = authAPI;
+window.postsAPI = postsAPI;
+window.communitiesAPI = communitiesAPI;
+window.mediaAPI = mediaAPI;
+
+// Export for module use
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = {
+        ApiError,
+        ApiClient,
+        BlobApi,
+        AuthApi,
+        PostsApi,
+        CommunitiesApi,
+        MediaApi,
+        API: window.API
+    };
+}
