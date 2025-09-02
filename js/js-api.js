@@ -101,12 +101,27 @@ class BlobApi {
 
     async get(key) {
         try {
-            const response = await this.apiClient.get('/blobs', { key });
-            return response.data;
-        } catch (error) {
-            if (error.status === 404) {
-                return null;
+            const response = await fetch('/.netlify/functions/blobs', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    method: 'GET',
+                    key: key
+                })
+            });
+            
+            if (!response.ok) {
+                if (response.status === 404) {
+                    return null;
+                }
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }
+            
+            const result = await response.json();
+            return result.data;
+        } catch (error) {
             console.error('Error getting blob:', error);
             return null;
         }
@@ -114,7 +129,23 @@ class BlobApi {
 
     async set(key, value) {
         try {
-            return await this.apiClient.post('/blobs', { key, value });
+            const response = await fetch('/.netlify/functions/blobs', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    method: 'SET',
+                    key: key,
+                    value: value
+                })
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            return await response.json();
         } catch (error) {
             console.error('Error setting blob:', error);
             throw error;
@@ -123,8 +154,23 @@ class BlobApi {
 
     async list(prefix = '') {
         try {
-            const response = await this.apiClient.get('/blobs', { list: true, prefix });
-            return response.keys || [];
+            const response = await fetch('/.netlify/functions/blobs', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    method: 'LIST',
+                    prefix: prefix
+                })
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            const result = await response.json();
+            return result.keys || [];
         } catch (error) {
             console.error('Error listing blobs:', error);
             return [];
@@ -133,7 +179,22 @@ class BlobApi {
 
     async delete(key) {
         try {
-            return await this.apiClient.delete('/blobs', { key });
+            const response = await fetch('/.netlify/functions/blobs', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    method: 'DELETE',
+                    key: key
+                })
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            return await response.json();
         } catch (error) {
             console.error('Error deleting blob:', error);
             throw error;
