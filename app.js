@@ -1487,7 +1487,7 @@
                 renderAdminPage();
                 
             } catch (error) {
-                console.error('Error deleting shed:', error);
+                console.error('Error deleting community:', error);
                 showSuccessMessage('Failed to delete shed. Please try again.');
             }
         }
