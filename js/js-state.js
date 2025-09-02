@@ -85,6 +85,11 @@ class AppState {
         return this.get('currentUser');
     }
 
+    // Set current user (helper method)
+    setCurrentUser(user) {
+        this.set('currentUser', user);
+    }
+
     // Check if user is authenticated
     isAuthenticated() {
         return this.getCurrentUser() !== null;
