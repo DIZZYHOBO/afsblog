@@ -46,9 +46,9 @@ class ModalManager {
             return;
         }
 
-        modal.style.display = 'block';
+        modal.style.display = 'flex';
+        modal.classList.add('active');
         this.openModals.add(modalId);
-        document.body.style.overflow = 'hidden'; // Prevent background scrolling
         
         // Focus first input if available
         setTimeout(() => {
@@ -57,344 +57,506 @@ class ModalManager {
                 firstInput.focus();
             }
         }, 100);
+
+        // Prevent body scroll
+        document.body.classList.add('modal-open');
     }
 
     close(modalId) {
         const modal = document.getElementById(modalId);
         if (modal) {
             modal.style.display = 'none';
+            modal.classList.remove('active');
             this.openModals.delete(modalId);
             
-            // Clear any error messages
-            const errorElements = modal.querySelectorAll('[id$="Error"]');
-            errorElements.forEach(el => el.innerHTML = '');
-            
-            // Reset forms
-            const forms = modal.querySelectorAll('form');
-            forms.forEach(form => form.reset());
-        }
-        
-        // Restore body scroll if no modals are open
-        if (this.openModals.size === 0) {
-            document.body.style.overflow = '';
+            // Re-enable body scroll if no modals are open
+            if (this.openModals.size === 0) {
+                document.body.classList.remove('modal-open');
+            }
         }
     }
 
     closeAll() {
-        Array.from(this.openModals).forEach(modalId => {
+        this.openModals.forEach(modalId => {
             this.close(modalId);
         });
     }
 
-    openAuth(mode = 'signin') {
-        const modal = document.getElementById('authModal');
-        const title = document.getElementById('authTitle');
-        const toggleText = document.getElementById('authToggleText');
-        const toggleBtn = document.getElementById('authToggleBtn');
-        const submitBtn = document.getElementById('authSubmitBtn');
-        const form = document.getElementById('authForm');
-        
-        if (!modal || !title || !toggleText || !toggleBtn || !submitBtn || !form) {
-            console.error('Auth modal elements not found');
-            return;
-        }
-        
-        document.getElementById('authError').innerHTML = '';
-        
-        if (mode === 'signup') {
-            title.textContent = 'Sign Up';
-            toggleText.textContent = 'Already have an account?';
-            toggleBtn.textContent = 'Sign In';
-            submitBtn.textContent = 'Sign Up';
-            form.dataset.mode = 'signup';
-        } else {
-            title.textContent = 'Sign In';
-            toggleText.textContent = "Don't have an account?";
-            toggleBtn.textContent = 'Sign Up';
-            submitBtn.textContent = 'Sign In';
-            form.dataset.mode = 'signin';
-        }
-        
-        this.open('authModal');
-    }
-
     createAuthModal() {
         const container = document.getElementById('modals-container');
-        const authModalHtml = `
-            <div class="modal" id="authModal">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h3 id="authTitle">Sign In</h3>
-                        <button class="close-btn" onclick="Modals.close('authModal')">&times;</button>
+        const modal = document.createElement('div');
+        modal.id = 'authModal';
+        modal.className = 'modal';
+        
+        modal.innerHTML = `
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 id="authModalTitle">Login</h2>
+                    <button class="modal-close" onclick="Modals.close('authModal')">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="auth-tabs">
+                        <button class="auth-tab active" id="loginTab" onclick="Modals.switchAuthTab('login')">Login</button>
+                        <button class="auth-tab" id="registerTab" onclick="Modals.switchAuthTab('register')">Register</button>
                     </div>
-                    <div id="authError"></div>
-                    <form id="authForm" data-handler="auth" data-mode="signin">
+                    
+                    <form id="authForm" class="auth-form">
                         <div class="form-group">
-                            <label for="username">Username</label>
-                            <input type="text" id="username" name="username" required minlength="3" maxlength="20">
+                            <label for="authUsername">Username</label>
+                            <input type="text" id="authUsername" name="username" required maxlength="20" 
+                                   placeholder="Enter username" autocomplete="username">
                         </div>
                         <div class="form-group">
-                            <label for="password">Password</label>
-                            <input type="password" id="password" name="password" required minlength="6">
+                            <label for="authPassword">Password</label>
+                            <input type="password" id="authPassword" name="password" required 
+                                   placeholder="Enter password" autocomplete="current-password">
                         </div>
-                        <div class="form-group">
-                            <label for="bio">Bio (Optional)</label>
-                            <textarea id="bio" name="bio" placeholder="Tell us about yourself..." maxlength="${CONFIG.MAX_BIO_LENGTH}"></textarea>
+                        <div class="form-group" id="displayNameGroup" style="display: none;">
+                            <label for="authDisplayName">Display Name</label>
+                            <input type="text" id="authDisplayName" name="displayName" 
+                                   placeholder="How others will see you" maxlength="50">
                         </div>
-                        <button type="submit" class="btn" id="authSubmitBtn">Sign In</button>
+                        <div class="form-group" id="bioGroup" style="display: none;">
+                            <label for="authBio">Bio (optional)</label>
+                            <textarea id="authBio" name="bio" rows="3" 
+                                      placeholder="Tell us about yourself..." maxlength="500"></textarea>
+                        </div>
+                        
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-primary" id="authSubmitBtn">Login</button>
+                            <button type="button" class="btn btn-secondary" onclick="Modals.close('authModal')">Cancel</button>
+                        </div>
                     </form>
-                    <p style="margin-top: 16px; color: var(--fg-muted); font-size: 14px;">
-                        <span id="authToggleText">Don't have an account?</span>
-                        <button type="button" class="btn-secondary btn" id="authToggleBtn" onclick="AuthForms.toggleAuthMode()">Sign Up</button>
-                    </p>
                 </div>
             </div>
         `;
-        container.insertAdjacentHTML('beforeend', authModalHtml);
+        
+        container.appendChild(modal);
+        
+        // Setup form handler
+        const form = modal.querySelector('#authForm');
+        form.addEventListener('submit', this.handleAuthSubmit.bind(this));
     }
 
     createComposeModal() {
         const container = document.getElementById('modals-container');
-        const composeModalHtml = `
-            <div class="modal" id="composeModal">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h3>Create Post</h3>
-                        <button class="close-btn" onclick="Modals.close('composeModal')">&times;</button>
-                    </div>
-                    <div id="composeError"></div>
-                    <form id="composeForm" data-handler="create-post">
+        const modal = document.createElement('div');
+        modal.id = 'composeModal';
+        modal.className = 'modal compose-modal';
+        
+        modal.innerHTML = `
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 id="composeModalTitle">Create Post</h2>
+                    <button class="modal-close" onclick="Modals.close('composeModal')">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <form id="composeForm" class="compose-form">
                         <div class="form-group">
-                            <label for="postCommunity">Community (Optional)</label>
-                            <select id="postCommunity" name="community">
-                                <option value="">General Feed</option>
+                            <label for="composeTitle">Title</label>
+                            <input type="text" id="composeTitle" name="title" required 
+                                   maxlength="200" placeholder="Enter post title">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="composeCommunity">Community</label>
+                            <select id="composeCommunity" name="community" required>
+                                <option value="">Select a community</option>
                             </select>
                         </div>
-
+                        
                         <div class="form-group">
-                            <label>Post Type</label>
-                            <div style="display: flex; background: var(--bg-subtle); border-radius: 8px; overflow: hidden; margin-bottom: 16px;">
-                                <button type="button" style="flex: 1; background: var(--btn-primary-bg); color: white; border: none; padding: 8px 16px; cursor: pointer; font-size: 14px;" onclick="Posts.setPostType('text')">Text Post</button>
-                                <button type="button" style="flex: 1; background: transparent; color: var(--fg-default); border: none; padding: 8px 16px; cursor: pointer; font-size: 14px;" onclick="Posts.setPostType('link')">Link/Media</button>
+                            <label for="composeContent">Content</label>
+                            <div class="markdown-editor">
+                                <div class="markdown-toolbar" id="composeToolbar">
+                                    <button type="button" title="Bold" onclick="MarkdownEditor.insertMarkdown('composeContent', '**', '**')">B</button>
+                                    <button type="button" title="Italic" onclick="MarkdownEditor.insertMarkdown('composeContent', '_', '_')">I</button>
+                                    <button type="button" title="Link" onclick="Modals.open('linkInsertModal'); Modals.setLinkTarget('composeContent')">🔗</button>
+                                    <button type="button" title="Image" onclick="Modals.open('imageInsertModal'); Modals.setImageTarget('composeContent')">🖼️</button>
+                                    <button type="button" title="Code" onclick="MarkdownEditor.insertMarkdown('composeContent', '\\`', '\\`')">{ }</button>
+                                    <button type="button" title="Quote" onclick="MarkdownEditor.insertMarkdown('composeContent', '> ', '')">❝</button>
+                                    <button type="button" title="List" onclick="MarkdownEditor.insertMarkdown('composeContent', '- ', '')">•</button>
+                                </div>
+                                <textarea id="composeContent" name="content" rows="12" required 
+                                          maxlength="10000" placeholder="Write your post content here..."></textarea>
                             </div>
                         </div>
-
-                        <div class="form-group">
-                            <label for="postTitle">Title</label>
-                            <input type="text" id="postTitle" name="title" required maxlength="${CONFIG.MAX_TITLE_LENGTH}">
-                        </div>
-
-                        <!-- Text Post Fields -->
-                        <div id="textPostFields">
-                            <div class="form-group">
-                                <label for="postContent">Content</label>
-                                ${this.createMarkdownToolbar()}
-                                <textarea id="postContent" name="content" required placeholder="Share your thoughts... (Markdown supported)" maxlength="${CONFIG.MAX_CONTENT_LENGTH}"></textarea>
-                                ${this.createMarkdownPreview()}
-                                <small>Supports Markdown formatting. Use the toolbar buttons above for quick formatting!</small>
-                            </div>
-                        </div>
-
-                        <!-- Link Post Fields -->
-                        <div id="linkPostFields" style="display: none;">
-                            <div class="form-group">
-                                <label for="postUrl">URL</label>
-                                <input type="url" id="postUrl" name="url" placeholder="https://example.com">
-                                <small>YouTube, images, videos, and other media will be embedded automatically</small>
-                            </div>
-                            
-                            <div class="form-group">
-                                <label for="postDescription">Description (Optional)</label>
-                                <textarea id="postDescription" name="description" placeholder="Describe this link..." maxlength="2000"></textarea>
-                            </div>
-                        </div>
-
-                        <div class="form-group">
-                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                                <input type="checkbox" id="isPrivate" name="isPrivate" style="width: auto;">
-                                <span>Private post (only you can see this)</span>
+                        
+                        <div class="form-group checkbox-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="composePrivate" name="isPrivate">
+                                <span class="checkbox-text">Private post (only visible to you)</span>
                             </label>
                         </div>
-                        <button type="submit" class="btn" id="composeSubmitBtn">Post</button>
+                        
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-primary">Create Post</button>
+                            <button type="button" class="btn btn-secondary" onclick="Modals.close('composeModal')">Cancel</button>
+                        </div>
                     </form>
                 </div>
             </div>
         `;
-        container.insertAdjacentHTML('beforeend', composeModalHtml);
+        
+        container.appendChild(modal);
+        
+        // Setup form handler
+        const form = modal.querySelector('#composeForm');
+        form.addEventListener('submit', this.handleComposeSubmit.bind(this));
     }
 
     createCreateCommunityModal() {
         const container = document.getElementById('modals-container');
-        const createCommunityModalHtml = `
-            <div class="modal" id="createCommunityModal">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h3>Create Community</h3>
-                        <button class="close-btn" onclick="Modals.close('createCommunityModal')">&times;</button>
-                    </div>
-                    <div id="createCommunityError"></div>
-                    <form id="createCommunityForm" data-handler="create-community">
+        const modal = document.createElement('div');
+        modal.id = 'createCommunityModal';
+        modal.className = 'modal';
+        
+        modal.innerHTML = `
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Create Community</h2>
+                    <button class="modal-close" onclick="Modals.close('createCommunityModal')">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <form id="createCommunityForm" class="create-community-form">
                         <div class="form-group">
                             <label for="communityName">Community Name</label>
-                            <input type="text" id="communityName" name="name" required minlength="3" maxlength="${CONFIG.MAX_COMMUNITY_NAME_LENGTH}" pattern="[a-z0-9_]+" placeholder="programming">
-                            <small>3-${CONFIG.MAX_COMMUNITY_NAME_LENGTH} characters, lowercase, letters, numbers, and underscores only</small>
+                            <input type="text" id="communityName" name="name" required 
+                                   maxlength="25" placeholder="community_name" 
+                                   pattern="^[a-z0-9_]{3,25}$">
+                            <small class="form-hint">3-25 characters, lowercase letters, numbers, and underscores only</small>
                         </div>
+                        
                         <div class="form-group">
                             <label for="communityDisplayName">Display Name</label>
-                            <input type="text" id="communityDisplayName" name="displayName" required maxlength="${CONFIG.MAX_COMMUNITY_DISPLAY_NAME_LENGTH}" placeholder="Programming">
+                            <input type="text" id="communityDisplayName" name="displayName" required 
+                                   maxlength="50" placeholder="Community Display Name">
                         </div>
+                        
                         <div class="form-group">
                             <label for="communityDescription">Description</label>
-                            <textarea id="communityDescription" name="description" maxlength="${CONFIG.MAX_COMMUNITY_DESCRIPTION_LENGTH}" placeholder="A community for programming discussions and help"></textarea>
+                            <textarea id="communityDescription" name="description" rows="4" 
+                                      maxlength="500" placeholder="Describe your community..."></textarea>
                         </div>
-                        <button type="submit" class="btn" id="createCommunitySubmitBtn">Create Community</button>
+                        
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-primary">Create Community</button>
+                            <button type="button" class="btn btn-secondary" onclick="Modals.close('createCommunityModal')">Cancel</button>
+                        </div>
                     </form>
                 </div>
             </div>
         `;
-        container.insertAdjacentHTML('beforeend', createCommunityModalHtml);
+        
+        container.appendChild(modal);
+        
+        // Setup form handler
+        const form = modal.querySelector('#createCommunityForm');
+        form.addEventListener('submit', this.handleCreateCommunitySubmit.bind(this));
     }
 
     createEditProfileModal() {
         const container = document.getElementById('modals-container');
-        const editProfileModalHtml = `
-            <div class="modal" id="editProfileModal">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h3>Edit Profile</h3>
-                        <button class="close-btn" onclick="Modals.close('editProfileModal')">&times;</button>
-                    </div>
-                    <div id="editProfileError"></div>
-                    <form id="editProfileForm" data-handler="edit-profile">
+        const modal = document.createElement('div');
+        modal.id = 'editProfileModal';
+        modal.className = 'modal';
+        
+        modal.innerHTML = `
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Edit Profile</h2>
+                    <button class="modal-close" onclick="Modals.close('editProfileModal')">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <form id="editProfileForm" class="edit-profile-form">
                         <div class="form-group">
-                            <label for="editProfilePicture">Profile Picture URL</label>
-                            <input type="url" id="editProfilePicture" name="profilePicture" placeholder="https://example.com/your-picture.jpg">
-                            <small>Enter a URL to an image you'd like to use as your profile picture</small>
+                            <label for="editDisplayName">Display Name</label>
+                            <input type="text" id="editDisplayName" name="displayName" 
+                                   maxlength="50" placeholder="How others will see you">
                         </div>
+                        
                         <div class="form-group">
-                            <label for="editProfileBio">Bio</label>
-                            <textarea id="editProfileBio" name="bio" placeholder="Tell people about yourself..." maxlength="${CONFIG.MAX_BIO_LENGTH}"></textarea>
-                            <small>Describe yourself in ${CONFIG.MAX_BIO_LENGTH} characters or less</small>
+                            <label for="editBio">Bio</label>
+                            <textarea id="editBio" name="bio" rows="4" 
+                                      maxlength="500" placeholder="Tell us about yourself..."></textarea>
                         </div>
+                        
                         <div class="form-group">
-                            <small style="color: var(--fg-subtle);">
-                                <strong>Tip:</strong> For profile pictures, you can use image hosting services like Imgur, or link directly to images from social media profiles.
-                            </small>
+                            <label for="editAvatar">Avatar URL (optional)</label>
+                            <input type="url" id="editAvatar" name="avatar" 
+                                   placeholder="https://example.com/your-avatar.jpg">
                         </div>
-                        <button type="submit" class="btn" id="editProfileSubmitBtn">Update Profile</button>
+                        
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-primary">Update Profile</button>
+                            <button type="button" class="btn btn-secondary" onclick="Modals.close('editProfileModal')">Cancel</button>
+                        </div>
                     </form>
                 </div>
             </div>
         `;
-        container.insertAdjacentHTML('beforeend', editProfileModalHtml);
+        
+        container.appendChild(modal);
+        
+        // Setup form handler
+        const form = modal.querySelector('#editProfileForm');
+        form.addEventListener('submit', this.handleEditProfileSubmit.bind(this));
     }
 
     createImageInsertModal() {
         const container = document.getElementById('modals-container');
-        const imageInsertModalHtml = `
-            <div class="modal" id="imageInsertModal">
-                <div class="modal-content" style="max-width: 500px;">
-                    <div class="modal-header">
-                        <h3>Insert Image</h3>
-                        <button class="close-btn" onclick="Modals.close('imageInsertModal')">&times;</button>
-                    </div>
-                    <form id="imageInsertForm" onsubmit="MarkdownToolbar.handleImageInsert(event)">
+        const modal = document.createElement('div');
+        modal.id = 'imageInsertModal';
+        modal.className = 'modal';
+        
+        modal.innerHTML = `
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Insert Image</h2>
+                    <button class="modal-close" onclick="Modals.close('imageInsertModal')">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <form id="imageInsertForm">
                         <div class="form-group">
                             <label for="imageUrl">Image URL</label>
-                            <input type="url" id="imageUrl" placeholder="https://example.com/image.jpg" required>
-                            <small>Enter a direct link to an image (jpg, png, gif, webp)</small>
+                            <input type="url" id="imageUrl" name="url" required 
+                                   placeholder="https://example.com/image.jpg">
                         </div>
+                        
                         <div class="form-group">
-                            <label for="imageAltText">Alt Text (Optional)</label>
-                            <input type="text" id="imageAltText" placeholder="Description of the image" maxlength="200">
-                            <small>Describes the image for accessibility and if the image fails to load</small>
+                            <label for="imageAlt">Alt Text (optional)</label>
+                            <input type="text" id="imageAlt" name="alt" 
+                                   placeholder="Description of the image">
                         </div>
-                        <div class="form-group">
-                            <label for="imageTitle">Title (Optional)</label>
-                            <input type="text" id="imageTitle" placeholder="Image title" maxlength="200">
-                            <small>Shows as a tooltip when hovering over the image</small>
+                        
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-primary">Insert Image</button>
+                            <button type="button" class="btn btn-secondary" onclick="Modals.close('imageInsertModal')">Cancel</button>
                         </div>
-                        <button type="submit" class="btn">Insert Image</button>
                     </form>
                 </div>
             </div>
         `;
-        container.insertAdjacentHTML('beforeend', imageInsertModalHtml);
+        
+        container.appendChild(modal);
+        
+        // Setup form handler
+        const form = modal.querySelector('#imageInsertForm');
+        form.addEventListener('submit', this.handleImageInsert.bind(this));
     }
 
     createLinkInsertModal() {
         const container = document.getElementById('modals-container');
-        const linkInsertModalHtml = `
-            <div class="modal" id="linkInsertModal">
-                <div class="modal-content" style="max-width: 500px;">
-                    <div class="modal-header">
-                        <h3>Insert Link</h3>
-                        <button class="close-btn" onclick="Modals.close('linkInsertModal')">&times;</button>
-                    </div>
-                    <form id="linkInsertForm" onsubmit="MarkdownToolbar.handleLinkInsert(event)">
+        const modal = document.createElement('div');
+        modal.id = 'linkInsertModal';
+        modal.className = 'modal';
+        
+        modal.innerHTML = `
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Insert Link</h2>
+                    <button class="modal-close" onclick="Modals.close('linkInsertModal')">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <form id="linkInsertForm">
                         <div class="form-group">
                             <label for="linkUrl">URL</label>
-                            <input type="url" id="linkUrl" placeholder="https://example.com" required>
-                            <small>The web address you want to link to</small>
+                            <input type="url" id="linkUrl" name="url" required 
+                                   placeholder="https://example.com">
                         </div>
+                        
                         <div class="form-group">
                             <label for="linkText">Link Text</label>
-                            <input type="text" id="linkText" placeholder="Click here" maxlength="200" required>
-                            <small>The text that will be clickable</small>
+                            <input type="text" id="linkText" name="text" required 
+                                   placeholder="Text to display">
                         </div>
-                        <button type="submit" class="btn">Insert Link</button>
+                        
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-primary">Insert Link</button>
+                            <button type="button" class="btn btn-secondary" onclick="Modals.close('linkInsertModal')">Cancel</button>
+                        </div>
                     </form>
                 </div>
             </div>
         `;
-        container.insertAdjacentHTML('beforeend', linkInsertModalHtml);
+        
+        container.appendChild(modal);
+        
+        // Setup form handler
+        const form = modal.querySelector('#linkInsertForm');
+        form.addEventListener('submit', this.handleLinkInsert.bind(this));
     }
 
-    createMarkdownToolbar() {
-        return `
-            <div class="markdown-toolbar">
-                <button type="button" class="markdown-btn" onclick="MarkdownToolbar.insertMarkdown('**', '**', 'Bold text')" title="Bold">
-                    <strong>B</strong>
-                </button>
-                <button type="button" class="markdown-btn" onclick="MarkdownToolbar.insertMarkdown('*', '*', 'Italic text')" title="Italic">
-                    <em>I</em>
-                </button>
-                <button type="button" class="markdown-btn" onclick="MarkdownToolbar.insertMarkdown('` + "`" + `', '` + "`" + `', 'Code')" title="Inline Code">
-                    <code>&lt;/&gt;</code>
-                </button>
-                <button type="button" class="markdown-btn" onclick="MarkdownToolbar.insertMarkdown('` + "```" + `\\n', '\\n` + "```" + `', 'Code block')" title="Code Block">
-                    <span>{ }</span>
-                </button>
-                <div class="toolbar-divider"></div>
-                <button type="button" class="markdown-btn" onclick="MarkdownToolbar.insertMarkdown('# ', '', 'Heading 1')" title="Heading 1">H1</button>
-                <button type="button" class="markdown-btn" onclick="MarkdownToolbar.insertMarkdown('## ', '', 'Heading 2')" title="Heading 2">H2</button>
-                <button type="button" class="markdown-btn" onclick="MarkdownToolbar.insertMarkdown('### ', '', 'Heading 3')" title="Heading 3">H3</button>
-                <div class="toolbar-divider"></div>
-                <button type="button" class="markdown-btn" onclick="MarkdownToolbar.insertMarkdown('> ', '', 'Quote text')" title="Quote"><span>"</span></button>
-                <button type="button" class="markdown-btn" onclick="MarkdownToolbar.insertMarkdown('- ', '', 'List item')" title="Bullet List">•</button>
-                <button type="button" class="markdown-btn" onclick="MarkdownToolbar.insertMarkdown('1. ', '', 'List item')" title="Numbered List">1.</button>
-                <div class="toolbar-divider"></div>
-                <button type="button" class="markdown-btn" onclick="MarkdownToolbar.insertLink()" title="Add Link">🔗</button>
-                <button type="button" class="markdown-btn" onclick="MarkdownToolbar.insertImage()" title="Add Image">🖼️</button>
-                <button type="button" class="markdown-btn" onclick="MarkdownToolbar.insertMarkdown('~~', '~~', 'Strikethrough text')" title="Strikethrough"><s>S</s></button>
-                <div class="toolbar-divider"></div>
-                <button type="button" class="markdown-btn" onclick="MarkdownToolbar.previewMarkdown()" title="Preview" id="previewBtn">👁️</button>
-            </div>
-        `;
+    // Auth modal methods
+    switchAuthTab(mode) {
+        const loginTab = document.getElementById('loginTab');
+        const registerTab = document.getElementById('registerTab');
+        const title = document.getElementById('authModalTitle');
+        const submitBtn = document.getElementById('authSubmitBtn');
+        const displayNameGroup = document.getElementById('displayNameGroup');
+        const bioGroup = document.getElementById('bioGroup');
+
+        if (mode === 'login') {
+            loginTab.classList.add('active');
+            registerTab.classList.remove('active');
+            title.textContent = 'Login';
+            submitBtn.textContent = 'Login';
+            displayNameGroup.style.display = 'none';
+            bioGroup.style.display = 'none';
+        } else {
+            loginTab.classList.remove('active');
+            registerTab.classList.add('active');
+            title.textContent = 'Register';
+            submitBtn.textContent = 'Register';
+            displayNameGroup.style.display = 'block';
+            bioGroup.style.display = 'block';
+        }
     }
 
-    createMarkdownPreview() {
-        return `
-            <div id="markdownPreview" class="markdown-preview" style="display: none;">
-                <div class="preview-header">
-                    <span>Preview:</span>
-                    <button type="button" class="btn-small" onclick="MarkdownToolbar.hidePreview()">Edit</button>
-                </div>
-                <div id="previewContent" class="markdown-content"></div>
-            </div>
-        `;
+    // Form handlers
+    async handleAuthSubmit(e) {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+        const mode = document.getElementById('loginTab').classList.contains('active') ? 'login' : 'register';
+        
+        try {
+            if (mode === 'login') {
+                await Auth.login(formData.get('username'), formData.get('password'));
+            } else {
+                await Auth.register(
+                    formData.get('username'),
+                    formData.get('password'),
+                    formData.get('displayName'),
+                    formData.get('bio')
+                );
+            }
+            this.close('authModal');
+            e.target.reset();
+        } catch (error) {
+            Utils.showErrorMessage(error.message);
+        }
+    }
+
+    async handleComposeSubmit(e) {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+        
+        try {
+            await Posts.createPost({
+                title: formData.get('title'),
+                content: formData.get('content'),
+                community: formData.get('community'),
+                isPrivate: formData.get('isPrivate') === 'on'
+            });
+            
+            this.close('composeModal');
+            e.target.reset();
+        } catch (error) {
+            Utils.showErrorMessage(error.message);
+        }
+    }
+
+    async handleCreateCommunitySubmit(e) {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+        
+        try {
+            await Communities.createCommunity({
+                name: formData.get('name'),
+                displayName: formData.get('displayName'),
+                description: formData.get('description')
+            });
+            
+            this.close('createCommunityModal');
+            e.target.reset();
+        } catch (error) {
+            Utils.showErrorMessage(error.message);
+        }
+    }
+
+    async handleEditProfileSubmit(e) {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+        
+        try {
+            await Profile.updateProfile({
+                displayName: formData.get('displayName'),
+                bio: formData.get('bio'),
+                avatar: formData.get('avatar')
+            });
+            
+            this.close('editProfileModal');
+        } catch (error) {
+            Utils.showErrorMessage(error.message);
+        }
+    }
+
+    setLinkTarget(target) {
+        this.linkTarget = target;
+    }
+
+    setImageTarget(target) {
+        this.imageTarget = target;
+    }
+
+    handleLinkInsert(e) {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+        const url = formData.get('url');
+        const text = formData.get('text');
+        const markdown = `[${text}](${url})`;
+        
+        if (this.linkTarget) {
+            MarkdownEditor.insertAtCursor(this.linkTarget, markdown);
+        }
+        
+        this.close('linkInsertModal');
+        e.target.reset();
+    }
+
+    handleImageInsert(e) {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+        const url = formData.get('url');
+        const alt = formData.get('alt') || 'Image';
+        const markdown = `![${alt}](${url})`;
+        
+        if (this.imageTarget) {
+            MarkdownEditor.insertAtCursor(this.imageTarget, markdown);
+        }
+        
+        this.close('imageInsertModal');
+        e.target.reset();
+    }
+
+    // Populate modals with data
+    populateComposeModal() {
+        const communities = State.getCommunities();
+        const select = document.getElementById('composeCommunity');
+        
+        select.innerHTML = '<option value="">Select a community</option>';
+        communities.forEach(community => {
+            const option = document.createElement('option');
+            option.value = community.name;
+            option.textContent = community.displayName;
+            select.appendChild(option);
+        });
+    }
+
+    populateEditProfileModal() {
+        const user = State.getCurrentUser();
+        if (user) {
+            document.getElementById('editDisplayName').value = user.displayName || '';
+            document.getElementById('editBio').value = user.bio || '';
+            document.getElementById('editAvatar').value = user.avatar || '';
+        }
     }
 }
 
-// Create global modals instance
-const Modals = new ModalManager();
+// Initialize global Modals instance
+window.Modals = new ModalManager();
+
+// Export for module use
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = { ModalManager, Modals: window.Modals };
+}
