@@ -170,9 +170,14 @@ class AuthApi {
                 throw new ApiError('Account has been banned', 403);
             }
 
-            // Update last login
-            userData.lastLogin = new Date().toISOString();
-            await this.blobs.set(userKey, userData);
+            // Update last login - but don't fail if this fails
+            try {
+                userData.lastLogin = new Date().toISOString();
+                await this.blobs.set(userKey, userData);
+            } catch (updateError) {
+                console.warn('Failed to update last login:', updateError);
+                // Continue anyway - login should still work
+            }
 
             return userData;
         } catch (error) {
