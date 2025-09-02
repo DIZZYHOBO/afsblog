@@ -245,11 +245,11 @@ class BlogApp {
 
     getFormHandler(handlerName) {
         const handlers = {
-            'auth': AuthForms.handleAuthForm,
-            'create-community': Communities.handleCreateForm,
-            'create-post': Posts.handleCreateForm,
-            'create-reply': Replies.handleCreateForm,
-            'edit-profile': Profile.handleEditForm
+            'auth': (e) => AuthForms.handleAuthForm(e),
+            'create-community': (e) => Communities.handleCreateForm(e),
+            'create-post': (e) => Posts.handleCreateForm(e),
+            'create-reply': (e) => Replies.handleCreateForm(e),
+            'edit-profile': (e) => Profile.handleEditForm(e)
         };
         
         return handlers[handlerName];
