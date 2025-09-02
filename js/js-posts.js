@@ -164,8 +164,13 @@ class PostsManager {
     // Render post content with markdown and media
     renderPostContent(content) {
         try {
+            // Handle null/undefined content
+            if (!content) {
+                return '<p><em>No content</em></p>';
+            }
+            
             // First, render markdown
-            let html = marked.parse(content);
+            let html = marked.parse(String(content));
             
             // Sanitize HTML
             html = DOMPurify.sanitize(html);
@@ -176,7 +181,7 @@ class PostsManager {
             return html;
         } catch (error) {
             console.error('Error rendering post content:', error);
-            return Utils.escapeHtml(content);
+            return Utils.escapeHtml(content || 'Error rendering content');
         }
     }
 
