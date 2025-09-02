@@ -49,14 +49,14 @@
                 <span>Profile</span>
             </button>
             
-            <button class="menu-item" id="menuCreateCommunity" onclick="openCreateCommunity()">
+            <button class="menu-item" id="menuCreateCommunity" onclick="openCreate()">
                 <span class="menu-item-icon">➕</span>
-                <span>Create Community</span>
+                <span>Create Shed</span>
             </button>
             
             <button class="menu-item" id="menuBrowseCommunities" onclick="toggleCommunitiesDropdown()">
                 <span class="menu-item-icon">🏘️</span>
-                <span>Browse Communities</span>
+                <span>Browse Sheds</span>
                 <span style="margin-left: auto; font-size: 12px;" id="communitiesToggle">▼</span>
             </button>
             
@@ -182,13 +182,13 @@
     <div class="modal" id="createCommunityModal">
         <div class="modal-content">
             <div class="modal-header">
-                <h3>Create Community</h3>
+                <h3>Build Shed</h3>
                 <button class="close-btn" onclick="closeModal('createCommunityModal')">&times;</button>
             </div>
             <div id="createCommunityError"></div>
             <form id="createCommunityForm">
                 <div class="form-group">
-                    <label for="communityName">Community Name</label>
+                    <label for="communityName">Shed Name</label>
                     <input type="text" id="communityName" required minlength="3" maxlength="25" pattern="[a-z0-9_]+" placeholder="programming">
                     <small>3-25 characters, lowercase, letters, numbers, and underscores only</small>
                 </div>
@@ -200,7 +200,7 @@
                     <label for="communityDescription">Description</label>
                     <textarea id="communityDescription" maxlength="500" placeholder="A community for programming discussions and help"></textarea>
                 </div>
-                <button type="submit" class="btn" id="createCommunitySubmitBtn">Create Community</button>
+                <button type="submit" class="btn" id="createCommunitySubmitBtn">Build Shed</button>
             </form>
         </div>
     </div>
