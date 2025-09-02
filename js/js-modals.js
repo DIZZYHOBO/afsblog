@@ -359,10 +359,10 @@ class ModalManager {
                 <button type="button" class="markdown-btn" onclick="MarkdownToolbar.insertMarkdown('*', '*', 'Italic text')" title="Italic">
                     <em>I</em>
                 </button>
-                <button type="button" class="markdown-btn" onclick="MarkdownToolbar.insertMarkdown('`', '`', 'Code')" title="Inline Code">
+                <button type="button" class="markdown-btn" onclick="MarkdownToolbar.insertMarkdown('` + "`" + `', '` + "`" + `', 'Code')" title="Inline Code">
                     <code>&lt;/&gt;</code>
                 </button>
-                <button type="button" class="markdown-btn" onclick="MarkdownToolbar.insertMarkdown('```\\n', '\\n```', 'Code block')" title="Code Block">
+                <button type="button" class="markdown-btn" onclick="MarkdownToolbar.insertMarkdown('` + "```" + `\\n', '\\n` + "```" + `', 'Code block')" title="Code Block">
                     <span>{ }</span>
                 </button>
                 <div class="toolbar-divider"></div>
