@@ -686,9 +686,12 @@
     <!-- Modals -->
     <div id="modals-container"></div>
 
-    <!-- Your Original Component Scripts in Order -->
+    <!-- Component Scripts - Switch to external files once server is configured -->
     <script>
-        // Inline js/config.js content
+        // TODO: Move back to external files once server MIME types are fixed
+        // For now, inline the essential components to get the app working
+        
+        // CONFIG (from js/config.js)
         const CONFIG = {
             APP_NAME: 'Blog Communities',
             VERSION: '1.0.0',
@@ -731,21 +734,107 @@
                 AVATAR_FALLBACK: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgdmlld0JveD0iMCAwIDEwMCAxMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iNTAiIGN5PSI1MCIgcj0iNTAiIGZpbGw9IiM0Yjc2ODgiLz48Y2lyY2xlIGN4PSI1MCIgY3k9IjM3LjUiIHI9IjEyLjUiIGZpbGw9IndoaXRlIi8+PHBhdGggZD0iTTI1IDc3LjVDMjUgNjcuODM1IDMyLjgzNSA2MCA0Mi41IDYwaDE1QzY3LjE2NSA2MCA3NSA2Ny44MzUgNzUgNzcuNVY4MEgyNVY3Ny41WiIgZmlsbD0id2hpdGUiLz48L3N2Zz4='
             }
         };
+
+        // Essential Navigation class (from js/navigation.js)
+        class NavigationManager {
+            constructor() {
+                this.isMenuOpen = false;
+                this.inlineLoginFormOpen = false;
+            }
+
+            toggleMenu() {
+                const menu = document.getElementById('slideMenu');
+                const overlay = document.getElementById('menuOverlay');
+                
+                this.isMenuOpen = !this.isMenuOpen;
+                
+                if (this.isMenuOpen) {
+                    menu.classList.add('open');
+                    overlay.classList.add('active');
+                } else {
+                    menu.classList.remove('open');
+                    overlay.classList.remove('active');
+                }
+            }
+
+            toggleInlineLoginForm() {
+                const form = document.getElementById('inlineLoginForm');
+                if (!form) return;
+
+                this.inlineLoginFormOpen = !this.inlineLoginFormOpen;
+                
+                if (this.inlineLoginFormOpen) {
+                    form.classList.add('open');
+                } else {
+                    form.classList.remove('open');
+                }
+            }
+
+            async handleInlineLogin(e) {
+                e.preventDefault();
+                console.log('Demo login attempt - full functionality requires all JS files to load properly');
+            }
+
+            navigateToFeed() { this.toggleMenu(); console.log('Navigate to feed'); }
+            navigateToProfile() { this.toggleMenu(); console.log('Navigate to profile'); }
+            openCreateCommunity() { this.toggleMenu(); console.log('Open create community'); }
+            toggleCommunitiesDropdown() { console.log('Toggle communities'); }
+            navigateToAdmin() { this.toggleMenu(); console.log('Navigate to admin'); }
+            navigateToSettings() { this.toggleMenu(); console.log('Navigate to settings'); }
+            logout() { this.toggleMenu(); console.log('Logout'); }
+        }
+
+        // Essential FeedTabs class (from js/feed-tabs.js) 
+        class FeedTabsManager {
+            switch(tabName) {
+                document.querySelectorAll('.feed-tab').forEach(tab => {
+                    tab.classList.remove('active');
+                });
+                
+                const activeTab = document.getElementById(tabName + 'Tab');
+                if (activeTab) {
+                    activeTab.classList.add('active');
+                }
+                console.log('Switch to tab:', tabName);
+            }
+        }
+
+        // Essential Modals class (from js/modals.js)
+        class ModalManager {
+            open(modalId) { console.log('Open modal:', modalId); }
+            close(modalId) { console.log('Close modal:', modalId); }
+            openAuth(mode) { console.log('Open auth modal:', mode); }
+        }
+
+        // Initialize essential global objects
+        window.Navigation = new NavigationManager();
+        window.FeedTabs = new FeedTabsManager();
+        window.Modals = new ModalManager();
+
+        console.log('Essential components loaded. To get full functionality:');
+        console.log('1. Fix your web server to serve .js files with correct MIME type');
+        console.log('2. Ensure all js/*.js files exist and are accessible');
+        console.log('3. Replace this inline script with external file references');
     </script>
-    <script src="js/state.js"></script>
-    <script src="js/api.js"></script>
-    <script src="js/utils.js"></script>
-    <script src="js/auth.js"></script>
-    <script src="js/navigation.js"></script>
-    <script src="js/feed-tabs.js"></script>
-    <script src="js/posts.js"></script>
-    <script src="js/replies.js"></script>
-    <script src="js/communities.js"></script>
-    <script src="js/profile.js"></script>
-    <script src="js/admin.js"></script>
-    <script src="js/modals.js"></script>
-    <script src="js/markdown.js"></script>
-    <script src="js/media-renderer.js"></script>
-    <script src="js/app.js"></script>
+    
+    <!-- 
+    NEXT STEPS: Once your server is configured to serve JS files properly, replace the above inline script with:
+    -->
+    <script src="js/js-config.js"></script>
+    <script src="js/js-state.js"></script>
+    <script src="js/js-api.js"></script>
+    <script src="js/js-utils.js"></script>
+    <script src="js/js-auth.js"></script>
+    <script src="js/js-navigation.js"></script>
+    <script src="js/js-feed-tabs.js"></script>
+    <script src="js/js-posts.js"></script>
+    <script src="js/js-replies.js"></script>
+    <script src="js/js-communities.js"></script>
+    <script src="js/js-profile.js"></script>
+    <script src="js/js-admin.js"></script>
+    <script src="js/js-modals.js"></script>
+    <script src="js/js-markdown.js"></script>
+    <script src="js/js-media-renderer.js"></script>
+    <script src="js/js-app.js"></script>
 </body>
 </html>
