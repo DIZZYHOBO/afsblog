@@ -2312,3 +2312,1192 @@
 
             return null;
         }
+
+        function renderReplies(replies) {
+            if (!replies || replies.length === 0) {
+                return '<div class="no-replies">No replies yet. Be the first to reply!</div>';
+            }
+
+            return replies.map(reply => {
+                // Get reply author's profile picture
+                const replyAuthorProfilePic = getAuthorProfilePicture(reply.author);
+                
+                return `
+                    <div class="reply-item" id="reply-${reply.id}">
+                        <div class="reply-header">
+                            <div class="reply-meta">
+                                <div class="reply-avatar">
+                                    ${replyAuthorProfilePic ? 
+                                        `<img src="${replyAuthorProfilePic}" 
+                                             alt="${reply.author}" 
+                                             class="reply-avatar-img"
+                                             onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                                         <div class="reply-avatar-fallback" style="display: none;">${reply.author.charAt(0).toUpperCase()}</div>` 
+                                        : `<div class="reply-avatar-text">${reply.author.charAt(0).toUpperCase()}</div>`
+                                    }
+                                </div>
+                                <span class="reply-author">@${escapeHtml(reply.author)}</span>
+                                <span class="reply-timestamp">${formatTimestamp(reply.timestamp)}</span>
+                            </div>
+                            ${currentUser && (currentUser.username === reply.author || currentUser.profile?.isAdmin) ? `
+                                <div class="reply-actions">
+                                    <button class="reply-delete-btn" onclick="deleteReply('${reply.postId || 'unknown'}', '${reply.id}')" title="Delete reply">
+                                        🗑️
+                                    </button>
+                                </div>
+                            ` : ''}
+                        </div>
+                        <div class="reply-content markdown-content">
+                            ${renderMarkdown(reply.content)}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function toggleReplies(postId) {
+            const repliesSection = document.getElementById(`replies-${postId}`);
+            const isOpen = repliesSection.classList.contains('open');
+            
+            if (isOpen) {
+                repliesSection.classList.remove('open');
+            } else {
+                repliesSection.classList.add('open');
+                // Focus on reply input if user is logged in
+                if (currentUser) {
+                    setTimeout(() => {
+                        const replyInput = document.getElementById(`reply-input-${postId}`);
+                        if (replyInput) {
+                            replyInput.focus();
+                        }
+                    }, 300); // Wait for animation to complete
+                }
+            }
+        }
+
+        async function submitReply(postId) {
+            if (!currentUser) {
+                openAuthModal('signin');
+                return;
+            }
+
+            const replyInput = document.getElementById(`reply-input-${postId}`);
+            const content = replyInput.value.trim();
+            
+            if (!content) {
+                showSuccessMessage('Please write a reply before submitting.');
+                return;
+            }
+
+            if (content.length > 2000) {
+                showSuccessMessage('Reply must be 2000 characters or less.');
+                return;
+            }
+
+            try {
+                // Find the post
+                const post = posts.find(p => p.id === postId);
+                if (!post) {
+                    showSuccessMessage('Post not found.');
+                    return;
+                }
+
+                // Create reply object
+                const reply = {
+                    id: `reply_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                    author: currentUser.username,
+                    content: content,
+                    timestamp: new Date().toISOString(),
+                    postId: postId // Add postId reference for deletion
+                };
+
+                // Add reply to post
+                if (!post.replies) {
+                    post.replies = [];
+                }
+                post.replies.push(reply);
+
+                // Update post in storage
+                await blobAPI.set(postId, post);
+
+                // Update local posts array
+                const postIndex = posts.findIndex(p => p.id === postId);
+                if (postIndex !== -1) {
+                    posts[postIndex] = post;
+                }
+
+                // Clear input
+                replyInput.value = '';
+
+                // Update replies display
+                const repliesList = document.getElementById(`replies-list-${postId}`);
+                if (repliesList) {
+                    repliesList.innerHTML = renderReplies(post.replies);
+                }
+
+                // Update reply count in button
+                updateReplyCount(postId, post.replies.length);
+
+                showSuccessMessage('Reply added successfully!');
+
+            } catch (error) {
+                console.error('Error submitting reply:', error);
+                showSuccessMessage('Failed to submit reply. Please try again.');
+            }
+        }
+
+        function updateReplyCount(postId, count) {
+            // Find the reply button for this post and update its count
+            const postCard = document.querySelector(`[onclick="toggleReplies('${postId}')"]`);
+            if (postCard) {
+                const countSpan = postCard.querySelector('span:last-child');
+                if (countSpan) {
+                    countSpan.textContent = count;
+                }
+            }
+        }
+
+        async function deleteReply(postId, replyId) {
+            if (!currentUser) {
+                showSuccessMessage('Please sign in to delete replies.');
+                return;
+            }
+
+            if (!confirm('Are you sure you want to delete this reply?')) {
+                return;
+            }
+
+            try {
+                // Find the post
+                const post = posts.find(p => p.id === postId);
+                if (!post) {
+                    showSuccessMessage('Post not found.');
+                    return;
+                }
+
+                // Find the reply
+                const replyIndex = post.replies.findIndex(r => r.id === replyId);
+                if (replyIndex === -1) {
+                    showSuccessMessage('Reply not found.');
+                    return;
+                }
+
+                const reply = post.replies[replyIndex];
+
+                // Check if user can delete this reply
+                if (reply.author !== currentUser.username && !currentUser.profile?.isAdmin) {
+                    showSuccessMessage('You can only delete your own replies.');
+                    return;
+                }
+
+                // Remove reply from post
+                post.replies.splice(replyIndex, 1);
+
+                // Update post in storage
+                await blobAPI.set(postId, post);
+
+                // Update local posts array
+                const postIndex = posts.findIndex(p => p.id === postId);
+                if (postIndex !== -1) {
+                    posts[postIndex] = post;
+                }
+
+                // Remove reply from DOM
+                const replyElement = document.getElementById(`reply-${replyId}`);
+                if (replyElement) {
+                    replyElement.remove();
+                }
+
+                // Update replies display if no replies left
+                if (post.replies.length === 0) {
+                    const repliesList = document.getElementById(`replies-list-${postId}`);
+                    if (repliesList) {
+                        repliesList.innerHTML = renderReplies(post.replies);
+                    }
+                }
+
+                // Update reply count in button
+                updateReplyCount(postId, post.replies.length);
+
+                showSuccessMessage('Reply deleted successfully!');
+
+            } catch (error) {
+                console.error('Error deleting reply:', error);
+                showSuccessMessage('Failed to delete reply. Please try again.');
+            }
+        }
+
+        function renderMarkdown(text) {
+            if (!text) return '';
+            
+            try {
+                const html = marked.parse(text, { renderer: markdownRenderer });
+                
+                // Use DOMPurify if available, otherwise return the HTML as-is
+                if (typeof DOMPurify !== 'undefined') {
+                    return DOMPurify.sanitize(html);
+                } else {
+                    console.warn('DOMPurify not available, returning unsanitized HTML');
+                    return html;
+                }
+            } catch (error) {
+                console.error('Markdown rendering error:', error);
+                return escapeHtml(text);
+            }
+        }
+
+        function updateFeedContent(html) {
+            document.getElementById('feed').innerHTML = html;
+        }
+
+        // Modal functions
+        function openModal(modalId) {
+            document.getElementById(modalId).style.display = 'block';
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).style.display = 'none';
+        }
+
+        function openAuthModal(mode) {
+            const modal = document.getElementById('authModal');
+            const title = document.getElementById('authTitle');
+            const toggleText = document.getElementById('authToggleText');
+            const toggleBtn = document.getElementById('authToggleBtn');
+            const submitBtn = document.getElementById('authSubmitBtn');
+            const form = document.getElementById('authForm');
+            
+            document.getElementById('authError').innerHTML = '';
+            
+            if (mode === 'signup') {
+                title.textContent = 'Sign Up';
+                toggleText.textContent = 'Already have an account?';
+                toggleBtn.textContent = 'Sign In';
+                submitBtn.textContent = 'Sign Up';
+                form.dataset.mode = 'signup';
+            } else {
+                title.textContent = 'Sign In';
+                toggleText.textContent = "Don't have an account?";
+                toggleBtn.textContent = 'Sign Up';
+                submitBtn.textContent = 'Sign In';
+                form.dataset.mode = 'signin';
+            }
+            
+            modal.style.display = 'block';
+        }
+
+        function toggleAuthMode() {
+            const form = document.getElementById('authForm');
+            const currentMode = form.dataset.mode;
+            openAuthModal(currentMode === 'signup' ? 'signin' : 'signup');
+        }
+
+        // Auth functions
+        async function handleAuth(e) {
+            e.preventDefault();
+            const form = e.target;
+            const mode = form.dataset.mode;
+            const username = document.getElementById('username').value.trim();
+            const password = document.getElementById('password').value;
+            const bio = document.getElementById('bio').value.trim();
+            const errorDiv = document.getElementById('authError');
+            const submitBtn = document.getElementById('authSubmitBtn');
+
+            errorDiv.innerHTML = '';
+            
+            if (username.length < 3) {
+                showError('authError', 'Username must be at least 3 characters long');
+                return;
+            }
+            
+            if (password.length < 6) {
+                showError('authError', 'Password must be at least 6 characters long');
+                return;
+            }
+
+            try {
+                submitBtn.disabled = true;
+                submitBtn.textContent = 'Loading...';
+
+                if (mode === 'signup') {
+                    const existingUser = await blobAPI.get(`user_${username}`);
+                    const pendingUser = await blobAPI.get(`pending_user_${username}`);
+                    
+                    if (existingUser || pendingUser) {
+                        showError('authError', 'Username already exists or is pending approval!');
+                        return;
+                    }
+                    
+                    const newPendingUser = { 
+                        username, 
+                        password,
+                        bio: bio || `Hello! I'm ${username}`,
+                        createdAt: new Date().toISOString(),
+                        status: 'pending',
+                        isAdmin: false
+                    };
+                    
+                    await blobAPI.set(`pending_user_${username}`, newPendingUser);
+                    
+                    closeModal('authModal');
+                    showSuccessMessage('Account created! Waiting for admin approval.');
+                    
+                } else {
+                    const user = await blobAPI.get(`user_${username}`);
+                    
+                    if (!user) {
+                        const pendingUser = await blobAPI.get(`pending_user_${username}`);
+                        if (pendingUser) {
+                            showError('authError', 'Your account is still pending admin approval.');
+                        } else {
+                            showError('authError', 'Invalid username or password');
+                        }
+                        return;
+                    }
+                    
+                    if (user.password !== password) {
+                        showError('authError', 'Invalid username or password');
+                        return;
+                    }
+                    
+                    currentUser = { username, profile: user };
+                    await blobAPI.set('current_user', currentUser);
+                    
+                    // Load user's followed communities after login
+                    await loadFollowedCommunities();
+                    
+                    closeModal('authModal');
+                    updateUI();
+                    showSuccessMessage('Welcome back!');
+
+                    if (user.isAdmin) {
+                        await loadAdminStats();
+                    }
+                }
+                
+                form.reset();
+                
+            } catch (error) {
+                console.error('Auth error:', error);
+                showError('authError', 'Something went wrong. Please try again.');
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = mode === 'signup' ? 'Sign Up' : 'Sign In';
+            }
+        }
+
+        async function logout() {
+            try {
+                currentUser = null;
+                followedCommunities = new Set(); // Clear followed communities
+                
+                // Try to delete current_user key, but don't fail if it doesn't exist
+                try {
+                    await blobAPI.delete('current_user');
+                } catch (deleteError) {
+                    // Ignore 404 errors - the key might not exist
+                    if (!deleteError.message.includes('404')) {
+                        console.warn('Failed to delete current_user key:', deleteError);
+                    }
+                }
+                
+                // Hide admin panel
+                document.getElementById('adminPanel').style.display = 'none';
+                
+                navigateToFeed();
+                updateUI();
+                showSuccessMessage('Logged out successfully!');
+            } catch (error) {
+                console.error('Logout error:', error);
+                // Even if there's an error, still clear the user state
+                currentUser = null;
+                followedCommunities = new Set();
+                document.getElementById('adminPanel').style.display = 'none';
+                navigateToFeed();
+                updateUI();
+                showSuccessMessage('Logged out successfully!');
+            }
+        }
+
+        // Community functions
+        async function handleCreateCommunity(e) {
+            e.preventDefault();
+            
+            if (!currentUser) {
+                showError('createCommunityError', 'Please sign in to create a community');
+                return;
+            }
+            
+            const name = document.getElementById('communityName').value.trim().toLowerCase();
+            const displayName = document.getElementById('communityDisplayName').value.trim();
+            const description = document.getElementById('communityDescription').value.trim();
+            const submitBtn = document.getElementById('createCommunitySubmitBtn');
+            const errorDiv = document.getElementById('createCommunityError');
+            
+            errorDiv.innerHTML = '';
+            
+            // Validation
+            if (!/^[a-z0-9_]{3,25}$/.test(name)) {
+                showError('createCommunityError', 'Community name must be 3-25 characters, lowercase, alphanumeric and underscores only');
+                return;
+            }
+
+            if (!displayName || displayName.length > 50) {
+                showError('createCommunityError', 'Display name is required and must be 50 characters or less');
+                return;
+            }
+
+            if (description.length > 500) {
+                showError('createCommunityError', 'Description must be 500 characters or less');
+                return;
+            }
+
+            // Check if community already exists
+            const existingCommunity = await blobAPI.get(`community_${name}`);
+            if (existingCommunity) {
+                showError('createCommunityError', 'Community name already exists');
+                return;
+            }
+            
+            try {
+                submitBtn.disabled = true;
+                submitBtn.textContent = 'Creating...';
+                
+                const community = {
+                    name,
+                    displayName,
+                    description,
+                    createdBy: currentUser.username,
+                    createdAt: new Date().toISOString(),
+                    isPrivate: false,
+                    moderators: [currentUser.username],
+                    members: [currentUser.username],
+                    rules: []
+                };
+                
+                await blobAPI.set(`community_${name}`, community);
+                communities.unshift(community);
+                
+                closeModal('createCommunityModal');
+                document.getElementById('createCommunityForm').reset();
+                
+                updateCommunityDropdown();
+                
+                if (currentUser.profile?.isAdmin) {
+                    await loadAdminStats();
+                }
+                
+                showSuccessMessage(`Community "${displayName}" created successfully!`);
+                
+            } catch (error) {
+                console.error('Error creating community:', error);
+                showError('createCommunityError', 'Failed to create community. Please try again.');
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Create Community';
+            }
+        }
+
+        // Post functions
+        function setPostType(type) {
+            currentPostType = type;
+            
+            // Update button states
+            const buttons = document.querySelectorAll('[onclick*="setPostType"]');
+            buttons.forEach(btn => {
+                if (btn.onclick.toString().includes(`'${type}'`)) {
+                    btn.style.background = 'var(--btn-primary-bg)';
+                    btn.style.color = 'white';
+                } else {
+                    btn.style.background = 'transparent';
+                    btn.style.color = 'var(--fg-default)';
+                }
+            });
+            
+            // Show/hide relevant fields
+            const textFields = document.getElementById('textPostFields');
+            const linkFields = document.getElementById('linkPostFields');
+            
+            if (type === 'text') {
+                textFields.style.display = 'block';
+                linkFields.style.display = 'none';
+                document.getElementById('postContent').required = true;
+                document.getElementById('postUrl').required = false;
+                
+                // Hide media preview
+                const preview = document.getElementById('mediaPreview');
+                if (preview) {
+                    preview.innerHTML = '';
+                    preview.style.display = 'none';
+                }
+            } else {
+                textFields.style.display = 'none';
+                linkFields.style.display = 'block';
+                document.getElementById('postContent').required = false;
+                document.getElementById('postUrl').required = true;
+                
+                // Show media preview container if URL has content
+                const urlInput = document.getElementById('postUrl');
+                if (urlInput && urlInput.value.trim()) {
+                    previewMedia(urlInput.value.trim());
+                }
+            }
+        }
+
+        async function handleCreatePost(e) {
+            e.preventDefault();
+            
+            if (!currentUser) {
+                showError('composeError', 'Please sign in to create a post');
+                return;
+            }
+            
+            const title = document.getElementById('postTitle').value.trim();
+            const communityName = document.getElementById('postCommunity').value;
+            const isPrivate = document.getElementById('isPrivate').checked;
+            const submitBtn = document.getElementById('composeSubmitBtn');
+            const errorDiv = document.getElementById('composeError');
+            
+            let content = '';
+            let url = '';
+            let description = '';
+            
+            if (currentPostType === 'text') {
+                content = document.getElementById('postContent').value.trim();
+                if (!content) {
+                    showError('composeError', 'Please provide content');
+                    return;
+                }
+            } else {
+                url = document.getElementById('postUrl').value.trim();
+                description = document.getElementById('postDescription').value.trim();
+                if (!url) {
+                    showError('composeError', 'Please provide a URL');
+                    return;
+                }
+                
+                try {
+                    new URL(url);
+                } catch {
+                    showError('composeError', 'Please provide a valid URL');
+                    return;
+                }
+            }
+            
+            errorDiv.innerHTML = '';
+            
+            if (!title) {
+                showError('composeError', 'Please provide a title');
+                return;
+            }
+            
+            try {
+                submitBtn.disabled = true;
+                submitBtn.textContent = 'Posting...';
+                
+                const post = {
+                    id: `post_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                    type: currentPostType,
+                    title,
+                    author: currentUser.username,
+                    timestamp: new Date().toISOString(),
+                    isPrivate,
+                    communityName: communityName || null,
+                    replies: []
+                };
+
+                if (currentPostType === 'text') {
+                    post.content = content;
+                } else {
+                    post.url = url;
+                    if (description) post.description = description;
+                }
+                
+                await blobAPI.set(post.id, post);
+                posts.unshift(post);
+                
+                closeModal('composeModal');
+                document.getElementById('composeForm').reset();
+                
+                // Reset post type
+                currentPostType = 'text';
+                setPostType('text');
+                
+                updateUI();
+                
+                if (currentUser.profile?.isAdmin) {
+                    await loadAdminStats();
+                }
+                
+                showSuccessMessage('Post created successfully!');
+                
+            } catch (error) {
+                console.error('Error creating post:', error);
+                showError('composeError', 'Failed to create post. Please try again.');
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Post';
+            }
+        }
+
+        async function deletePost(postId) {
+            if (!confirm('Are you sure you want to delete this post?')) {
+                return;
+            }
+            
+            try {
+                await blobAPI.delete(postId);
+                posts = posts.filter(p => p.id !== postId);
+                updateUI();
+                
+                if (currentUser.profile?.isAdmin) {
+                    await loadAdminStats();
+                }
+                
+                showSuccessMessage('Post deleted successfully!');
+            } catch (error) {
+                console.error('Error deleting post:', error);
+                showError('general', 'Failed to delete post. Please try again.');
+            }
+        }
+
+        // Admin functions (keeping existing implementation but fixing user counting)
+        async function loadAdminStats() {
+            try {
+                // Load actual approved users (not pending ones)
+                const userKeys = await blobAPI.list('user_');
+                const actualUserKeys = userKeys.filter(key => key.startsWith('user_') && !key.startsWith('user_follows_'));
+                
+                // Load and validate users to avoid counting invalid entries
+                const userPromises = actualUserKeys.map(async (key) => {
+                    try {
+                        const user = await blobAPI.get(key);
+                        return user && user.username ? user : null;
+                    } catch (error) {
+                        return null;
+                    }
+                });
+                
+                const validUsers = await Promise.all(userPromises);
+                const uniqueUsers = validUsers.filter(Boolean);
+                
+                // Remove duplicates based on username
+                const finalUsers = uniqueUsers.reduce((acc, user) => {
+                    const existing = acc.find(u => u.username === user.username);
+                    if (!existing) {
+                        acc.push(user);
+                    }
+                    return acc;
+                }, []);
+                
+                const pendingUserKeys = await blobAPI.list('pending_user_');
+                const postKeys = await blobAPI.list('post_');
+                const communityKeys = await blobAPI.list('community_');
+
+                // Update the old admin panel stats if they exist
+                const totalUsersEl = document.getElementById('totalUsers');
+                const pendingUsersEl = document.getElementById('pendingUsers');
+                const totalPostsEl = document.getElementById('totalPosts');
+                const totalCommunitiesEl = document.getElementById('totalCommunities');
+                
+                if (totalUsersEl) totalUsersEl.textContent = finalUsers.length;
+                if (pendingUsersEl) pendingUsersEl.textContent = pendingUserKeys.length;
+                if (totalPostsEl) totalPostsEl.textContent = postKeys.length;
+                if (totalCommunitiesEl) totalCommunitiesEl.textContent = communityKeys.length;
+                
+                // Update the new admin page stats if they exist
+                const adminTotalUsersEl = document.getElementById('adminTotalUsers');
+                const adminPendingUsersEl = document.getElementById('adminPendingUsers');
+                const adminTotalPostsEl = document.getElementById('adminTotalPosts');
+                const adminTotalCommunitiesEl = document.getElementById('adminTotalCommunities');
+                
+                if (adminTotalUsersEl) adminTotalUsersEl.textContent = finalUsers.length;
+                if (adminPendingUsersEl) adminPendingUsersEl.textContent = pendingUserKeys.length;
+                if (adminTotalPostsEl) adminTotalPostsEl.textContent = postKeys.length;
+                if (adminTotalCommunitiesEl) adminTotalCommunitiesEl.textContent = communityKeys.length;
+                
+                console.log(`Admin stats: ${finalUsers.length} users, ${pendingUserKeys.length} pending, ${postKeys.length} posts, ${communityKeys.length} communities`);
+                
+            } catch (error) {
+                console.error('Error loading admin stats:', error);
+            }
+        }
+
+        function showAdminPanel() {
+            const adminPanel = document.getElementById('adminPanel');
+            const isVisible = adminPanel.style.display !== 'none';
+            adminPanel.style.display = isVisible ? 'none' : 'block';
+
+            if (isVisible) {
+                document.getElementById('pendingUsersSection').style.display = 'none';
+                document.getElementById('allUsersSection').style.display = 'none';
+                document.getElementById('adminCommunitiesSection').style.display = 'none';
+            }
+        }
+
+        async function loadPendingUsers() {
+            // TODO: Implement pending users management
+            showSuccessMessage('Pending users management coming soon!');
+        }
+
+        async function loadAllUsers() {
+            // TODO: Implement all users management
+            showSuccessMessage('User management coming soon!');
+        }
+
+        async function loadAdminCommunities() {
+            // TODO: Implement community management
+            showSuccessMessage('Community management coming soon!');
+        }
+
+        function refreshAdminStats() {
+            loadAdminStats();
+            showSuccessMessage('Admin stats refreshed!');
+        }
+
+        // Utility functions
+        function showError(elementId, message) {
+            document.getElementById(elementId).innerHTML = `<div class="error-message">${escapeHtml(message)}</div>`;
+        }
+
+        function showSuccessMessage(message) {
+            const successDiv = document.createElement('div');
+            successDiv.className = 'success-message';
+            successDiv.textContent = message;
+            successDiv.style.position = 'fixed';
+            successDiv.style.top = '80px';
+            successDiv.style.right = '20px';
+            successDiv.style.zIndex = '1000';
+            successDiv.style.borderRadius = '8px';
+            successDiv.style.boxShadow = 'var(--overlay-shadow)';
+            document.body.appendChild(successDiv);
+            
+            setTimeout(() => {
+                successDiv.remove();
+            }, 4000);
+        }
+
+        function formatTimestamp(timestamp) {
+            const date = new Date(timestamp);
+            const now = new Date();
+            const diff = now - date;
+            
+            if (diff < 60000) return 'now';
+            if (diff < 3600000) return Math.floor(diff / 60000) + 'm';
+            if (diff < 86400000) return Math.floor(diff / 3600000) + 'h';
+            if (diff < 604800000) return Math.floor(diff / 86400000) + 'd';
+            return date.toLocaleDateString();
+        }
+
+        function formatDate(timestamp) {
+            const date = new Date(timestamp);
+            return date.toLocaleDateString('en-US', { 
+                year: 'numeric', 
+                month: 'short' 
+            });
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Markdown toolbar functionality
+        let currentTextarea = null;
+
+        function insertMarkdown(prefix, suffix, placeholder) {
+            const textarea = document.getElementById('postContent');
+            if (!textarea) return;
+            
+            const start = textarea.selectionStart;
+            const end = textarea.selectionEnd;
+            const selectedText = textarea.value.substring(start, end);
+            const replacement = selectedText || placeholder;
+            
+            const newText = textarea.value.substring(0, start) + 
+                           prefix + replacement + suffix + 
+                           textarea.value.substring(end);
+            
+            textarea.value = newText;
+            
+            // Set cursor position
+            const newCursorPos = start + prefix.length + replacement.length;
+            textarea.focus();
+            textarea.setSelectionRange(newCursorPos, newCursorPos);
+            
+            // Trigger input event for any listeners
+            textarea.dispatchEvent(new Event('input'));
+        }
+
+        function insertImage() {
+            // Reset the form
+            document.getElementById('imageInsertForm').reset();
+            currentTextarea = document.getElementById('postContent');
+            openModal('imageInsertModal');
+        }
+
+        function handleImageInsert(e) {
+            e.preventDefault();
+            
+            const url = document.getElementById('imageUrl').value.trim();
+            const alt = document.getElementById('imageAltText').value.trim() || 'Image';
+            const title = document.getElementById('imageTitle').value.trim();
+            
+            if (!url) {
+                showSuccessMessage('Please enter an image URL');
+                return;
+            }
+            
+            // Validate URL format
+            try {
+                new URL(url);
+            } catch {
+                showSuccessMessage('Please enter a valid URL');
+                return;
+            }
+            
+            let markdown = `![${alt}](${url}`;
+            if (title) {
+                markdown += ` "${title}"`;
+            }
+            markdown += ')';
+            
+            if (currentTextarea) {
+                const start = currentTextarea.selectionStart;
+                const end = currentTextarea.selectionEnd;
+                
+                const newText = currentTextarea.value.substring(0, start) + 
+                               markdown + 
+                               currentTextarea.value.substring(end);
+                
+                currentTextarea.value = newText;
+                currentTextarea.focus();
+                currentTextarea.setSelectionRange(start + markdown.length, start + markdown.length);
+                currentTextarea.dispatchEvent(new Event('input'));
+            }
+            
+            closeModal('imageInsertModal');
+            showSuccessMessage('Image inserted successfully!');
+        }
+
+        function insertLink() {
+            // Reset the form
+            document.getElementById('linkInsertForm').reset();
+            currentTextarea = document.getElementById('postContent');
+            
+            // Pre-fill with selected text if any
+            const start = currentTextarea.selectionStart;
+            const end = currentTextarea.selectionEnd;
+            const selectedText = currentTextarea.value.substring(start, end);
+            
+            if (selectedText) {
+                document.getElementById('linkText').value = selectedText;
+            }
+            
+            openModal('linkInsertModal');
+        }
+
+        function handleLinkInsert(e) {
+            e.preventDefault();
+            
+            const url = document.getElementById('linkUrl').value.trim();
+            const text = document.getElementById('linkText').value.trim();
+            
+            if (!url || !text) {
+                showSuccessMessage('Please enter both URL and link text');
+                return;
+            }
+            
+            // Validate URL format
+            try {
+                new URL(url);
+            } catch {
+                showSuccessMessage('Please enter a valid URL');
+                return;
+            }
+            
+            const markdown = `[${text}](${url})`;
+            
+            if (currentTextarea) {
+                const start = currentTextarea.selectionStart;
+                const end = currentTextarea.selectionEnd;
+                
+                const newText = currentTextarea.value.substring(0, start) + 
+                               markdown + 
+                               currentTextarea.value.substring(end);
+                
+                currentTextarea.value = newText;
+                currentTextarea.focus();
+                currentTextarea.setSelectionRange(start + markdown.length, start + markdown.length);
+                currentTextarea.dispatchEvent(new Event('input'));
+            }
+            
+            closeModal('linkInsertModal');
+            showSuccessMessage('Link inserted successfully!');
+        }
+
+        function previewMarkdown() {
+            const textarea = document.getElementById('postContent');
+            const preview = document.getElementById('markdownPreview');
+            const previewContent = document.getElementById('previewContent');
+            const previewBtn = document.getElementById('previewBtn');
+            
+            if (!textarea.value.trim()) {
+                showSuccessMessage('Write some content to preview');
+                return;
+            }
+            
+            if (preview.style.display === 'none') {
+                // Show preview
+                const html = renderMarkdown(textarea.value);
+                previewContent.innerHTML = html;
+                preview.style.display = 'block';
+                textarea.style.display = 'none';
+                previewBtn.textContent = '✏️';
+                previewBtn.title = 'Edit';
+            } else {
+                // Hide preview
+                hidePreview();
+            }
+        }
+
+        function hidePreview() {
+            const textarea = document.getElementById('postContent');
+            const preview = document.getElementById('markdownPreview');
+            const previewBtn = document.getElementById('previewBtn');
+            
+            preview.style.display = 'none';
+            textarea.style.display = 'block';
+            previewBtn.textContent = '👁️';
+            previewBtn.title = 'Preview';
+            textarea.focus();
+        }
+
+        function openImageModal(imageUrl) {
+            // Create modal overlay
+            const overlay = document.createElement('div');
+            overlay.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0, 0, 0, 0.9);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                z-index: 10000;
+                cursor: pointer;
+                backdrop-filter: blur(4px);
+            `;
+            
+            // Create image container
+            const imageContainer = document.createElement('div');
+            imageContainer.style.cssText = `
+                max-width: 90vw;
+                max-height: 90vh;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 16px;
+                cursor: default;
+            `;
+            
+            // Create image element
+            const img = document.createElement('img');
+            img.src = imageUrl;
+            img.style.cssText = `
+                max-width: 100%;
+                max-height: 80vh;
+                object-fit: contain;
+                border-radius: 8px;
+                box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+            `;
+            
+            // Create close button
+            const closeBtn = document.createElement('button');
+            closeBtn.innerHTML = '✕ Close';
+            closeBtn.style.cssText = `
+                background: var(--bg-default);
+                color: var(--fg-default);
+                border: 1px solid var(--border-default);
+                border-radius: 6px;
+                padding: 8px 16px;
+                cursor: pointer;
+                font-size: 14px;
+                font-weight: 500;
+                transition: all 0.2s ease;
+            `;
+            
+            // Add hover effect to close button
+            closeBtn.addEventListener('mouseover', () => {
+                closeBtn.style.background = 'var(--btn-secondary-hover-bg)';
+            });
+            closeBtn.addEventListener('mouseout', () => {
+                closeBtn.style.background = 'var(--bg-default)';
+            });
+            
+            // Close modal function
+            const closeModal = () => {
+                overlay.remove();
+            };
+            
+            // Event listeners
+            overlay.addEventListener('click', (e) => {
+                if (e.target === overlay) {
+                    closeModal();
+                }
+            });
+            
+            closeBtn.addEventListener('click', closeModal);
+            
+            // ESC key to close
+            const escapeHandler = (e) => {
+                if (e.key === 'Escape') {
+                    closeModal();
+                    document.removeEventListener('keydown', escapeHandler);
+                }
+            };
+            document.addEventListener('keydown', escapeHandler);
+            
+            // Prevent image click from closing modal
+            imageContainer.addEventListener('click', (e) => {
+                e.stopPropagation();
+            });
+            
+            // Assemble modal
+            imageContainer.appendChild(img);
+            imageContainer.appendChild(closeBtn);
+            overlay.appendChild(imageContainer);
+            document.body.appendChild(overlay);
+            
+            // Add loading state
+            img.addEventListener('load', () => {
+                img.style.opacity = '1';
+            });
+            img.addEventListener('error', () => {
+                img.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjE1MCIgdmlld0JveD0iMCAwIDIwMCAxNTAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3Qgd2lkdGg9IjIwMCIgaGVpZ2h0PSIxNTAiIGZpbGw9IiNmMGYwZjAiLz48dGV4dCB4PSIxMDAiIHk9Ijc1IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LXNpemU9IjE2IiBmYW1pbHk9InNhbnMtc2VyaWYiIGZpbGw9IiM5OTkiPkltYWdlIG5vdCBmb3VuZDwvdGV4dD48L3N2Zz4=';
+                img.style.maxWidth = '300px';
+                img.style.maxHeight = '200px';
+            });
+            
+            img.style.opacity = '0';
+            img.style.transition = 'opacity 0.3s ease';
+        }
+
+        // Enhanced media detection using API
+        async function detectMediaType(url) {
+            try {
+                const response = await fetch('/.netlify/functions/api/media/detect', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url })
+                });
+                
+                if (response.ok) {
+                    const result = await response.json();
+                    return result;
+                } else {
+                    throw new Error('API detection failed');
+                }
+            } catch (error) {
+                console.error('Media detection API error:', error);
+                // Fallback to local detection
+                return detectMediaTypeLocal(url);
+            }
+        }
+
+        // Local fallback media detection
+        function detectMediaTypeLocal(url) {
+            if (!url) return { type: 'text', canEmbed: false, platform: null };
+
+            // YouTube
+            if (url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)/)) {
+                return { type: 'video', canEmbed: true, platform: 'youtube' };
+            }
+
+            // Dailymotion
+            if (url.match(/(?:dailymotion\.com\/video\/|dai\.ly\/)/)) {
+                return { type: 'video', canEmbed: true, platform: 'dailymotion' };
+            }
+
+            // Suno
+            if (url.match(/suno\.com\/song\//)) {
+                return { type: 'audio', canEmbed: true, platform: 'suno' };
+            }
+
+            // Direct media files
+            if (url.match(/\.(jpg|jpeg|png|gif|webp|svg)(\?.*)?$/i)) {
+                return { type: 'image', canEmbed: true, platform: 'direct' };
+            }
+
+            if (url.match(/\.(mp4|webm|ogg|mov)(\?.*)?$/i)) {
+                return { type: 'video', canEmbed: true, platform: 'direct' };
+            }
+
+            if (url.match(/\.(mp3|wav|ogg|m4a|aac|flac)(\?.*)?$/i)) {
+                return { type: 'audio', canEmbed: true, platform: 'direct' };
+            }
+
+            // General website
+            if (url.match(/^https?:\/\/.+/i)) {
+                return { type: 'website', canEmbed: true, platform: 'web' };
+            }
+
+            return { type: 'link', canEmbed: false, platform: null };
+        }
+
+        // Preview media in compose modal
+        async function previewMedia(url) {
+            if (!url || !url.trim()) return;
+            
+            const previewContainer = document.getElementById('mediaPreview');
+            if (!previewContainer) {
+                // Create preview container if it doesn't exist
+                const container = document.createElement('div');
+                container.id = 'mediaPreview';
+                container.style.cssText = `
+                    margin-top: 12px;
+                    padding: 12px;
+                    border: 1px solid var(--border-default);
+                    border-radius: 6px;
+                    background: var(--bg-subtle);
+                `;
+                
+                const urlInput = document.getElementById('postUrl');
+                if (urlInput && urlInput.parentNode) {
+                    urlInput.parentNode.insertBefore(container, urlInput.nextSibling);
+                }
+            }
+            
+            const preview = document.getElementById('mediaPreview');
+            preview.innerHTML = '<div style="text-align: center; color: var(--fg-muted);">🔍 Detecting media type...</div>';
+            
+            try {
+                const mediaInfo = await detectMediaType(url);
+                const mediaHtml = renderMediaFromUrl(url);
+                
+                if (mediaHtml) {
+                    preview.innerHTML = `
+                        <div style="margin-bottom: 8px; font-size: 12px; color: var(--fg-muted); font-weight: 500;">
+                            📱 Preview (${mediaInfo.platform ? mediaInfo.platform.charAt(0).toUpperCase() + mediaInfo.platform.slice(1) : 'Unknown'} ${mediaInfo.type})
+                        </div>
+                        ${mediaHtml}
+                    `;
+                } else {
+                    preview.innerHTML = `
+                        <div style="text-align: center; color: var(--fg-muted); font-size: 14px;">
+                            🔗 ${mediaInfo.type === 'website' ? 'Website link' : 'Link'} detected
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Media preview error:', error);
+                preview.innerHTML = `
+                    <div style="text-align: center; color: var(--danger-fg); font-size: 14px;">
+                        ⚠️ Could not preview media
+                    </div>
+                `;
+            }
+        }
