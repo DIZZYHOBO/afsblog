@@ -15,7 +15,7 @@ class AuthManager {
                 const fullProfile = await blobAPI.get(`${CONFIG.STORAGE_KEYS.USER_PREFIX}${userData.username}`);
                 if (fullProfile) {
                     this.currentUser = { ...userData, profile: fullProfile };
-                    State.setCurrentUser(this.currentUser);
+                    State.set('currentUser', this.currentUser);
                     
                     // Load user's followed communities
                     await Communities.loadFollowedCommunities();
@@ -48,7 +48,7 @@ class AuthManager {
             }
             
             this.currentUser = { username, profile: user };
-            State.setCurrentUser(this.currentUser);
+            State.set('currentUser', this.currentUser);
             
             // Store current user
             await blobAPI.set(CONFIG.STORAGE_KEYS.CURRENT_USER, this.currentUser);
@@ -143,7 +143,7 @@ class AuthManager {
     }
 
     getCurrentUser() {
-        return this.currentUser || State.getCurrentUser();
+        return this.currentUser || State.get('currentUser');
     }
 
     isAuthenticated() {
