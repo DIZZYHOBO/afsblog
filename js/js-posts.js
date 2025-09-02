@@ -1,387 +1,532 @@
-// js/posts.js - Post Management Component
+// js/posts.js - Posts Management Component
 class PostsManager {
     constructor() {
-        this.currentPostType = 'text';
+        this.setupEventListeners();
     }
 
-    // Render a list of posts
-    renderPostList(postList, emptyMessage) {
-        if (postList.length === 0) {
-            return `<div class="empty-state"><p>${emptyMessage}</p></div>`;
+    setupEventListeners() {
+        // Subscribe to state changes
+        State.addListener('posts', () => {
+            this.refreshCurrentView();
+        });
+
+        State.addListener('currentFeedTab', () => {
+            this.refreshCurrentView();
+        });
+    }
+
+    // Render feed posts based on current tab
+    renderFeedPosts() {
+        const feed = document.getElementById('feed');
+        if (!feed) return;
+
+        const posts = FeedTabs.getVisiblePosts();
+        
+        if (posts.length === 0) {
+            this.renderEmptyState(feed);
+            return;
         }
 
-        return postList.map(post => this.renderPost(post)).join('');
+        // Sort posts by timestamp (newest first)
+        const sortedPosts = [...posts].sort((a, b) => 
+            new Date(b.timestamp) - new Date(a.timestamp)
+        );
+
+        const postsHTML = sortedPosts.map(post => this.renderPost(post)).join('');
+        
+        feed.innerHTML = `
+            <div class="feed-container">
+                <div class="posts-list">
+                    ${postsHTML}
+                </div>
+            </div>
+        `;
+
+        // Setup post event listeners
+        this.setupPostEventListeners();
     }
 
-    // Render individual post
+    // Render empty state
+    renderEmptyState(container) {
+        const currentTab = FeedTabs.getCurrentTab();
+        const user = State.getCurrentUser();
+
+        let emptyMessage = '';
+        let emptyActions = '';
+
+        switch (currentTab) {
+            case 'followed':
+                emptyMessage = user ? 
+                    "You haven't followed any communities yet." :
+                    "Please log in to see followed communities.";
+                emptyActions = user ? 
+                    '<button class="btn btn-primary" onclick="Navigation.navigateToCommunities()">Browse Communities</button>' :
+                    '<button class="btn btn-primary" onclick="Modals.switchAuthTab(\'login\'); Modals.open(\'authModal\')">Login</button>';
+                break;
+                
+            case 'private':
+                emptyMessage = user ?
+                    "You haven't created any private posts yet." :
+                    "Please log in to see private posts.";
+                emptyActions = user ?
+                    '<button class="btn btn-primary" onclick="Modals.populateComposeModal(); Modals.open(\'composeModal\')">Create Post</button>' :
+                    '<button class="btn btn-primary" onclick="Modals.switchAuthTab(\'login\'); Modals.open(\'authModal\')">Login</button>';
+                break;
+                
+            case 'general':
+            default:
+                emptyMessage = "No posts yet. Be the first to share something!";
+                emptyActions = user ?
+                    '<button class="btn btn-primary" onclick="Modals.populateComposeModal(); Modals.open(\'composeModal\')">Create Post</button>' :
+                    '<button class="btn btn-primary" onclick="Modals.switchAuthTab(\'register\'); Modals.open(\'authModal\')">Join the Community</button>';
+        }
+
+        container.innerHTML = `
+            <div class="empty-state">
+                <div class="empty-state-icon">📝</div>
+                <h2 class="empty-state-title">No posts here</h2>
+                <p class="empty-state-message">${emptyMessage}</p>
+                <div class="empty-state-actions">
+                    ${emptyActions}
+                </div>
+            </div>
+        `;
+    }
+
+    // Render a single post
     renderPost(post) {
-        const communities = State.get('communities');
-        const community = communities.find(c => c.name === post.communityName);
-        const currentUser = State.getCurrentUser();
+        const user = State.getCurrentUser();
+        const canEdit = user && (user.role === 'admin' || post.authorId === user.id);
+        const canDelete = canEdit;
+        const isLiked = user && post.likedBy && post.likedBy.includes(user.id);
         
+        const community = State.getCommunities().find(c => c.name === post.community);
+        const communityDisplay = community ? community.displayName : post.community;
+
         return `
-            <div class="post-card ${post.isPrivate ? 'private' : ''}">
+            <article class="post" data-post-id="${post.id}">
                 <div class="post-header">
-                    <div class="post-author">
-                        <div class="post-avatar">
-                            ${this.renderAuthorAvatar(post.author)}
-                        </div>
-                        <div class="post-meta">
-                            <a href="#" class="post-username">@${Utils.escapeHtml(post.author)}</a>
-                            <div class="post-timestamp">${Utils.formatTimestamp(post.timestamp)}</div>
-                        </div>
+                    <div class="post-meta">
+                        <span class="post-community">
+                            <a href="#" onclick="Navigation.navigateToCommunity('${post.community}')">${communityDisplay}</a>
+                        </span>
+                        <span class="post-separator">•</span>
+                        <span class="post-author">${post.author}</span>
+                        <span class="post-separator">•</span>
+                        <span class="post-timestamp" title="${new Date(post.timestamp).toLocaleString()}">
+                            ${Utils.formatRelativeTime(post.timestamp)}
+                        </span>
+                        ${post.isPrivate ? '<span class="post-private-badge">Private</span>' : ''}
                     </div>
-                    <div class="post-badges">
-                        ${post.isPrivate ? '<span class="post-badge private">Private</span>' : ''}
-                        ${post.type === 'link' ? '<span class="post-badge link">Link</span>' : ''}
-                    </div>
+                    ${canEdit || canDelete ? `
+                        <div class="post-actions">
+                            ${canEdit ? `<button class="post-action-btn" onclick="Posts.editPost('${post.id}')" title="Edit">✏️</button>` : ''}
+                            ${canDelete ? `<button class="post-action-btn" onclick="Posts.deletePost('${post.id}')" title="Delete">🗑️</button>` : ''}
+                        </div>
+                    ` : ''}
                 </div>
                 
                 <div class="post-body">
-                    ${this.renderCommunityTag(post, community)}
                     <h3 class="post-title">${Utils.escapeHtml(post.title)}</h3>
-                    ${this.renderPostContent(post)}
+                    <div class="post-content">
+                        ${this.renderPostContent(post.content)}
+                    </div>
                 </div>
                 
-                <div class="post-actions">
-                    <button class="action-btn">
-                        <span>⬆️</span>
-                        <span>Vote</span>
-                    </button>
-                    <button class="action-btn" data-action="toggle-replies" data-params='{"postId":"${post.id}"}'>
-                        <span>💬</span>
-                        <span>${post.replies ? post.replies.length : 0}</span>
-                    </button>
-                    ${this.renderPostActions(post, currentUser)}
+                <div class="post-footer">
+                    <div class="post-stats">
+                        <button class="post-stat-btn like-btn ${isLiked ? 'liked' : ''}" 
+                                onclick="Posts.toggleLike('${post.id}')" 
+                                ${!user ? 'disabled' : ''}>
+                            <span class="stat-icon">${isLiked ? '❤️' : '🤍'}</span>
+                            <span class="stat-count">${post.likes || 0}</span>
+                        </button>
+                        
+                        <button class="post-stat-btn reply-btn" onclick="Posts.showReplies('${post.id}')">
+                            <span class="stat-icon">💬</span>
+                            <span class="stat-count">${post.replyCount || 0}</span>
+                        </button>
+                        
+                        <button class="post-stat-btn share-btn" onclick="Posts.sharePost('${post.id}')">
+                            <span class="stat-icon">🔗</span>
+                            <span class="stat-text">Share</span>
+                        </button>
+                    </div>
                 </div>
                 
-                ${this.renderRepliesSection(post)}
-            </div>
+                <div class="post-replies" id="replies-${post.id}" style="display: none;">
+                    <div class="replies-loading">Loading replies...</div>
+                </div>
+            </article>
         `;
     }
 
-    renderAuthorAvatar(authorUsername) {
-        // Try to get author's profile picture from current user or cached data
-        const currentUser = State.getCurrentUser();
-        let profilePicture = null;
-        
-        if (currentUser && currentUser.username === authorUsername && currentUser.profile?.profilePicture) {
-            profilePicture = currentUser.profile.profilePicture;
-        }
-        
-        if (profilePicture) {
-            return `
-                <img src="${profilePicture}" 
-                     alt="${authorUsername}" 
-                     class="post-avatar-img"
-                     onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
-                <div class="post-avatar-fallback" style="display: none;">${authorUsername.charAt(0).toUpperCase()}</div>
-            `;
-        } else {
-            return `<div class="post-avatar-text">${authorUsername.charAt(0).toUpperCase()}</div>`;
-        }
-    }
-
-    renderCommunityTag(post, community) {
-        const currentPage = State.get('currentPage');
-        
-        if (post.communityName && community && currentPage !== 'community') {
-            return `
-                <div class="post-community">
-                    <a href="#" class="post-community-link" data-action="navigate" data-params='{"to":"community","data":{"name":"${post.communityName}"}}'>
-                        c/${Utils.escapeHtml(community.displayName)}
-                    </a>
-                </div>
-            `;
-        }
-        return '';
-    }
-
-    renderPostContent(post) {
-        let contentHtml = '';
-
-        if (post.type === 'link' && post.url) {
-            const mediaHtml = MediaRenderer.renderFromUrl(post.url);
-            if (mediaHtml) {
-                contentHtml += `<div style="margin: 12px 0; border-radius: 8px; overflow: hidden;">${mediaHtml}</div>`;
-            } else {
-                contentHtml += `
-                    <a href="${post.url}" target="_blank" rel="noopener noreferrer" class="post-link-preview">
-                        <div class="link-title">🔗 ${post.url}</div>
-                        <div class="link-url">${post.url}</div>
-                    </a>
-                `;
-            }
-            
-            if (post.description) {
-                contentHtml += `<div class="markdown-content">${this.renderMarkdown(post.description)}</div>`;
-            }
-        } else if (post.content) {
-            contentHtml += `<div class="markdown-content">${this.renderMarkdown(post.content)}</div>`;
-        }
-
-        return contentHtml;
-    }
-
-    renderPostActions(post, currentUser) {
-        if (currentUser && (currentUser.username === post.author || currentUser.profile?.isAdmin)) {
-            return `
-                <button class="action-btn" data-action="delete-post" data-params='{"postId":"${post.id}"}'>
-                    <span>🗑️</span>
-                    <span>Delete</span>
-                </button>
-            `;
-        }
-        return '';
-    }
-
-    renderRepliesSection(post) {
-        return `
-            <div class="replies-section" id="replies-${post.id}">
-                <div class="replies-container">
-                    <div class="replies-list" id="replies-list-${post.id}">
-                        ${Replies.renderReplies(post.replies || [])}
-                    </div>
-                    
-                    ${this.renderReplyForm(post.id)}
-                </div>
-            </div>
-        `;
-    }
-
-    renderReplyForm(postId) {
-        const currentUser = State.getCurrentUser();
-        
-        if (currentUser) {
-            return `
-                <div class="reply-form">
-                    <textarea 
-                        class="reply-input" 
-                        id="reply-input-${postId}"
-                        placeholder="Write a reply... (Markdown supported)"
-                        maxlength="${CONFIG.MAX_REPLY_LENGTH}"></textarea>
-                    <div class="reply-form-buttons">
-                        <button class="reply-btn-cancel" data-action="toggle-replies" data-params='{"postId":"${postId}"}'>Cancel</button>
-                        <button class="reply-btn-submit" onclick="Replies.submitReply('${postId}')">Reply</button>
-                    </div>
-                </div>
-            `;
-        } else {
-            return `
-                <div style="text-align: center; padding: 16px; color: var(--fg-muted); font-size: 13px;">
-                    <a href="#" onclick="Modals.openAuth('signin'); return false;" style="color: var(--accent-fg);">Sign in</a> to reply
-                </div>
-            `;
-        }
-    }
-
-    renderMarkdown(text) {
-        if (!text) return '';
-        
+    // Render post content with markdown and media
+    renderPostContent(content) {
         try {
-            const html = marked.parse(text);
+            // First, render markdown
+            let html = marked.parse(content);
             
-            // Use DOMPurify if available for security
-            if (typeof DOMPurify !== 'undefined') {
-                return DOMPurify.sanitize(html);
-            } else {
-                console.warn('DOMPurify not available, returning unsanitized HTML');
-                return html;
-            }
+            // Sanitize HTML
+            html = DOMPurify.sanitize(html);
+            
+            // Process media embeds
+            html = this.processMediaEmbeds(html);
+            
+            return html;
         } catch (error) {
-            console.error('Markdown rendering error:', error);
-            return Utils.escapeHtml(text);
+            console.error('Error rendering post content:', error);
+            return Utils.escapeHtml(content);
         }
     }
 
-    // Toggle replies section
-    toggleReplies(postId) {
-        const repliesSection = document.getElementById(`replies-${postId}`);
-        if (!repliesSection) return;
+    // Process media embeds in content
+    processMediaEmbeds(html) {
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = html;
         
-        const isOpen = repliesSection.classList.contains('open');
-        
-        if (isOpen) {
-            repliesSection.classList.remove('open');
-        } else {
-            repliesSection.classList.add('open');
-            // Focus on reply input if user is logged in
-            if (State.isAuthenticated()) {
-                setTimeout(() => {
-                    const replyInput = document.getElementById(`reply-input-${postId}`);
-                    if (replyInput) {
-                        replyInput.focus();
-                    }
-                }, CONFIG.ANIMATION_DURATION);
-            }
-        }
-    }
-
-    // Create new post
-    async handleCreateForm(e) {
-        e.preventDefault();
-        
-        if (!State.isAuthenticated()) {
-            Utils.showError('composeError', 'Please sign in to create a post');
-            return;
-        }
-        
-        const formData = new FormData(e.target);
-        const title = formData.get('title')?.trim();
-        const communityName = formData.get('community') || null;
-        const isPrivate = formData.has('isPrivate');
-        
-        let content = '';
-        let url = '';
-        let description = '';
-        
-        if (this.currentPostType === 'text') {
-            content = formData.get('content')?.trim();
-            if (!content) {
-                Utils.showError('composeError', 'Please provide content');
-                return;
-            }
-        } else {
-            url = formData.get('url')?.trim();
-            description = formData.get('description')?.trim();
-            if (!url) {
-                Utils.showError('composeError', 'Please provide a URL');
-                return;
-            }
+        // Find all links
+        const links = tempDiv.querySelectorAll('a');
+        links.forEach(link => {
+            const url = link.href;
+            const mediaEmbed = MediaRenderer.renderFromUrl(url);
             
-            if (!Utils.isValidUrl(url)) {
-                Utils.showError('composeError', 'Please provide a valid URL');
-                return;
+            if (mediaEmbed) {
+                const embedContainer = document.createElement('div');
+                embedContainer.className = 'media-embed';
+                embedContainer.appendChild(mediaEmbed);
+                
+                // Insert after the link
+                link.parentNode.insertBefore(embedContainer, link.nextSibling);
             }
-        }
+        });
         
-        if (!title) {
-            Utils.showError('composeError', 'Please provide a title');
-            return;
-        }
-        
-        if (title.length > CONFIG.MAX_TITLE_LENGTH) {
-            Utils.showError('composeError', `Title must be ${CONFIG.MAX_TITLE_LENGTH} characters or less`);
-            return;
-        }
+        return tempDiv.innerHTML;
+    }
 
+    // Setup event listeners for posts
+    setupPostEventListeners() {
+        // This method can be expanded to add more complex event handling
+        // For now, most events are handled via onclick attributes in the HTML
+    }
+
+    // Create a new post
+    async createPost(postData) {
         try {
-            const submitBtn = e.target.querySelector('[type="submit"]');
-            if (submitBtn) {
-                submitBtn.disabled = true;
-                submitBtn.textContent = 'Posting...';
-            }
+            StateHelpers.setLoading(true);
             
-            const post = {
-                id: Utils.generateId(CONFIG.STORAGE_KEYS.POST_PREFIX),
-                type: this.currentPostType,
-                title,
-                author: State.getCurrentUser().username,
-                timestamp: new Date().toISOString(),
-                isPrivate,
-                communityName,
-                replies: []
-            };
+            const user = State.getCurrentUser();
+            if (!user) {
+                throw new Error('Must be logged in to create posts');
+            }
 
-            if (this.currentPostType === 'text') {
-                post.content = content;
-            } else {
-                post.url = url;
-                if (description) post.description = description;
-            }
+            const post = await postsAPI.createPost({
+                ...postData,
+                author: user.username,
+                authorId: user.id,
+                displayName: user.displayName || user.username
+            });
+
+            // Add to state
+            State.addPost(post);
             
-            await blobAPI.set(post.id, post);
-            StateHelpers.addPost(post);
-            
-            Modals.close('composeModal');
-            e.target.reset();
-            
-            // Reset post type
-            this.setPostType('text');
-            
-            App.updateUI();
             Utils.showSuccessMessage('Post created successfully!');
-            
+            return post;
         } catch (error) {
-            console.error('Error creating post:', error);
-            Utils.showError('composeError', error.message || 'Failed to create post. Please try again.');
+            Utils.showErrorMessage(error.message || 'Failed to create post');
+            throw error;
         } finally {
-            const submitBtn = e.target.querySelector('[type="submit"]');
-            if (submitBtn) {
-                submitBtn.disabled = false;
-                submitBtn.textContent = 'Post';
-            }
+            StateHelpers.setLoading(false);
         }
     }
 
-    // Delete post
+    // Toggle like on a post
+    async toggleLike(postId) {
+        try {
+            const user = State.getCurrentUser();
+            if (!user) {
+                Modals.switchAuthTab('login');
+                Modals.open('authModal');
+                return;
+            }
+
+            const posts = State.getPosts();
+            const post = posts.find(p => p.id === postId);
+            if (!post) return;
+
+            const isCurrentlyLiked = post.likedBy && post.likedBy.includes(user.id);
+            const newLikeStatus = !isCurrentlyLiked;
+
+            // Optimistic update
+            const updatedPost = {
+                ...post,
+                likedBy: newLikeStatus 
+                    ? [...(post.likedBy || []), user.id]
+                    : (post.likedBy || []).filter(id => id !== user.id)
+            };
+            updatedPost.likes = updatedPost.likedBy.length;
+
+            State.updatePost(postId, updatedPost);
+
+            // Server update
+            await postsAPI.likePost(postId, user.id, newLikeStatus);
+
+        } catch (error) {
+            console.error('Error toggling like:', error);
+            // Revert optimistic update on error
+            this.refreshCurrentView();
+        }
+    }
+
+    // Show/hide replies for a post
+    async showReplies(postId) {
+        const repliesContainer = document.getElementById(`replies-${postId}`);
+        if (!repliesContainer) return;
+
+        if (repliesContainer.style.display === 'none') {
+            repliesContainer.style.display = 'block';
+            await this.loadReplies(postId);
+        } else {
+            repliesContainer.style.display = 'none';
+        }
+    }
+
+    // Load replies for a post
+    async loadReplies(postId) {
+        const repliesContainer = document.getElementById(`replies-${postId}`);
+        if (!repliesContainer) return;
+
+        try {
+            repliesContainer.innerHTML = '<div class="replies-loading">Loading replies...</div>';
+            
+            const replies = await postsAPI.getReplies(postId);
+            State.setReplies(postId, replies);
+            
+            this.renderReplies(postId, replies);
+        } catch (error) {
+            console.error('Error loading replies:', error);
+            repliesContainer.innerHTML = '<div class="replies-error">Failed to load replies</div>';
+        }
+    }
+
+    // Render replies for a post
+    renderReplies(postId, replies) {
+        const repliesContainer = document.getElementById(`replies-${postId}`);
+        if (!repliesContainer) return;
+
+        const user = State.getCurrentUser();
+        
+        const repliesHTML = replies.length > 0 
+            ? replies.map(reply => this.renderReply(reply)).join('')
+            : '<div class="no-replies">No replies yet</div>';
+
+        const replyFormHTML = user ? `
+            <div class="reply-form">
+                <textarea placeholder="Write a reply..." maxlength="${CONFIG.MAX_REPLY_LENGTH}" 
+                          id="reply-input-${postId}"></textarea>
+                <button class="btn btn-primary btn-sm" onclick="Posts.submitReply('${postId}')">Reply</button>
+            </div>
+        ` : `
+            <div class="reply-form-login">
+                <button class="btn btn-primary btn-sm" onclick="Modals.switchAuthTab('login'); Modals.open('authModal')">
+                    Login to Reply
+                </button>
+            </div>
+        `;
+
+        repliesContainer.innerHTML = `
+            <div class="replies-content">
+                <div class="replies-list">
+                    ${repliesHTML}
+                </div>
+                ${replyFormHTML}
+            </div>
+        `;
+    }
+
+    // Render a single reply
+    renderReply(reply) {
+        const user = State.getCurrentUser();
+        const canDelete = user && (user.role === 'admin' || reply.authorId === user.id);
+
+        return `
+            <div class="reply" data-reply-id="${reply.id}">
+                <div class="reply-header">
+                    <span class="reply-author">${reply.author}</span>
+                    <span class="reply-timestamp">${Utils.formatRelativeTime(reply.timestamp)}</span>
+                    ${canDelete ? `<button class="reply-delete-btn" onclick="Posts.deleteReply('${reply.id}', '${reply.postId}')">🗑️</button>` : ''}
+                </div>
+                <div class="reply-content">
+                    ${Utils.escapeHtml(reply.content)}
+                </div>
+            </div>
+        `;
+    }
+
+    // Submit a reply
+    async submitReply(postId) {
+        try {
+            const user = State.getCurrentUser();
+            if (!user) return;
+
+            const input = document.getElementById(`reply-input-${postId}`);
+            if (!input) return;
+
+            const content = input.value.trim();
+            if (!content) return;
+
+            const reply = await postsAPI.addReply(postId, {
+                content: content,
+                author: user.username,
+                authorId: user.id,
+                postId: postId
+            });
+
+            // Clear input
+            input.value = '';
+
+            // Refresh replies
+            await this.loadReplies(postId);
+
+            Utils.showSuccessMessage('Reply added!');
+        } catch (error) {
+            console.error('Error submitting reply:', error);
+            Utils.showErrorMessage('Failed to add reply');
+        }
+    }
+
+    // Edit a post
+    async editPost(postId) {
+        const posts = State.getPosts();
+        const post = posts.find(p => p.id === postId);
+        if (!post) return;
+
+        // Open compose modal with existing data
+        document.getElementById('composeTitle').value = post.title;
+        document.getElementById('composeContent').value = post.content;
+        document.getElementById('composeCommunity').value = post.community;
+        document.getElementById('composePrivate').checked = post.isPrivate;
+
+        // Change modal title and submit button
+        document.getElementById('composeModalTitle').textContent = 'Edit Post';
+        
+        // Set up edit mode
+        const form = document.getElementById('composeForm');
+        form.dataset.editMode = 'true';
+        form.dataset.editPostId = postId;
+
+        Modals.open('composeModal');
+    }
+
+    // Delete a post
     async deletePost(postId) {
         if (!confirm('Are you sure you want to delete this post?')) {
             return;
         }
-        
+
         try {
-            await blobAPI.delete(postId);
-            StateHelpers.removePost(postId);
-            App.updateUI();
-            Utils.showSuccessMessage('Post deleted successfully!');
+            StateHelpers.setLoading(true);
+            
+            await postsAPI.deletePost(postId);
+            State.removePost(postId);
+            
+            Utils.showSuccessMessage('Post deleted successfully');
         } catch (error) {
             console.error('Error deleting post:', error);
-            Utils.showSuccessMessage(error.message || 'Failed to delete post. Please try again.');
+            Utils.showErrorMessage('Failed to delete post');
+        } finally {
+            StateHelpers.setLoading(false);
         }
     }
 
-    // Set post type for compose modal
-    setPostType(type) {
-        this.currentPostType = type;
-        State.set('currentPostType', type);
+    // Share a post
+    async sharePost(postId) {
+        const url = `${window.location.origin}/p/${postId}`;
         
-        // Update compose modal UI
-        this.updateComposeModalForPostType(type);
+        try {
+            await Utils.copyToClipboard(url);
+            Utils.showSuccessMessage('Post link copied to clipboard!');
+        } catch (error) {
+            // Fallback for older browsers
+            const input = document.createElement('input');
+            input.value = url;
+            document.body.appendChild(input);
+            input.select();
+            document.execCommand('copy');
+            document.body.removeChild(input);
+            Utils.showSuccessMessage('Post link copied!');
+        }
     }
 
-    updateComposeModalForPostType(type) {
-        // Update button states
-        const buttons = document.querySelectorAll('[onclick*="setPostType"]');
-        buttons.forEach(btn => {
-            if (btn.onclick.toString().includes(`'${type}'`)) {
-                btn.style.background = 'var(--btn-primary-bg)';
-                btn.style.color = 'white';
-            } else {
-                btn.style.background = 'transparent';
-                btn.style.color = 'var(--fg-default)';
-            }
-        });
-        
-        // Show/hide relevant fields
-        const textFields = document.getElementById('textPostFields');
-        const linkFields = document.getElementById('linkPostFields');
-        
-        if (textFields && linkFields) {
-            if (type === 'text') {
-                textFields.style.display = 'block';
-                linkFields.style.display = 'none';
-            } else {
-                textFields.style.display = 'none';
-                linkFields.style.display = 'block';
-            }
+    // Refresh current view
+    refreshCurrentView() {
+        const currentView = State.get('currentView');
+        if (currentView === 'feed') {
+            this.renderFeedPosts();
         }
+    }
+
+    // Handle form submission
+    async handleCreateForm(event) {
+        event.preventDefault();
         
-        // Update required fields
-        const contentField = document.getElementById('postContent');
-        const urlField = document.getElementById('postUrl');
+        const form = event.target;
+        const formData = new FormData(form);
         
-        if (contentField && urlField) {
-            if (type === 'text') {
-                contentField.required = true;
-                urlField.required = false;
+        const isEditMode = form.dataset.editMode === 'true';
+        const editPostId = form.dataset.editPostId;
+        
+        try {
+            const postData = {
+                title: formData.get('title'),
+                content: formData.get('content'),
+                community: formData.get('community'),
+                isPrivate: formData.get('isPrivate') === 'on'
+            };
+
+            if (isEditMode && editPostId) {
+                await this.updatePost(editPostId, postData);
             } else {
-                contentField.required = false;
-                urlField.required = true;
+                await this.createPost(postData);
             }
+
+            // Reset form
+            form.reset();
+            form.removeAttribute('data-edit-mode');
+            form.removeAttribute('data-edit-post-id');
+            
+            // Reset modal title
+            document.getElementById('composeModalTitle').textContent = 'Create Post';
+            
+            Modals.close('composeModal');
+        } catch (error) {
+            // Error already handled in createPost/updatePost
+        }
+    }
+
+    // Update an existing post
+    async updatePost(postId, updates) {
+        try {
+            StateHelpers.setLoading(true);
+            
+            const updatedPost = await postsAPI.updatePost(postId, updates);
+            State.updatePost(postId, updatedPost);
+            
+            Utils.showSuccessMessage('Post updated successfully!');
+            return updatedPost;
+        } catch (error) {
+            Utils.showErrorMessage(error.message || 'Failed to update post');
+            throw error;
+        } finally {
+            StateHelpers.setLoading(false);
         }
     }
 }
 
-// Create global posts instance
-const Posts = new PostsManager();
+// Create global Posts instance
+window.Posts = new PostsManager();
+
+// Export for module use
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = { PostsManager, Posts: window.Posts };
+}
