@@ -333,8 +333,8 @@ class BlogApi {
 }
 
 // Create global API instances
-const api = new BlogApi();
-const blobAPI = new BlobApi(); // For backward compatibility
+window.api = new BlogApi();
+window.blobAPI = new BlobApi(); // For backward compatibility
 
 // Export error class
 window.ApiError = ApiError;
