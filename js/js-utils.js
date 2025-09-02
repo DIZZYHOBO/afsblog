@@ -1,101 +1,99 @@
 // js/utils.js - Utility Functions
 class Utils {
-    // HTML escaping for security
+    // Show success message to user
+    static showSuccessMessage(message, duration = CONFIG.SUCCESS_MESSAGE_DURATION) {
+        this.showMessage(message, 'success', duration);
+    }
+
+    // Show error message to user
+    static showErrorMessage(message, duration = CONFIG.SUCCESS_MESSAGE_DURATION) {
+        this.showMessage(message, 'error', duration);
+    }
+
+    // Show info message to user
+    static showInfoMessage(message, duration = CONFIG.SUCCESS_MESSAGE_DURATION) {
+        this.showMessage(message, 'info', duration);
+    }
+
+    // Show message with specified type
+    static showMessage(message, type = 'info', duration = CONFIG.SUCCESS_MESSAGE_DURATION) {
+        // Remove existing messages
+        const existingMessages = document.querySelectorAll('.toast-message');
+        existingMessages.forEach(msg => msg.remove());
+
+        // Create message element
+        const messageEl = document.createElement('div');
+        messageEl.className = `toast-message toast-${type}`;
+        messageEl.textContent = message;
+
+        // Add to page
+        document.body.appendChild(messageEl);
+
+        // Show with animation
+        setTimeout(() => {
+            messageEl.classList.add('show');
+        }, 100);
+
+        // Auto-hide
+        setTimeout(() => {
+            messageEl.classList.remove('show');
+            setTimeout(() => {
+                if (messageEl.parentNode) {
+                    messageEl.parentNode.removeChild(messageEl);
+                }
+            }, 300);
+        }, duration);
+    }
+
+    // Escape HTML characters
     static escapeHtml(text) {
+        if (!text) return '';
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
     }
 
-    // Show error message in specific element
-    static showError(elementId, message) {
-        const element = document.getElementById(elementId);
-        if (element) {
-            element.innerHTML = `<div class="error-message">${this.escapeHtml(message)}</div>`;
-        }
-    }
-
-    // Show success message as toast notification
-    static showSuccessMessage(message) {
-        const successDiv = document.createElement('div');
-        successDiv.className = 'success-message';
-        successDiv.textContent = message;
-        successDiv.style.cssText = `
-            position: fixed;
-            top: 80px;
-            right: 20px;
-            z-index: 1000;
-            border-radius: 8px;
-            box-shadow: var(--overlay-shadow);
-        `;
-        document.body.appendChild(successDiv);
+    // Format date/time relative to now
+    static formatRelativeTime(timestamp) {
+        if (!timestamp) return 'Unknown';
         
-        setTimeout(() => {
-            successDiv.remove();
-        }, CONFIG.SUCCESS_MESSAGE_DURATION);
-    }
-
-    // Format timestamp for display
-    static formatTimestamp(timestamp) {
-        const date = new Date(timestamp);
         const now = new Date();
-        const diff = now - date;
-        
-        if (diff < 60000) return 'now';
-        if (diff < 3600000) return Math.floor(diff / 60000) + 'm';
-        if (diff < 86400000) return Math.floor(diff / 3600000) + 'h';
-        if (diff < 604800000) return Math.floor(diff / 86400000) + 'd';
-        return date.toLocaleDateString();
-    }
-
-    // Format date for display
-    static formatDate(timestamp) {
         const date = new Date(timestamp);
-        return date.toLocaleDateString('en-US', { 
-            year: 'numeric', 
-            month: 'short' 
-        });
-    }
+        const diffMs = now - date;
+        const diffSeconds = Math.floor(diffMs / 1000);
+        const diffMinutes = Math.floor(diffSeconds / 60);
+        const diffHours = Math.floor(diffMinutes / 60);
+        const diffDays = Math.floor(diffHours / 24);
+        const diffWeeks = Math.floor(diffDays / 7);
+        const diffMonths = Math.floor(diffDays / 30);
+        const diffYears = Math.floor(diffDays / 365);
 
-    // Debounce function for search and other inputs
-    static debounce(func, wait) {
-        let timeout;
-        return function executedFunction(...args) {
-            const later = () => {
-                clearTimeout(timeout);
-                func(...args);
-            };
-            clearTimeout(timeout);
-            timeout = setTimeout(later, wait);
-        };
-    }
-
-    // Throttle function for scroll events
-    static throttle(func, limit) {
-        let inThrottle;
-        return function() {
-            const args = arguments;
-            const context = this;
-            if (!inThrottle) {
-                func.apply(context, args);
-                inThrottle = true;
-                setTimeout(() => inThrottle = false, limit);
-            }
+        if (diffSeconds < 60) {
+            return 'Just now';
+        } else if (diffMinutes < 60) {
+            return `${diffMinutes}m ago`;
+        } else if (diffHours < 24) {
+            return `${diffHours}h ago`;
+        } else if (diffDays < 7) {
+            return `${diffDays}d ago`;
+        } else if (diffWeeks < 4) {
+            return `${diffWeeks}w ago`;
+        } else if (diffMonths < 12) {
+            return `${diffMonths}mo ago`;
+        } else {
+            return `${diffYears}y ago`;
         }
     }
 
-    // Validate URL format
-    static isValidUrl(string) {
-        try {
-            new URL(string);
-            return true;
-        } catch {
-            return false;
-        }
+    // Format absolute date/time
+    static formatAbsoluteTime(timestamp) {
+        if (!timestamp) return 'Unknown';
+        const date = new Date(timestamp);
+        return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
     }
 
-    // Validate email format (basic)
-    static isValidEmail(email) {
+    // Validate email format
+    static validateEmail(email) {
         const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         return re.test(email);
     }
@@ -152,12 +150,14 @@ class Utils {
 
     // Truncate text with ellipsis
     static truncateText(text, length = 100, suffix = '...') {
+        if (!text) return '';
         if (text.length <= length) return text;
         return text.substring(0, length).trim() + suffix;
     }
 
     // Convert string to URL-friendly slug
     static createSlug(text) {
+        if (!text) return '';
         return text
             .toLowerCase()
             .trim()
@@ -214,84 +214,244 @@ class Utils {
         }
     }
 
+    // Debounce function
+    static debounce(func, wait, immediate = false) {
+        let timeout;
+        return function executedFunction(...args) {
+            const later = () => {
+                timeout = null;
+                if (!immediate) func.apply(this, args);
+            };
+            const callNow = immediate && !timeout;
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+            if (callNow) func.apply(this, args);
+        };
+    }
+
+    // Throttle function
+    static throttle(func, limit) {
+        let inThrottle;
+        return function executedFunction(...args) {
+            if (!inThrottle) {
+                func.apply(this, args);
+                inThrottle = true;
+                setTimeout(() => inThrottle = false, limit);
+            }
+        };
+    }
+
     // Check if element is in viewport
-    static isInViewport(element, threshold = 0) {
+    static isInViewport(element) {
         const rect = element.getBoundingClientRect();
-        const windowHeight = window.innerHeight || document.documentElement.clientHeight;
-        const windowWidth = window.innerWidth || document.documentElement.clientWidth;
-        
         return (
-            rect.top >= -threshold &&
-            rect.left >= -threshold &&
-            rect.bottom <= windowHeight + threshold &&
-            rect.right <= windowWidth + threshold
+            rect.top >= 0 &&
+            rect.left >= 0 &&
+            rect.bottom <= (window.innerHeight || document.documentElement.clientHeight) &&
+            rect.right <= (window.innerWidth || document.documentElement.clientWidth)
         );
     }
 
-    // Animate element with CSS classes
-    static animate(element, animation, duration = CONFIG.ANIMATION_DURATION) {
-        return new Promise((resolve) => {
-            const animationName = `animate__${animation}`;
-            element.classList.add('animate__animated', animationName);
-            
-            const handleAnimationEnd = (event) => {
-                event.stopPropagation();
-                element.classList.remove('animate__animated', animationName);
-                element.removeEventListener('animationend', handleAnimationEnd);
-                resolve();
-            };
-            
-            element.addEventListener('animationend', handleAnimationEnd);
-            
-            // Fallback timeout
-            setTimeout(() => {
-                element.classList.remove('animate__animated', animationName);
-                element.removeEventListener('animationend', handleAnimationEnd);
-                resolve();
-            }, duration);
-        });
+    // Get element offset from top of page
+    static getElementOffset(element) {
+        let offsetTop = 0;
+        while (element) {
+            offsetTop += element.offsetTop;
+            element = element.offsetParent;
+        }
+        return offsetTop;
     }
 
-    // Check if user prefers dark mode
-    static prefersDarkMode() {
-        return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    // Sanitize filename for safe usage
+    static sanitizeFilename(filename) {
+        return filename.replace(/[^a-z0-9.-]/gi, '_').toLowerCase();
     }
 
     // Check if device is mobile
     static isMobile() {
-        return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        return window.innerWidth <= 768;
     }
 
-    // Check if device supports touch
-    static isTouchDevice() {
-        return 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    // Check if device is tablet
+    static isTablet() {
+        return window.innerWidth > 768 && window.innerWidth <= 1024;
     }
 
-    // Format numbers with commas
+    // Check if device is desktop
+    static isDesktop() {
+        return window.innerWidth > 1024;
+    }
+
+    // Format number with commas
     static formatNumber(num) {
-        return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+        if (num === null || num === undefined) return '0';
+        return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
     }
 
-    // Wait for specified time (for async operations)
-    static wait(ms) {
+    // Random color generator
+    static randomColor() {
+        const letters = '0123456789ABCDEF';
+        let color = '#';
+        for (let i = 0; i < 6; i++) {
+            color += letters[Math.floor(Math.random() * 16)];
+        }
+        return color;
+    }
+
+    // Generate random avatar color based on string
+    static generateAvatarColor(str) {
+        if (!str) return '#4b7688';
+        
+        let hash = 0;
+        for (let i = 0; i < str.length; i++) {
+            hash = str.charCodeAt(i) + ((hash << 5) - hash);
+        }
+        
+        const hue = hash % 360;
+        return `hsl(${hue}, 50%, 50%)`;
+    }
+
+    // Pluralize word based on count
+    static pluralize(count, singular, plural = singular + 's') {
+        return count === 1 ? singular : plural;
+    }
+
+    // Format duration in seconds to readable format
+    static formatDuration(seconds) {
+        if (seconds < 60) return `${seconds}s`;
+        const minutes = Math.floor(seconds / 60);
+        if (minutes < 60) return `${minutes}m ${seconds % 60}s`;
+        const hours = Math.floor(minutes / 60);
+        return `${hours}h ${minutes % 60}m`;
+    }
+
+    // Check if string is valid URL
+    static isValidUrl(string) {
+        try {
+            new URL(string);
+            return true;
+        } catch (_) {
+            return false;
+        }
+    }
+
+    // Get domain from URL
+    static getDomainFromUrl(url) {
+        try {
+            return new URL(url).hostname;
+        } catch (_) {
+            return null;
+        }
+    }
+
+    // Wait for specified milliseconds
+    static sleep(ms) {
         return new Promise(resolve => setTimeout(resolve, ms));
     }
 
-    // Retry async operation with exponential backoff
-    static async retry(fn, maxRetries = 3, delay = 1000) {
-        let lastError;
-        
-        for (let i = 0; i < maxRetries; i++) {
-            try {
-                return await fn();
-            } catch (error) {
-                lastError = error;
-                if (i < maxRetries - 1) {
-                    await this.wait(delay * Math.pow(2, i));
-                }
+    // Retry function with exponential backoff
+    static async retry(fn, retries = 3, delay = 1000) {
+        try {
+            return await fn();
+        } catch (error) {
+            if (retries > 0) {
+                await this.sleep(delay);
+                return this.retry(fn, retries - 1, delay * 2);
             }
+            throw error;
         }
-        
-        throw lastError;
     }
+
+    // Check if object is empty
+    static isEmpty(obj) {
+        return Object.keys(obj || {}).length === 0;
+    }
+
+    // Deep clone object
+    static deepClone(obj) {
+        if (obj === null || typeof obj !== 'object') return obj;
+        if (obj instanceof Date) return new Date(obj.getTime());
+        if (obj instanceof Array) return obj.map(item => this.deepClone(item));
+        if (obj instanceof Object) {
+            const cloned = {};
+            Object.keys(obj).forEach(key => {
+                cloned[key] = this.deepClone(obj[key]);
+            });
+            return cloned;
+        }
+    }
+
+    // Capitalize first letter
+    static capitalize(str) {
+        if (!str) return '';
+        return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
+    }
+
+    // Convert camelCase to kebab-case
+    static camelToKebab(str) {
+        return str.replace(/([a-z0-9]|(?=[A-Z]))([A-Z])/g, '$1-$2').toLowerCase();
+    }
+
+    // Convert kebab-case to camelCase
+    static kebabToCamel(str) {
+        return str.replace(/-([a-z])/g, (g) => g[1].toUpperCase());
+    }
+
+    // Get contrast color (black or white) for background color
+    static getContrastColor(hexColor) {
+        const r = parseInt(hexColor.substr(1, 2), 16);
+        const g = parseInt(hexColor.substr(3, 2), 16);
+        const b = parseInt(hexColor.substr(5, 2), 16);
+        
+        // Calculate luminance
+        const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+        
+        return luminance > 0.5 ? '#000000' : '#ffffff';
+    }
+
+    // Add CSS to document head
+    static addCSS(css) {
+        const style = document.createElement('style');
+        style.textContent = css;
+        document.head.appendChild(style);
+        return style;
+    }
+
+    // Remove element safely
+    static removeElement(element) {
+        if (element && element.parentNode) {
+            element.parentNode.removeChild(element);
+        }
+    }
+
+    // Get file extension from filename
+    static getFileExtension(filename) {
+        return filename.slice((filename.lastIndexOf('.') - 1 >>> 0) + 2);
+    }
+
+    // Check if file is image based on extension
+    static isImageFile(filename) {
+        const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'];
+        const extension = this.getFileExtension(filename).toLowerCase();
+        return imageExtensions.includes(extension);
+    }
+
+    // Check if file is video based on extension
+    static isVideoFile(filename) {
+        const videoExtensions = ['mp4', 'webm', 'ogg', 'avi', 'mov', 'wmv'];
+        const extension = this.getFileExtension(filename).toLowerCase();
+        return videoExtensions.includes(extension);
+    }
+
+    // Check if file is audio based on extension
+    static isAudioFile(filename) {
+        const audioExtensions = ['mp3', 'wav', 'ogg', 'm4a', 'aac', 'flac'];
+        const extension = this.getFileExtension(filename).toLowerCase();
+        return audioExtensions.includes(extension);
+    }
+}
+
+// Export for module use
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = Utils;
 }
