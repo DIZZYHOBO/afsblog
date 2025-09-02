@@ -1,253 +1,355 @@
-// js/auth.js - Authentication Management
+// js/auth.js - Authentication Management Component
 class AuthManager {
     constructor() {
         this.currentUser = null;
-        this.authToken = null;
+        this.setupEventListeners();
     }
 
+    setupEventListeners() {
+        // Listen for storage changes (multi-tab sync)
+        window.addEventListener('storage', (e) => {
+            if (e.key === CONFIG.STORAGE_KEYS.CURRENT_USER) {
+                this.handleStorageChange(e);
+            }
+        });
+    }
+
+    // Load stored user from localStorage
     async loadStoredUser() {
         try {
-            // Try to load from new API first, then fall back to blob storage
-            const userData = await blobAPI.get(CONFIG.STORAGE_KEYS.CURRENT_USER);
+            const userKey = CONFIG.STORAGE_KEYS.CURRENT_USER;
+            const userData = await blobAPI.get(userKey);
             
-            if (userData) {
-                // Verify user still exists and is valid
-                const fullProfile = await blobAPI.get(`${CONFIG.STORAGE_KEYS.USER_PREFIX}${userData.username}`);
-                if (fullProfile) {
-                    this.currentUser = { ...userData, profile: fullProfile };
-                    State.set('currentUser', this.currentUser);
-                    
-                    // Load user's followed communities
-                    await Communities.loadFollowedCommunities();
-                    return true;
+            if (userData && userData.username) {
+                // Verify user still exists and is active
+                const fullUserData = await blobAPI.get(`${CONFIG.STORAGE_KEYS.USER_PREFIX}${userData.username}`);
+                
+                if (fullUserData && fullUserData.status === 'active') {
+                    State.setCurrentUser(fullUserData);
+                    this.currentUser = fullUserData;
+                    return fullUserData;
+                } else {
+                    // User no longer exists or is inactive, clear stored data
+                    await this.clearStoredUser();
                 }
             }
         } catch (error) {
             console.error('Error loading stored user:', error);
+            await this.clearStoredUser();
         }
-        
-        return false;
+        return null;
     }
 
+    // Store current user
+    async storeCurrentUser(userData) {
+        try {
+            const userKey = CONFIG.STORAGE_KEYS.CURRENT_USER;
+            const storageData = {
+                username: userData.username,
+                id: userData.id,
+                timestamp: Date.now()
+            };
+            await blobAPI.set(userKey, storageData);
+        } catch (error) {
+            console.error('Error storing user data:', error);
+        }
+    }
+
+    // Clear stored user
+    async clearStoredUser() {
+        try {
+            const userKey = CONFIG.STORAGE_KEYS.CURRENT_USER;
+            await blobAPI.delete(userKey);
+        } catch (error) {
+            console.error('Error clearing stored user:', error);
+        }
+    }
+
+    // Login user
     async login(username, password) {
         try {
-            // Use blob API for now (legacy compatibility)
-            const user = await blobAPI.get(`${CONFIG.STORAGE_KEYS.USER_PREFIX}${username}`);
+            const userData = await authAPI.login(username, password);
             
-            if (!user) {
-                const pendingUser = await blobAPI.get(`${CONFIG.STORAGE_KEYS.PENDING_USER_PREFIX}${username}`);
-                if (pendingUser) {
-                    throw new Error('Your account is still pending admin approval.');
-                } else {
-                    throw new Error('Invalid username or password');
-                }
-            }
+            this.currentUser = userData;
+            State.setCurrentUser(userData);
             
-            if (user.password !== password) {
-                throw new Error('Invalid username or password');
-            }
+            // Store user session
+            await this.storeCurrentUser(userData);
             
-            this.currentUser = { username, profile: user };
-            State.set('currentUser', this.currentUser);
+            // Load user's follows
+            await this.loadUserFollows(userData.id);
             
-            // Store current user
-            await blobAPI.set(CONFIG.STORAGE_KEYS.CURRENT_USER, this.currentUser);
-            
-            // Load user's followed communities
-            await Communities.loadFollowedCommunities();
-            
-            // Load admin stats if user is admin
-            if (user.isAdmin && State.get('currentPage') === 'admin') {
-                await Admin.loadStats();
-            }
-            
-            return this.currentUser;
+            return userData;
         } catch (error) {
+            console.error('Login error:', error);
             throw error;
         }
     }
 
-    async register(username, password, bio = '') {
+    // Register new user
+    async register(username, password, displayName, bio) {
         try {
-            // Validation
-            if (!username || username.length < 3 || username.length > 20) {
-                throw new Error('Username must be 3-20 characters long');
-            }
+            const userData = await authAPI.register(username, password, displayName, bio);
             
-            if (!CONFIG.VALIDATION.USERNAME.test(username)) {
-                throw new Error('Username can only contain letters, numbers, and underscores');
-            }
+            this.currentUser = userData;
+            State.setCurrentUser(userData);
             
-            if (!password || password.length < 6) {
-                throw new Error('Password must be at least 6 characters long');
-            }
+            // Store user session
+            await this.storeCurrentUser(userData);
             
-            if (bio && bio.length > CONFIG.MAX_BIO_LENGTH) {
-                throw new Error(`Bio must be ${CONFIG.MAX_BIO_LENGTH} characters or less`);
-            }
-
-            // Check if user already exists
-            const existingUser = await blobAPI.get(`${CONFIG.STORAGE_KEYS.USER_PREFIX}${username}`);
-            const pendingUser = await blobAPI.get(`${CONFIG.STORAGE_KEYS.PENDING_USER_PREFIX}${username}`);
-            
-            if (existingUser || pendingUser) {
-                throw new Error('Username already exists or is pending approval');
-            }
-            
-            const newPendingUser = { 
-                username, 
-                password,
-                bio: bio || CONFIG.DEFAULTS.BIO.replace('new here', username),
-                createdAt: new Date().toISOString(),
-                status: 'pending',
-                isAdmin: false
-            };
-            
-            await blobAPI.set(`${CONFIG.STORAGE_KEYS.PENDING_USER_PREFIX}${username}`, newPendingUser);
-            
-            return {
-                success: true,
-                message: 'Account created! Waiting for admin approval.',
-                status: 'pending'
-            };
+            return userData;
         } catch (error) {
+            console.error('Registration error:', error);
             throw error;
         }
     }
 
+    // Logout user
     async logout() {
         try {
             // Clear stored user data
-            try {
-                await blobAPI.delete(CONFIG.STORAGE_KEYS.CURRENT_USER);
-            } catch (deleteError) {
-                // Ignore if key doesn't exist
-                if (!deleteError.message.includes('404')) {
-                    console.warn('Failed to delete current_user key:', deleteError);
-                }
-            }
+            await this.clearStoredUser();
             
-            // Clear local state
+            // Clear state
             this.currentUser = null;
-            this.authToken = null;
-            State.reset();
+            State.setCurrentUser(null);
+            State.setFollows({});
             
-            return { success: true, message: 'Logged out successfully' };
+            // Clear any cached data
+            State.setReplies({});
+            
+            return true;
         } catch (error) {
-            // Even if there's an error, still clear local state
-            this.currentUser = null;
-            this.authToken = null;
-            State.reset();
+            console.error('Logout error:', error);
             throw error;
         }
     }
 
-    getCurrentUser() {
-        return this.currentUser || State.get('currentUser');
+    // Update user profile
+    async updateProfile(updates) {
+        try {
+            if (!this.currentUser) {
+                throw new Error('Not authenticated');
+            }
+
+            const updatedUser = await authAPI.updateProfile(this.currentUser.username, updates);
+            
+            this.currentUser = updatedUser;
+            State.setCurrentUser(updatedUser);
+            
+            // Update stored user
+            await this.storeCurrentUser(updatedUser);
+            
+            return updatedUser;
+        } catch (error) {
+            console.error('Profile update error:', error);
+            throw error;
+        }
     }
 
+    // Load user's followed communities
+    async loadUserFollows(userId) {
+        try {
+            const follows = await communitiesAPI.getFollowing(userId);
+            State.setFollows(follows);
+            return follows;
+        } catch (error) {
+            console.error('Error loading user follows:', error);
+            State.setFollows({});
+            return {};
+        }
+    }
+
+    // Follow/unfollow a community
+    async toggleFollowCommunity(communityName, isFollowing) {
+        try {
+            if (!this.currentUser) {
+                throw new Error('Not authenticated');
+            }
+
+            const follows = await communitiesAPI.setFollowing(
+                this.currentUser.id,
+                communityName,
+                isFollowing
+            );
+            
+            State.setFollows(follows);
+            return follows;
+        } catch (error) {
+            console.error('Error updating follow status:', error);
+            throw error;
+        }
+    }
+
+    // Check if user is following a community
+    isFollowing(communityName) {
+        const follows = State.getFollows();
+        return follows[communityName] === true;
+    }
+
+    // Get current user
+    getCurrentUser() {
+        return this.currentUser || State.getCurrentUser();
+    }
+
+    // Check if user is authenticated
     isAuthenticated() {
         return this.getCurrentUser() !== null;
     }
 
+    // Check if user is admin
     isAdmin() {
         const user = this.getCurrentUser();
-        return user?.profile?.isAdmin === true;
+        return user && user.role === 'admin';
     }
 
-    hasPermission(permission) {
+    // Check if user can perform action on content
+    canEdit(content) {
         const user = this.getCurrentUser();
+        if (!user) return false;
         
-        switch (permission) {
-            case 'create_post':
-            case 'create_reply':
-            case 'follow_community':
-                return this.isAuthenticated();
-            
-            case 'create_community':
-                return this.isAuthenticated(); // All authenticated users can create communities
-            
-            case 'admin_panel':
-            case 'approve_users':
-            case 'manage_users':
-            case 'delete_posts':
-                return this.isAdmin();
-            
-            case 'edit_post':
-            case 'delete_post':
-                return (postAuthor) => {
-                    return this.isAdmin() || (this.isAuthenticated() && user.username === postAuthor);
-                };
-            
-            case 'edit_reply':
-            case 'delete_reply':
-                return (replyAuthor) => {
-                    return this.isAdmin() || (this.isAuthenticated() && user.username === replyAuthor);
-                };
-            
-            default:
-                return false;
+        // Admin can edit anything
+        if (user.role === 'admin') return true;
+        
+        // User can edit their own content
+        return content.authorId === user.id || content.author === user.username;
+    }
+
+    canDelete(content) {
+        const user = this.getCurrentUser();
+        if (!user) return false;
+        
+        // Admin can delete anything
+        if (user.role === 'admin') return true;
+        
+        // User can delete their own content
+        return content.authorId === user.id || content.author === user.username;
+    }
+
+    canModerate() {
+        const user = this.getCurrentUser();
+        return user && (user.role === 'admin' || user.role === 'moderator');
+    }
+
+    // Handle storage changes from other tabs
+    handleStorageChange(event) {
+        if (event.newValue === null) {
+            // User was logged out in another tab
+            this.currentUser = null;
+            State.setCurrentUser(null);
+        } else {
+            // User was logged in in another tab
+            try {
+                const userData = JSON.parse(event.newValue);
+                if (userData.username) {
+                    this.loadStoredUser();
+                }
+            } catch (error) {
+                console.error('Error parsing storage change:', error);
+            }
         }
     }
 
-    // Check if user can be demoted (protects the protected admin)
-    canDemoteUser(username) {
-        if (!this.isAdmin()) return false;
-        if (username === CONFIG.PROTECTED_ADMIN) return false;
-        if (username === this.getCurrentUser()?.username) return false; // Can't demote self
-        return true;
-    }
-}
+    // Validate user session
+    async validateSession() {
+        const user = this.getCurrentUser();
+        if (!user) return false;
 
-// Handle form submissions
-class AuthForms {
-    static async handleAuthForm(e) {
-        e.preventDefault();
-        
-        const form = e.target;
-        const mode = form.dataset.mode;
-        const username = document.getElementById('username')?.value.trim();
-        const password = document.getElementById('password')?.value;
-        const bio = document.getElementById('bio')?.value.trim();
-        const errorDiv = document.getElementById('authError');
-        const submitBtn = document.getElementById('authSubmitBtn');
-
-        if (!username || !password || !errorDiv || !submitBtn) return;
-
-        errorDiv.innerHTML = '';
-        
         try {
-            submitBtn.disabled = true;
-            submitBtn.textContent = 'Loading...';
+            // Check if user still exists and is active
+            const fullUserData = await blobAPI.get(`${CONFIG.STORAGE_KEYS.USER_PREFIX}${user.username}`);
+            
+            if (!fullUserData || fullUserData.status !== 'active') {
+                await this.logout();
+                return false;
+            }
 
-            if (mode === 'signup') {
-                const result = await Auth.register(username, password, bio);
-                Modals.close('authModal');
-                Utils.showSuccessMessage(result.message);
-            } else {
-                await Auth.login(username, password);
-                Modals.close('authModal');
-                App.updateUI();
-                Utils.showSuccessMessage('Welcome back!');
+            return true;
+        } catch (error) {
+            console.error('Session validation error:', error);
+            await this.logout();
+            return false;
+        }
+    }
+
+    // Refresh user data from server
+    async refreshUserData() {
+        const user = this.getCurrentUser();
+        if (!user) return null;
+
+        try {
+            const freshUserData = await blobAPI.get(`${CONFIG.STORAGE_KEYS.USER_PREFIX}${user.username}`);
+            
+            if (freshUserData) {
+                this.currentUser = freshUserData;
+                State.setCurrentUser(freshUserData);
+                await this.storeCurrentUser(freshUserData);
             }
             
-            form.reset();
-            
+            return freshUserData;
         } catch (error) {
-            console.error('Auth error:', error);
-            Utils.showError('authError', error.message || 'Authentication failed');
-        } finally {
-            submitBtn.disabled = false;
-            submitBtn.textContent = mode === 'signup' ? 'Sign Up' : 'Sign In';
+            console.error('Error refreshing user data:', error);
+            return user;
         }
     }
 
-    static toggleAuthMode() {
-        const form = document.getElementById('authForm');
-        const currentMode = form?.dataset.mode;
-        Modals.openAuth(currentMode === 'signup' ? 'signin' : 'signup');
+    // Generate secure session token (for future use)
+    generateSessionToken() {
+        const array = new Uint8Array(32);
+        crypto.getRandomValues(array);
+        return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
+    }
+
+    // Password validation
+    validatePassword(password) {
+        const errors = [];
+        
+        if (password.length < 6) {
+            errors.push('Password must be at least 6 characters long');
+        }
+        
+        if (password.length > 100) {
+            errors.push('Password must be less than 100 characters');
+        }
+        
+        return errors;
+    }
+
+    // Username validation
+    validateUsername(username) {
+        const errors = [];
+        
+        if (!CONFIG.VALIDATION.USERNAME.test(username)) {
+            errors.push('Username must be 3-20 characters, letters, numbers, and underscores only');
+        }
+        
+        if (username.toLowerCase() === CONFIG.PROTECTED_ADMIN.toLowerCase()) {
+            errors.push('Username is reserved');
+        }
+        
+        return errors;
+    }
+
+    // Get user display info
+    getUserDisplayInfo(user = this.getCurrentUser()) {
+        if (!user) return null;
+        
+        return {
+            username: user.username,
+            displayName: user.displayName || user.username,
+            avatar: user.avatar || CONFIG.DEFAULTS.AVATAR_FALLBACK,
+            bio: user.bio || CONFIG.DEFAULTS.BIO,
+            role: user.role || 'user',
+            createdAt: user.createdAt,
+            lastLogin: user.lastLogin
+        };
     }
 }
 
-// Create global auth instance
-const Auth = new AuthManager();
+// Create global Auth instance
+window.Auth = new AuthManager();
+
+// Export for module use
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = { AuthManager, Auth: window.Auth };
+}
