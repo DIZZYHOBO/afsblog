@@ -534,21 +534,27 @@ class ModalManager {
         const communities = State.getCommunities();
         const select = document.getElementById('composeCommunity');
         
-        select.innerHTML = '<option value="">Select a community</option>';
-        communities.forEach(community => {
-            const option = document.createElement('option');
-            option.value = community.name;
-            option.textContent = community.displayName;
-            select.appendChild(option);
-        });
+        if (select) {
+            select.innerHTML = '<option value="">Select a community</option>';
+            communities.forEach(community => {
+                const option = document.createElement('option');
+                option.value = community.name;
+                option.textContent = community.displayName;
+                select.appendChild(option);
+            });
+        }
     }
 
     populateEditProfileModal() {
         const user = State.getCurrentUser();
         if (user) {
-            document.getElementById('editDisplayName').value = user.displayName || '';
-            document.getElementById('editBio').value = user.bio || '';
-            document.getElementById('editAvatar').value = user.avatar || '';
+            const displayNameInput = document.getElementById('editDisplayName');
+            const bioInput = document.getElementById('editBio');
+            const avatarInput = document.getElementById('editAvatar');
+            
+            if (displayNameInput) displayNameInput.value = user.displayName || '';
+            if (bioInput) bioInput.value = user.bio || '';
+            if (avatarInput) avatarInput.value = user.avatar || '';
         }
     }
 }
