@@ -1426,7 +1426,7 @@
         }
 
         async function deleteUser(username) {
-            if (!confirm(`Delete user @${username}? This will also delete all their posts and remove them from sheds. This action cannot be undone.`)) return;
+            if (!confirm(`Delete user @${username}? This will also delete all their posts and remove them from communities. This action cannot be undone.`)) return;
             
             try {
                 // Delete user
@@ -1467,7 +1467,7 @@
         }
 
         async function deleteCommunity(communityName) {
-            if (!confirm(`Delete community c/${communityName}? This will also delete all posts in this shed. This action cannot be undone.`)) return;
+            if (!confirm(`Delete community c/${communityName}? This will also delete all posts in this community. This action cannot be undone.`)) return;
             
             try {
                 // Delete community
@@ -1487,8 +1487,8 @@
                 renderAdminPage();
                 
             } catch (error) {
-                console.error('Error deleting shed:', error);
-                showSuccessMessage('Failed to delete shed. Please try again.');
+                console.error('Error deleting community:', error);
+                showSuccessMessage('Failed to delete community. Please try again.');
             }
         }
 
@@ -1528,7 +1528,7 @@
                     <div class="login-required">
                         <div class="login-required-icon">🔒</div>
                         <h2>Log in to view feed</h2>
-                        <p>You need to be signed in to view posts and interact with the shed.</p>
+                        <p>You need to be signed in to view posts and interact with the community.</p>
                         <div class="login-required-buttons">
                             <button class="login-required-btn" onclick="openAuthModal('signin')">
                                 <span>🚪</span>
