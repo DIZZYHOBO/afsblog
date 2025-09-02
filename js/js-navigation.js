@@ -1,358 +1,183 @@
-// js/navigation.js - Navigation Management
+// js/navigation.js - Navigation Management Component
 class NavigationManager {
     constructor() {
         this.isMenuOpen = false;
-        this.inlineLoginFormOpen = false;
-        
-        this.initializeEventListeners();
-        this.subscribeToStateChanges();
+        this.currentPage = 'feed';
+        this.setupEventListeners();
     }
 
-    initializeEventListeners() {
-        // Menu overlay click
-        document.getElementById('menuOverlay')?.addEventListener('click', () => {
-            this.toggleMenu();
+    setupEventListeners() {
+        // Menu toggle
+        const menuToggle = document.getElementById('menuToggle');
+        if (menuToggle) {
+            menuToggle.addEventListener('click', () => this.toggleMenu());
+        }
+
+        // Menu items
+        this.setupMenuItems();
+
+        // Auth form handlers
+        this.setupAuthHandlers();
+
+        // User menu
+        this.setupUserMenu();
+
+        // Subscribe to state changes
+        State.addListener('currentUser', (user) => {
+            this.updateNavigationForUser(user);
+        });
+
+        // Handle browser back/forward
+        window.addEventListener('popstate', (e) => {
+            this.handlePopState(e);
         });
 
         // Close menu when clicking outside
         document.addEventListener('click', (e) => {
-            const menu = document.getElementById('slideMenu');
-            const menuToggle = document.getElementById('menuToggle');
+            const menu = document.getElementById('navigationMenu');
+            const toggle = document.getElementById('menuToggle');
             
-            if (this.isMenuOpen && 
+            if (menu && this.isMenuOpen && 
                 !menu.contains(e.target) && 
-                !menuToggle.contains(e.target)) {
-                this.toggleMenu();
+                !toggle.contains(e.target)) {
+                this.closeMenu();
             }
         });
     }
 
-    subscribeToStateChanges() {
-        // Update menu when user changes
-        State.subscribe('currentUser', () => {
-            if (this.isMenuOpen) {
-                this.updateMenuContent();
-            }
-        });
+    setupMenuItems() {
+        const menuItems = {
+            'menuHome': () => this.navigateToFeed(),
+            'menuCommunities': () => this.navigateToCommunities(),
+            'menuProfile': () => this.navigateToProfile(),
+            'menuAdmin': () => this.navigateToAdmin(),
+            'menuSettings': () => this.navigateToSettings(),
+            'menuLogout': () => this.logout()
+        };
 
-        // Update active menu item when page changes
-        State.subscribe('currentPage', (page) => {
-            this.updateActiveMenuItem(page);
-        });
-    }
-
-    toggleMenu() {
-        const menu = document.getElementById('slideMenu');
-        const overlay = document.getElementById('menuOverlay');
-        
-        this.isMenuOpen = !this.isMenuOpen;
-        
-        if (this.isMenuOpen) {
-            menu.classList.add('open');
-            overlay.classList.add('active');
-            this.updateMenuContent();
-        } else {
-            menu.classList.remove('open');
-            overlay.classList.remove('active');
-        }
-    }
-
-    updateMenuContent() {
-        const menuHeader = document.getElementById('slideMenu');
-        const currentUser = State.getCurrentUser();
-        
-        if (!menuHeader) return;
-        
-        if (currentUser) {
-            this.renderAuthenticatedMenu(currentUser);
-        } else {
-            this.renderUnauthenticatedMenu();
-        }
-    }
-
-    renderAuthenticatedMenu(user) {
-        const menuHeader = document.querySelector('#slideMenu .menu-header');
-        if (!menuHeader) return;
-
-        // Update user info in header
-        const profilePicture = user.profile?.profilePicture;
-        
-        menuHeader.innerHTML = `
-            <div class="menu-user-info">
-                ${profilePicture ? `
-                    <img src="${profilePicture}" 
-                         alt="Profile" 
-                         class="profile-avatar"
-                         style="border-radius: 50%; object-fit: cover;"
-                         onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
-                    <div class="profile-avatar" style="display: none;">${user.username.charAt(0).toUpperCase()}</div>
-                ` : `
-                    <div class="profile-avatar">${user.username.charAt(0).toUpperCase()}</div>
-                `}
-                <div class="menu-user-details">
-                    <h4>@${Utils.escapeHtml(user.username)}</h4>
-                    <p>${user.profile?.isAdmin ? 'Administrator' : 'Member'}</p>
-                </div>
-            </div>
-        `;
-
-        // Show authenticated menu items
-        this.toggleMenuItems({
-            'menuProfile': true,
-            'menuCreateCommunity': true,
-            'menuBrowseCommunities': true,
-            'menuSettings': true,
-            'menuAdmin': user.profile?.isAdmin,
-            'menuLogout': true
-        });
-
-        this.updateCommunitiesInMenu();
-    }
-
-    renderUnauthenticatedMenu() {
-        const menuHeader = document.querySelector('#slideMenu .menu-header');
-        if (!menuHeader) return;
-
-        menuHeader.innerHTML = `
-            <div class="login-prompt">
-                <div class="login-prompt-title">Click here to log in</div>
-                <button class="login-toggle-btn" onclick="Navigation.toggleInlineLoginForm()">Login</button>
-                <div class="inline-login-form" id="inlineLoginForm">
-                    <div id="inlineLoginError"></div>
-                    <form id="inlineLoginFormElement" onsubmit="Navigation.handleInlineLogin(event)">
-                        <div class="inline-form-group">
-                            <label for="inlineUsername">Username</label>
-                            <input type="text" id="inlineUsername" required minlength="3" maxlength="20">
-                        </div>
-                        <div class="inline-form-group">
-                            <label for="inlinePassword">Password</label>
-                            <input type="password" id="inlinePassword" required minlength="6">
-                        </div>
-                        <div class="inline-form-buttons">
-                            <button type="submit" class="inline-btn-primary" id="inlineLoginBtn">Sign In</button>
-                            <button type="button" class="inline-btn-secondary" onclick="Modals.openAuth('signup'); Navigation.toggleMenu();">Sign Up</button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        `;
-
-        // Hide authenticated menu items
-        this.toggleMenuItems({
-            'menuProfile': false,
-            'menuCreateCommunity': false,
-            'menuBrowseCommunities': false,
-            'menuAdmin': false,
-            'menuSettings': false,
-            'menuLogout': false
-        });
-    }
-
-    toggleMenuItems(itemVisibility) {
-        Object.entries(itemVisibility).forEach(([id, visible]) => {
+        Object.entries(menuItems).forEach(([id, handler]) => {
             const element = document.getElementById(id);
             if (element) {
-                element.style.display = visible ? 'flex' : 'none';
+                element.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    handler();
+                    this.closeMenu();
+                });
             }
         });
     }
 
-    toggleInlineLoginForm() {
-        const form = document.getElementById('inlineLoginForm');
-        if (!form) return;
+    setupAuthHandlers() {
+        // Inline login form
+        const inlineLogin = document.getElementById('inlineLogin');
+        const inlineRegister = document.getElementById('inlineRegister');
 
-        this.inlineLoginFormOpen = !this.inlineLoginFormOpen;
-        
-        if (this.inlineLoginFormOpen) {
-            form.classList.add('open');
-            setTimeout(() => {
-                document.getElementById('inlineUsername')?.focus();
-            }, 300);
-        } else {
-            form.classList.remove('open');
+        if (inlineLogin) {
+            inlineLogin.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.handleInlineLogin();
+            });
+        }
+
+        if (inlineRegister) {
+            inlineRegister.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.openAuthModal('register');
+            });
+        }
+
+        // Enter key handlers for inline auth
+        const usernameInput = document.getElementById('inlineUsername');
+        const passwordInput = document.getElementById('inlinePassword');
+
+        if (usernameInput) {
+            usernameInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    passwordInput?.focus();
+                }
+            });
+        }
+
+        if (passwordInput) {
+            passwordInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    this.handleInlineLogin();
+                }
+            });
         }
     }
 
-    async handleInlineLogin(e) {
-        e.preventDefault();
-        
-        const username = document.getElementById('inlineUsername')?.value.trim();
-        const password = document.getElementById('inlinePassword')?.value;
-        const errorDiv = document.getElementById('inlineLoginError');
-        const submitBtn = document.getElementById('inlineLoginBtn');
-
-        if (!username || !password) {
-            this.showInlineError('Please enter both username and password');
-            return;
+    setupUserMenu() {
+        const userMenuToggle = document.getElementById('userMenuToggle');
+        if (userMenuToggle) {
+            userMenuToggle.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                this.toggleUserMenu();
+            });
         }
-
-        if (!errorDiv || !submitBtn) return;
-
-        errorDiv.innerHTML = '';
-        
-        if (username.length < 3) {
-            this.showInlineError('Username must be at least 3 characters long');
-            return;
-        }
-        
-        if (password.length < 6) {
-            this.showInlineError('Password must be at least 6 characters long');
-            return;
-        }
-
-        try {
-            submitBtn.disabled = true;
-            submitBtn.textContent = 'Signing in...';
-
-            await Auth.login(username, password);
-            
-            // Clear the form
-            document.getElementById('inlineLoginFormElement')?.reset();
-            
-            // Close menu
-            this.toggleMenu();
-            
-            // Update the app UI
-            App.updateUI();
-            
-            Utils.showSuccessMessage('Welcome back!');
-            
-        } catch (error) {
-            console.error('Inline login error:', error);
-            this.showInlineError(error.message || 'Login failed. Please try again.');
-        } finally {
-            submitBtn.disabled = false;
-            submitBtn.textContent = 'Sign In';
-        }
-    }
-
-    showInlineError(message) {
-        const errorDiv = document.getElementById('inlineLoginError');
-        if (errorDiv) {
-            errorDiv.innerHTML = `<div class="inline-error-message">${Utils.escapeHtml(message)}</div>`;
-        }
-    }
-
-    updateCommunitiesInMenu() {
-        const dropdown = document.getElementById('communitiesDropdown');
-        if (!dropdown) return;
-        
-        const communities = State.get('communities');
-        
-        if (communities.length === 0) {
-            dropdown.innerHTML = '<div class="community-item">No communities yet</div>';
-        } else {
-            dropdown.innerHTML = communities.map(community => `
-                <a href="#" class="community-item" onclick="Navigation.navigateToCommunity('${community.name}'); return false;">
-                    c/${Utils.escapeHtml(community.displayName)}
-                </a>
-            `).join('');
-        }
-    }
-
-    toggleCommunitiesDropdown() {
-        const dropdown = document.getElementById('communitiesDropdown');
-        const toggle = document.getElementById('communitiesToggle');
-        
-        if (!dropdown || !toggle) return;
-        
-        const isOpen = dropdown.classList.contains('open');
-        
-        if (isOpen) {
-            dropdown.classList.remove('open');
-            toggle.textContent = '▼';
-        } else {
-            dropdown.classList.add('open');
-            toggle.textContent = '▲';
-        }
-    }
-
-    updateActiveMenuItem(page) {
-        document.querySelectorAll('.menu-item').forEach(item => {
-            item.classList.remove('active');
-        });
-        
-        const menuItemId = this.getMenuItemId(page);
-        const activeItem = document.getElementById(menuItemId);
-        if (activeItem) {
-            activeItem.classList.add('active');
-        }
-    }
-
-    getMenuItemId(page) {
-        const pageToMenuMap = {
-            'feed': 'menuFeed',
-            'profile': 'menuProfile',
-            'admin': 'menuAdmin',
-            'community': 'menuFeed' // Community pages show feed as active
-        };
-        
-        return pageToMenuMap[page] || 'menuFeed';
     }
 
     // Navigation methods
     navigateToFeed() {
-        this.toggleMenu();
-        StateHelpers.navigateToPage('feed');
-        App.updateUI();
+        this.currentPage = 'feed';
+        State.set('currentView', 'feed');
+        Utils.updateUrl('/');
+        this.renderFeedPage();
+    }
+
+    navigateToCommunities() {
+        this.currentPage = 'communities';
+        State.set('currentView', 'communities');
+        Utils.updateUrl('/communities');
+        this.renderCommunitiesPage();
     }
 
     navigateToProfile() {
-        if (!State.isAuthenticated()) {
-            Modals.openAuth('signin');
+        if (!State.getCurrentUser()) {
+            this.openAuthModal('login');
             return;
         }
-        this.toggleMenu();
-        StateHelpers.navigateToPage('profile');
-        App.updateUI();
-    }
-
-    navigateToCommunity(communityName) {
-        this.toggleMenu();
-        StateHelpers.navigateToCommunity(communityName);
-        App.updateUI();
+        
+        this.currentPage = 'profile';
+        State.set('currentView', 'profile');
+        Utils.updateUrl('/profile');
+        this.renderProfilePage();
     }
 
     navigateToAdmin() {
-        if (!State.isAdmin()) {
-            Utils.showSuccessMessage('Access denied. Admin privileges required.');
+        const user = State.getCurrentUser();
+        if (!user || user.role !== 'admin') {
+            Utils.showErrorMessage('Admin access required');
             return;
         }
-        this.toggleMenu();
-        StateHelpers.navigateToPage('admin');
-        App.updateUI();
-    }
-
-    openCreateCommunity() {
-        this.toggleMenu();
-        if (!State.isAuthenticated()) {
-            Modals.openAuth('signin');
-            return;
-        }
-        Modals.open('createCommunityModal');
+        
+        this.currentPage = 'admin';
+        State.set('currentView', 'admin');
+        Utils.updateUrl('/admin');
+        this.renderAdminPage();
     }
 
     navigateToSettings() {
-        this.toggleMenu();
-        Utils.showSuccessMessage('Settings page coming soon!');
-    }
-
-    async logout() {
-        try {
-            await Auth.logout();
-            this.toggleMenu();
-            App.updateUI();
-            Utils.showSuccessMessage('Logged out successfully!');
-        } catch (error) {
-            console.error('Logout error:', error);
-            // Still proceed with logout even if API call fails
-            State.reset();
-            this.toggleMenu();
-            App.updateUI();
-            Utils.showSuccessMessage('Logged out successfully!');
+        if (!State.getCurrentUser()) {
+            this.openAuthModal('login');
+            return;
         }
+        
+        this.currentPage = 'settings';
+        State.set('currentView', 'settings');
+        Utils.updateUrl('/settings');
+        this.renderSettingsPage();
     }
-}
 
-// Create global navigation instance
-const Navigation = new NavigationManager();
+    navigateToCommunity(communityName) {
+        this.currentPage = 'community';
+        State.set('currentView', 'community');
+        State.set('currentCommunity', communityName);
+        Utils.updateUrl(`/c/${communityName}`);
+        this.renderCommunityPage(communityName);
+    }
+
+    navigateToPost(postId) {
+        this.currentPage = 'post';
+        State.set('currentView', 'post');
