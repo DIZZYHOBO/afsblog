@@ -1096,6 +1096,240 @@
             border-top: none;
         }
 
+        /* Enhanced Media Styles */
+        .media-container {
+            margin: 12px 0;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            transition: all 0.3s ease;
+        }
+
+        .media-container:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
+        }
+
+        .video-container {
+            position: relative;
+            width: 100%;
+            height: 0;
+            padding-bottom: 56.25%; /* 16:9 aspect ratio */
+            background: var(--bg-canvas);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .video-container iframe {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+
+        .audio-player {
+            background: var(--bg-subtle);
+            border-radius: 8px;
+            padding: 16px;
+            margin: 12px 0;
+        }
+
+        .audio-player-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 8px;
+        }
+
+        .audio-player-title {
+            font-weight: 600;
+            color: var(--fg-default);
+        }
+
+        .suno-card {
+            background: linear-gradient(135deg, #ff6b6b, #4ecdc4, #45b7d1);
+            padding: 20px;
+            border-radius: 12px;
+            margin: 12px 0;
+        }
+
+        .suno-card-inner {
+            background: rgba(255,255,255,0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 8px;
+            padding: 16px;
+            text-align: center;
+        }
+
+        .website-preview {
+            border: 1px solid var(--border-default);
+            border-radius: 8px;
+            overflow: hidden;
+            margin: 12px 0;
+            transition: all 0.2s ease;
+            background: var(--bg-default);
+        }
+
+        .website-preview:hover {
+            border-color: var(--accent-emphasis);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+        }
+
+        .website-preview-content {
+            display: block;
+            text-decoration: none;
+            color: inherit;
+            padding: 16px;
+        }
+
+        .website-preview-header {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+        }
+
+        .website-favicon {
+            width: 24px;
+            height: 24px;
+            border-radius: 4px;
+            flex-shrink: 0;
+        }
+
+        .website-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .website-domain {
+            font-weight: 600;
+            color: var(--accent-fg);
+            margin-bottom: 4px;
+            font-size: 16px;
+        }
+
+        .website-url {
+            color: var(--fg-muted);
+            font-size: 14px;
+            word-break: break-all;
+            line-height: 1.4;
+        }
+
+        .website-action {
+            color: var(--fg-subtle);
+            font-size: 12px;
+            margin-top: 8px;
+        }
+
+        .image-preview {
+            text-align: center;
+            margin: 12px 0;
+        }
+
+        .image-preview img {
+            max-width: 100%;
+            height: auto;
+            cursor: pointer;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            transition: transform 0.2s ease;
+            loading: lazy;
+        }
+
+        .image-preview img:hover {
+            transform: scale(1.02);
+        }
+
+        .video-preview {
+            margin: 12px 0;
+        }
+
+        .video-preview video {
+            width: 100%;
+            max-height: 400px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+
+        /* Media preview in compose modal */
+        #mediaPreview {
+            margin-top: 12px;
+            padding: 12px;
+            border: 1px solid var(--border-default);
+            border-radius: 6px;
+            background: var(--bg-subtle);
+            display: none;
+        }
+
+        #mediaPreview.show {
+            display: block;
+            animation: slideDown 0.3s ease-out;
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Image modal styles */
+        .image-modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+            cursor: pointer;
+            backdrop-filter: blur(4px);
+        }
+
+        .image-modal-container {
+            max-width: 90vw;
+            max-height: 90vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 16px;
+            cursor: default;
+        }
+
+        .image-modal-img {
+            max-width: 100%;
+            max-height: 80vh;
+            object-fit: contain;
+            border-radius: 8px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+            transition: opacity 0.3s ease;
+        }
+
+        .image-modal-close {
+            background: var(--bg-default);
+            color: var(--fg-default);
+            border: 1px solid var(--border-default);
+            border-radius: 6px;
+            padding: 8px 16px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+
+        .image-modal-close:hover {
+            background: var(--btn-secondary-hover-bg);
+        }
+
         /* Responsive toolbar */
         @media (max-width: 480px) {
             .markdown-toolbar {
@@ -2541,7 +2775,10 @@
                     <div class="form-group">
                         <label for="postUrl">URL</label>
                         <input type="url" id="postUrl" placeholder="https://example.com">
-                        <small>YouTube, images, videos, and other media will be embedded automatically</small>
+                        <small>YouTube, Dailymotion, Suno, images, videos, audio, and other media will be embedded automatically</small>
+                        
+                        <!-- Media Preview Container -->
+                        <div id="mediaPreview" style="margin-top: 12px; display: none;"></div>
                     </div>
                     
                     <div class="form-group">
@@ -3470,6 +3707,27 @@
             
             // Compose form
             document.getElementById('composeForm').addEventListener('submit', handleCreatePost);
+            
+            // URL input for media preview
+            const urlInput = document.getElementById('postUrl');
+            if (urlInput) {
+                let previewTimeout;
+                urlInput.addEventListener('input', (e) => {
+                    clearTimeout(previewTimeout);
+                    const url = e.target.value.trim();
+                    
+                    if (url && url.length > 10) {
+                        previewTimeout = setTimeout(() => {
+                            previewMedia(url);
+                        }, 1000); // Debounce for 1 second
+                    } else {
+                        const preview = document.getElementById('mediaPreview');
+                        if (preview) {
+                            preview.innerHTML = '';
+                        }
+                    }
+                });
+            }
             
             // Close menu when clicking outside
             document.addEventListener('click', (e) => {
@@ -4700,22 +4958,129 @@
             if (youtubeMatch) {
                 const videoId = youtubeMatch[1];
                 return `
-                    <div style="position: relative; width: 100%; height: 0; padding-bottom: 56.25%; overflow: hidden;">
+                    <div style="position: relative; width: 100%; height: 0; padding-bottom: 56.25%; overflow: hidden; border-radius: 8px; background: var(--bg-canvas);">
                         <iframe src="https://www.youtube.com/embed/${videoId}" 
-                                style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none;"
+                                style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none; border-radius: 8px;"
                                 allowfullscreen></iframe>
                     </div>
                 `;
             }
 
+            // Dailymotion video
+            const dailymotionMatch = url.match(/(?:dailymotion\.com\/video\/|dai\.ly\/)([a-zA-Z0-9]+)/);
+            if (dailymotionMatch) {
+                const videoId = dailymotionMatch[1];
+                return `
+                    <div style="position: relative; width: 100%; height: 0; padding-bottom: 56.25%; overflow: hidden; border-radius: 8px; background: var(--bg-canvas);">
+                        <iframe src="https://www.dailymotion.com/embed/video/${videoId}" 
+                                style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none; border-radius: 8px;"
+                                allowfullscreen></iframe>
+                    </div>
+                `;
+            }
+
+            // Suno AI music
+            const sunoMatch = url.match(/suno\.com\/song\/([a-zA-Z0-9-]+)/);
+            if (sunoMatch) {
+                const songId = sunoMatch[1];
+                return `
+                    <div style="background: linear-gradient(135deg, #ff6b6b, #4ecdc4, #45b7d1); padding: 20px; border-radius: 12px; margin: 12px 0;">
+                        <div style="background: rgba(255,255,255,0.1); backdrop-filter: blur(10px); border-radius: 8px; padding: 16px; text-align: center;">
+                            <div style="font-size: 18px; font-weight: 600; color: white; margin-bottom: 8px; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                                🎵 Suno AI Music
+                            </div>
+                            <div style="font-size: 14px; color: rgba(255,255,255,0.8); margin-bottom: 12px;">
+                                Click to listen on Suno
+                            </div>
+                            <a href="${url}" target="_blank" rel="noopener noreferrer" 
+                               style="display: inline-block; background: rgba(255,255,255,0.2); color: white; text-decoration: none; padding: 10px 20px; border-radius: 6px; font-weight: 500; transition: all 0.2s ease;"
+                               onmouseover="this.style.background='rgba(255,255,255,0.3)'"
+                               onmouseout="this.style.background='rgba(255,255,255,0.2)'">
+                                🎧 Listen Now
+                            </a>
+                        </div>
+                    </div>
+                `;
+            }
+
             // Direct image links
-            if (url.match(/\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i)) {
-                return `<img src="${url}" style="max-width: 100%; height: auto; cursor: pointer;" onclick="openImageModal('${url}')" alt="Image">`;
+            if (url.match(/\.(jpg|jpeg|png|gif|webp|svg)(\?.*)?$/i)) {
+                return `
+                    <div style="text-align: center; margin: 12px 0;">
+                        <img src="${url}" 
+                             style="max-width: 100%; height: auto; cursor: pointer; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); transition: transform 0.2s ease;" 
+                             onclick="openImageModal('${url}')" 
+                             onmouseover="this.style.transform='scale(1.02)'"
+                             onmouseout="this.style.transform='scale(1)'"
+                             alt="Image" 
+                             loading="lazy">
+                    </div>
+                `;
             }
 
             // Direct video links
             if (url.match(/\.(mp4|webm|ogg|mov)(\?.*)?$/i)) {
-                return `<video src="${url}" style="width: 100%; max-height: 400px;" controls></video>`;
+                return `
+                    <div style="margin: 12px 0;">
+                        <video src="${url}" 
+                               style="width: 100%; max-height: 400px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);" 
+                               controls 
+                               preload="metadata">
+                            Your browser does not support the video tag.
+                        </video>
+                    </div>
+                `;
+            }
+
+            // Direct audio links
+            if (url.match(/\.(mp3|wav|ogg|m4a|aac|flac)(\?.*)?$/i)) {
+                return `
+                    <div style="background: var(--bg-subtle); border-radius: 8px; padding: 16px; margin: 12px 0;">
+                        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
+                            <span style="font-size: 20px;">🎵</span>
+                            <span style="font-weight: 600; color: var(--fg-default);">Audio File</span>
+                        </div>
+                        <audio src="${url}" 
+                               style="width: 100%;" 
+                               controls 
+                               preload="metadata">
+                            Your browser does not support the audio tag.
+                        </audio>
+                    </div>
+                `;
+            }
+
+            // General website preview
+            if (url.match(/^https?:\/\/.+/i)) {
+                const domain = new URL(url).hostname;
+                const favicon = `https://www.google.com/s2/favicons?domain=${domain}&sz=32`;
+                
+                return `
+                    <div style="border: 1px solid var(--border-default); border-radius: 8px; overflow: hidden; margin: 12px 0; transition: all 0.2s ease; background: var(--bg-default);"
+                         onmouseover="this.style.borderColor='var(--accent-emphasis)'; this.style.transform='translateY(-2px)'; this.style.boxShadow='0 8px 25px rgba(0,0,0,0.15)'"
+                         onmouseout="this.style.borderColor='var(--border-default)'; this.style.transform='translateY(0)'; this.style.boxShadow='none'">
+                        <a href="${url}" target="_blank" rel="noopener noreferrer" 
+                           style="display: block; text-decoration: none; color: inherit; padding: 16px;">
+                            <div style="display: flex; align-items: flex-start; gap: 12px;">
+                                <img src="${favicon}" 
+                                     style="width: 24px; height: 24px; border-radius: 4px; flex-shrink: 0;" 
+                                     onerror="this.style.display='none'"
+                                     alt="Favicon">
+                                <div style="flex: 1; min-width: 0;">
+                                    <div style="font-weight: 600; color: var(--accent-fg); margin-bottom: 4px; font-size: 16px;">
+                                        🌐 ${domain}
+                                    </div>
+                                    <div style="color: var(--fg-muted); font-size: 14px; word-break: break-all; line-height: 1.4;">
+                                        ${url}
+                                    </div>
+                                    <div style="color: var(--fg-subtle); font-size: 12px; margin-top: 8px;">
+                                        Click to visit website ↗️
+                                    </div>
+                                </div>
+                            </div>
+                        </a>
+                    </div>
+                `;
             }
 
             return null;
@@ -5231,11 +5596,24 @@
                 linkFields.style.display = 'none';
                 document.getElementById('postContent').required = true;
                 document.getElementById('postUrl').required = false;
+                
+                // Hide media preview
+                const preview = document.getElementById('mediaPreview');
+                if (preview) {
+                    preview.innerHTML = '';
+                    preview.style.display = 'none';
+                }
             } else {
                 textFields.style.display = 'none';
                 linkFields.style.display = 'block';
                 document.getElementById('postContent').required = false;
                 document.getElementById('postUrl').required = true;
+                
+                // Show media preview container if URL has content
+                const urlInput = document.getElementById('postUrl');
+                if (urlInput && urlInput.value.trim()) {
+                    previewMedia(urlInput.value.trim());
+                }
             }
         }
 
@@ -5667,6 +6045,234 @@
             previewBtn.textContent = '👁️';
             previewBtn.title = 'Preview';
             textarea.focus();
+        }
+
+        function openImageModal(imageUrl) {
+            // Create modal overlay
+            const overlay = document.createElement('div');
+            overlay.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0, 0, 0, 0.9);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                z-index: 10000;
+                cursor: pointer;
+                backdrop-filter: blur(4px);
+            `;
+            
+            // Create image container
+            const imageContainer = document.createElement('div');
+            imageContainer.style.cssText = `
+                max-width: 90vw;
+                max-height: 90vh;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 16px;
+                cursor: default;
+            `;
+            
+            // Create image element
+            const img = document.createElement('img');
+            img.src = imageUrl;
+            img.style.cssText = `
+                max-width: 100%;
+                max-height: 80vh;
+                object-fit: contain;
+                border-radius: 8px;
+                box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+            `;
+            
+            // Create close button
+            const closeBtn = document.createElement('button');
+            closeBtn.innerHTML = '✕ Close';
+            closeBtn.style.cssText = `
+                background: var(--bg-default);
+                color: var(--fg-default);
+                border: 1px solid var(--border-default);
+                border-radius: 6px;
+                padding: 8px 16px;
+                cursor: pointer;
+                font-size: 14px;
+                font-weight: 500;
+                transition: all 0.2s ease;
+            `;
+            
+            // Add hover effect to close button
+            closeBtn.addEventListener('mouseover', () => {
+                closeBtn.style.background = 'var(--btn-secondary-hover-bg)';
+            });
+            closeBtn.addEventListener('mouseout', () => {
+                closeBtn.style.background = 'var(--bg-default)';
+            });
+            
+            // Close modal function
+            const closeModal = () => {
+                overlay.remove();
+            };
+            
+            // Event listeners
+            overlay.addEventListener('click', (e) => {
+                if (e.target === overlay) {
+                    closeModal();
+                }
+            });
+            
+            closeBtn.addEventListener('click', closeModal);
+            
+            // ESC key to close
+            const escapeHandler = (e) => {
+                if (e.key === 'Escape') {
+                    closeModal();
+                    document.removeEventListener('keydown', escapeHandler);
+                }
+            };
+            document.addEventListener('keydown', escapeHandler);
+            
+            // Prevent image click from closing modal
+            imageContainer.addEventListener('click', (e) => {
+                e.stopPropagation();
+            });
+            
+            // Assemble modal
+            imageContainer.appendChild(img);
+            imageContainer.appendChild(closeBtn);
+            overlay.appendChild(imageContainer);
+            document.body.appendChild(overlay);
+            
+            // Add loading state
+            img.addEventListener('load', () => {
+                img.style.opacity = '1';
+            });
+            img.addEventListener('error', () => {
+                img.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjE1MCIgdmlld0JveD0iMCAwIDIwMCAxNTAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3Qgd2lkdGg9IjIwMCIgaGVpZ2h0PSIxNTAiIGZpbGw9IiNmMGYwZjAiLz48dGV4dCB4PSIxMDAiIHk9Ijc1IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LXNpemU9IjE2IiBmYW1pbHk9InNhbnMtc2VyaWYiIGZpbGw9IiM5OTkiPkltYWdlIG5vdCBmb3VuZDwvdGV4dD48L3N2Zz4=';
+                img.style.maxWidth = '300px';
+                img.style.maxHeight = '200px';
+            });
+            
+            img.style.opacity = '0';
+            img.style.transition = 'opacity 0.3s ease';
+        }
+
+        // Enhanced media detection using API
+        async function detectMediaType(url) {
+            try {
+                const response = await fetch('/.netlify/functions/api/media/detect', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url })
+                });
+                
+                if (response.ok) {
+                    const result = await response.json();
+                    return result;
+                } else {
+                    throw new Error('API detection failed');
+                }
+            } catch (error) {
+                console.error('Media detection API error:', error);
+                // Fallback to local detection
+                return detectMediaTypeLocal(url);
+            }
+        }
+
+        // Local fallback media detection
+        function detectMediaTypeLocal(url) {
+            if (!url) return { type: 'text', canEmbed: false, platform: null };
+
+            // YouTube
+            if (url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)/)) {
+                return { type: 'video', canEmbed: true, platform: 'youtube' };
+            }
+
+            // Dailymotion
+            if (url.match(/(?:dailymotion\.com\/video\/|dai\.ly\/)/)) {
+                return { type: 'video', canEmbed: true, platform: 'dailymotion' };
+            }
+
+            // Suno
+            if (url.match(/suno\.com\/song\//)) {
+                return { type: 'audio', canEmbed: true, platform: 'suno' };
+            }
+
+            // Direct media files
+            if (url.match(/\.(jpg|jpeg|png|gif|webp|svg)(\?.*)?$/i)) {
+                return { type: 'image', canEmbed: true, platform: 'direct' };
+            }
+
+            if (url.match(/\.(mp4|webm|ogg|mov)(\?.*)?$/i)) {
+                return { type: 'video', canEmbed: true, platform: 'direct' };
+            }
+
+            if (url.match(/\.(mp3|wav|ogg|m4a|aac|flac)(\?.*)?$/i)) {
+                return { type: 'audio', canEmbed: true, platform: 'direct' };
+            }
+
+            // General website
+            if (url.match(/^https?:\/\/.+/i)) {
+                return { type: 'website', canEmbed: true, platform: 'web' };
+            }
+
+            return { type: 'link', canEmbed: false, platform: null };
+        }
+
+        // Preview media in compose modal
+        async function previewMedia(url) {
+            if (!url || !url.trim()) return;
+            
+            const previewContainer = document.getElementById('mediaPreview');
+            if (!previewContainer) {
+                // Create preview container if it doesn't exist
+                const container = document.createElement('div');
+                container.id = 'mediaPreview';
+                container.style.cssText = `
+                    margin-top: 12px;
+                    padding: 12px;
+                    border: 1px solid var(--border-default);
+                    border-radius: 6px;
+                    background: var(--bg-subtle);
+                `;
+                
+                const urlInput = document.getElementById('postUrl');
+                if (urlInput && urlInput.parentNode) {
+                    urlInput.parentNode.insertBefore(container, urlInput.nextSibling);
+                }
+            }
+            
+            const preview = document.getElementById('mediaPreview');
+            preview.innerHTML = '<div style="text-align: center; color: var(--fg-muted);">🔍 Detecting media type...</div>';
+            
+            try {
+                const mediaInfo = await detectMediaType(url);
+                const mediaHtml = renderMediaFromUrl(url);
+                
+                if (mediaHtml) {
+                    preview.innerHTML = `
+                        <div style="margin-bottom: 8px; font-size: 12px; color: var(--fg-muted); font-weight: 500;">
+                            📱 Preview (${mediaInfo.platform ? mediaInfo.platform.charAt(0).toUpperCase() + mediaInfo.platform.slice(1) : 'Unknown'} ${mediaInfo.type})
+                        </div>
+                        ${mediaHtml}
+                    `;
+                } else {
+                    preview.innerHTML = `
+                        <div style="text-align: center; color: var(--fg-muted); font-size: 14px;">
+                            🔗 ${mediaInfo.type === 'website' ? 'Website link' : 'Link'} detected
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Media preview error:', error);
+                preview.innerHTML = `
+                    <div style="text-align: center; color: var(--danger-fg); font-size: 14px;">
+                        ⚠️ Could not preview media
+                    </div>
+                `;
+            }
         }
 
     </script>
