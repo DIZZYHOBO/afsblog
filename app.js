@@ -180,11 +180,11 @@ function navigateToProfile() {
 }
 
 // FIXED: Add the missing openCreate function
-function openCreate() {
+window.openCreate = function() {
     openCreateCommunity();
 }
 
-function openCreateCommunity() {
+window.openCreateCommunity = function() {
     toggleMenu();
     if (!currentUser) {
         openAuthModal('signin');
