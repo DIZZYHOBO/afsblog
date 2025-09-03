@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" href="icon.png">
-    <title>Sheds</title>
+    <title>The Shed</title>
   <link rel="stylesheet" href="style.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
@@ -338,6 +338,72 @@
                 </div>
 
                 <button type="submit" class="btn" id="privatePostSubmitBtn" style="width: 100%;">🏠 Add to My Shed</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Edit Post Modal -->
+    <div class="modal" id="editPostModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>✏️ Edit Post</h3>
+                <button class="close-btn" onclick="closeModal('editPostModal')">&times;</button>
+            </div>
+            <div id="editPostError"></div>
+            <form id="editPostForm">
+                <div class="form-group">
+                    <label for="editPostCommunity">Shed (Optional)</label>
+                    <select id="editPostCommunity">
+                        <option value="">General Feed</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Post Type</label>
+                    <div style="display: flex; background: var(--bg-subtle); border-radius: 8px; overflow: hidden; margin-bottom: 16px;">
+                        <button type="button" style="flex: 1; background: var(--btn-primary-bg); color: white; border: none; padding: 8px 16px; cursor: pointer; font-size: 14px;" onclick="setEditPostType('text')">Text Post</button>
+                        <button type="button" style="flex: 1; background: transparent; color: var(--fg-default); border: none; padding: 8px 16px; cursor: pointer; font-size: 14px;" onclick="setEditPostType('link')">Link/Media</button>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="editPostTitle">Title</label>
+                    <input type="text" id="editPostTitle" required maxlength="200">
+                </div>
+
+                <!-- Text Post Fields -->
+                <div id="editTextPostFields">
+                    <div class="form-group">
+                        <label for="editPostContent">Content</label>
+                        <textarea id="editPostContent" required placeholder="Share your thoughts... (Markdown supported)" maxlength="10000"></textarea>
+                        <small>Supports Markdown formatting</small>
+                    </div>
+                </div>
+
+                <!-- Link Post Fields -->
+                <div id="editLinkPostFields" style="display: none;">
+                    <div class="form-group">
+                        <label for="editPostUrl">URL</label>
+                        <input type="url" id="editPostUrl" placeholder="https://example.com">
+                        <small>YouTube, Dailymotion, Suno, images, videos, audio, and other media will be embedded automatically</small>
+                        
+                        <!-- Media Preview Container -->
+                        <div id="editMediaPreview" style="margin-top: 12px; display: none;"></div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="editPostDescription">Description (Optional)</label>
+                        <textarea id="editPostDescription" placeholder="Describe this link..." maxlength="2000"></textarea>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                        <input type="checkbox" id="editIsPrivate" style="width: auto;">
+                        <span>Private post (only you can see this)</span>
+                    </label>
+                </div>
+                <button type="submit" class="btn" id="editPostSubmitBtn">Save Changes</button>
             </form>
         </div>
     </div>
