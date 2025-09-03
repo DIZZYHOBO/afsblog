@@ -1008,7 +1008,7 @@
             // Compose form
             document.getElementById('composeForm').addEventListener('submit', handleCreatePost);
             
-            // URL input for media preview
+            // URL input for media preview (both regular and private modals)
             const urlInput = document.getElementById('postUrl');
             if (urlInput) {
                 let previewTimeout;
@@ -1024,6 +1024,28 @@
                         const preview = document.getElementById('mediaPreview');
                         if (preview) {
                             preview.innerHTML = '';
+                        }
+                    }
+                });
+            }
+
+            // URL input for private post media preview
+            const privateUrlInput = document.getElementById('privatePostUrl');
+            if (privateUrlInput) {
+                let previewTimeout;
+                privateUrlInput.addEventListener('input', (e) => {
+                    clearTimeout(previewTimeout);
+                    const url = e.target.value.trim();
+                    
+                    if (url && url.length > 10) {
+                        previewTimeout = setTimeout(() => {
+                            previewPrivateMedia(url);
+                        }, 1000); // Debounce for 1 second
+                    } else {
+                        const preview = document.getElementById('privateMediaPreview');
+                        if (preview) {
+                            preview.innerHTML = '';
+                            preview.style.display = 'none';
                         }
                     }
                 });
@@ -1128,15 +1150,31 @@
         }
 
         function updateCommunityDropdown() {
+            // Update regular compose modal
             const select = document.getElementById('postCommunity');
-            select.innerHTML = '<option value="">General Feed</option>';
-            
-            communities.forEach(community => {
-                const option = document.createElement('option');
-                option.value = community.name;
-                option.textContent = community.displayName;
-                select.appendChild(option);
-            });
+            if (select) {
+                select.innerHTML = '<option value="">General Feed</option>';
+                
+                communities.forEach(community => {
+                    const option = document.createElement('option');
+                    option.value = community.name;
+                    option.textContent = community.displayName;
+                    select.appendChild(option);
+                });
+            }
+
+            // Update edit post modal dropdown
+            const editSelect = document.getElementById('editPostCommunity');
+            if (editSelect) {
+                editSelect.innerHTML = '<option value="">General Feed</option>';
+                
+                communities.forEach(community => {
+                    const option = document.createElement('option');
+                    option.value = community.name;
+                    option.textContent = community.displayName;
+                    editSelect.appendChild(option);
+                });
+            }
         }
 
         function renderCurrentPage() {
