@@ -22,6 +22,9 @@
             <button class="feed-tab" id="followedTab" onclick="switchFeedTab('followed')">
                 Following
             </button>
+            <button class="feed-tab" id="privateTab" onclick="switchFeedTab('private')">
+                Private
+            </button>
         </div>
     </div>
 
@@ -412,6 +415,40 @@
     </div>
 
     <!-- Load JavaScript files in correct order -->
+    <script>
+        // Define critical navigation functions immediately to prevent undefined errors
+        function navigateToMyShed() {
+            // This will be overridden when app.js loads, but prevents initial errors
+            console.log('navigateToMyShed called before app.js loaded');
+        }
+        function navigateToFeed() {
+            console.log('navigateToFeed called before app.js loaded');
+        }
+        function navigateToProfile() {
+            console.log('navigateToProfile called before app.js loaded');
+        }
+        function navigateToAdmin() {
+            console.log('navigateToAdmin called before app.js loaded');
+        }
+        function navigateToCommunity(name) {
+            console.log('navigateToCommunity called before app.js loaded');
+        }
+        function navigateToSettings() {
+            console.log('navigateToSettings called before app.js loaded');
+        }
+        function toggleMenu() {
+            console.log('toggleMenu called before app.js loaded');
+        }
+        function openCreateCommunity() {
+            console.log('openCreateCommunity called before app.js loaded');
+        }
+        function toggleCommunitiesDropdown() {
+            console.log('toggleCommunitiesDropdown called before app.js loaded');
+        }
+        function logout() {
+            console.log('logout called before app.js loaded');
+        }
+    </script>
     <script src="utils.js"></script>
     <script src="api.js"></script>
     <script src="ui.js"></script>
