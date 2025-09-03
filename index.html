@@ -284,6 +284,64 @@
             </form>
         </div>
     </div>
+    <!-- Private Post Modal (My Shed) -->
+    <div class="modal" id="privatePostModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>🏠 Add to My Shed</h3>
+                <button class="close-btn" onclick="closeModal('privatePostModal')">&times;</button>
+            </div>
+            <div id="privatePostError"></div>
+            <form id="privatePostForm" onsubmit="handleCreatePrivatePost(event)">
+                <div style="background: rgba(251, 191, 36, 0.1); border: 1px solid var(--attention-fg); border-radius: 6px; padding: 12px; margin-bottom: 16px; text-align: center;">
+                    <span style="color: var(--attention-fg); font-weight: 600;">🔒 Private Post</span>
+                    <p style="margin: 4px 0 0 0; font-size: 13px; color: var(--fg-muted);">This post will only be visible to you in your personal shed</p>
+                </div>
+
+                <div class="form-group">
+                    <label>Post Type</label>
+                    <div style="display: flex; background: var(--bg-subtle); border-radius: 8px; overflow: hidden; margin-bottom: 16px;">
+                        <button type="button" style="flex: 1; background: var(--btn-primary-bg); color: white; border: none; padding: 8px 16px; cursor: pointer; font-size: 14px;" onclick="setPrivatePostType('text')">Text Post</button>
+                        <button type="button" style="flex: 1; background: transparent; color: var(--fg-default); border: none; padding: 8px 16px; cursor: pointer; font-size: 14px;" onclick="setPrivatePostType('link')">Link/Media</button>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="privatePostTitle">Title</label>
+                    <input type="text" id="privatePostTitle" required maxlength="200" placeholder="What's on your mind?">
+                </div>
+
+                <!-- Text Post Fields -->
+                <div id="privateTextPostFields">
+                    <div class="form-group">
+                        <label for="privatePostContent">Content</label>
+                        <textarea id="privatePostContent" required placeholder="Share your private thoughts... (Markdown supported)" maxlength="10000" style="min-height: 120px;"></textarea>
+                        <small>Supports Markdown formatting for rich text</small>
+                    </div>
+                </div>
+
+                <!-- Link Post Fields -->
+                <div id="privateLinkPostFields" style="display: none;">
+                    <div class="form-group">
+                        <label for="privatePostUrl">URL</label>
+                        <input type="url" id="privatePostUrl" placeholder="https://example.com">
+                        <small>YouTube, Dailymotion, Suno, images, videos, audio, and other media will be embedded automatically</small>
+                        
+                        <!-- Media Preview Container -->
+                        <div id="privateMediaPreview" style="margin-top: 12px; display: none;"></div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="privatePostDescription">Description (Optional)</label>
+                        <textarea id="privatePostDescription" placeholder="Describe this link..." maxlength="2000"></textarea>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn" id="privatePostSubmitBtn" style="width: 100%;">🏠 Add to My Shed</button>
+            </form>
+        </div>
+    </div>
+
     <div class="modal" id="composeModal">
         <div class="modal-content">
             <div class="modal-header">
