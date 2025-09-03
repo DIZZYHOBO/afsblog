@@ -10,7 +10,7 @@
         let uploadedMedia = null;
         let markdownRenderer;
         let inlineLoginFormOpen = false;
-        let currentFeedTab = 'general'; // Track current feed tab
+        let currentFeedTab = 'general'; // Track current feed tab (now 'general' or 'followed')
 
         // PROTECTED_ADMIN constant - matches the API
         const PROTECTED_ADMIN = "dumbass";
@@ -66,6 +66,7 @@
                 
                 // Show/hide menu items based on auth status
                 document.getElementById('menuProfile').style.display = 'flex';
+                document.getElementById('menuMyShed').style.display = 'flex';
                 document.getElementById('menuCreateCommunity').style.display = 'flex';
                 document.getElementById('menuBrowseCommunities').style.display = 'flex';
                 document.getElementById('menuSettings').style.display = 'flex';
@@ -109,6 +110,7 @@
                 
                 // Hide authenticated menu items
                 document.getElementById('menuProfile').style.display = 'none';
+                document.getElementById('menuMyShed').style.display = 'none';
                 document.getElementById('menuCreateCommunity').style.display = 'none';
                 document.getElementById('menuBrowseCommunities').style.display = 'none';
                 document.getElementById('menuAdmin').style.display = 'none';
@@ -255,6 +257,14 @@
             updateUI();
         }
 
+        // NEW: Navigate to My Shed (private feed)
+        function navigateToMyShed() {
+            toggleMenu();
+            currentPage = 'myshed';
+            updateActiveMenuItem('menuMyShed');
+            updateUI();
+        }
+
         // FIXED: Add the missing openCreate function
         function openCreate() {
             openCreateCommunity();
@@ -304,7 +314,7 @@
             document.getElementById(activeId).classList.add('active');
         }
 
-        // Feed Tab Functions
+        // Feed Tab Functions (now only 'general' and 'followed')
         function switchFeedTab(tabName) {
             currentFeedTab = tabName;
             
@@ -470,6 +480,86 @@
                     `).join('')}
                 </div>
             `;
+        }
+
+        // Render My Shed page (private posts)
+        async function renderMyShedPage() {
+            if (!currentUser) {
+                const loginRequiredHtml = `
+                    <div class="feature-placeholder">
+                        <h3>🏠 My Shed</h3>
+                        <p>Please sign in to view your private shed where only you can see your personal posts.</p>
+                        <div style="display: flex; gap: 12px; justify-content: center; margin-top: 16px;">
+                            <button class="btn" onclick="openAuthModal('signin')">Sign In</button>
+                            <button class="btn btn-secondary" onclick="openAuthModal('signup')">Sign Up</button>
+                        </div>
+                    </div>
+                `;
+                updateFeedContent(loginRequiredHtml);
+                return;
+            }
+
+            // Show loading
+            updateFeedContent('<div class="loading">Loading your shed...</div>');
+
+            // Get user's private posts
+            const privatePosts = posts.filter(post => post.isPrivate && post.author === currentUser.username);
+            
+            const shedHeaderHtml = `
+                <div style="background: linear-gradient(135deg, var(--bg-default) 0%, var(--bg-overlay) 100%); border: 1px solid var(--border-default); border-radius: 16px; padding: 32px; margin-bottom: 24px; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12); position: relative; overflow: hidden;">
+                    <div style="content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px; background: linear-gradient(90deg, var(--attention-fg), var(--accent-fg), var(--success-fg));"></div>
+                    <div style="display: flex; align-items: flex-start; gap: 24px; margin-bottom: 20px;">
+                        <div style="width: 80px; height: 80px; background: linear-gradient(135deg, var(--attention-fg), #f59e0b); border-radius: 20px; display: flex; align-items: center; justify-content: center; font-size: 36px; font-weight: 700; color: white; box-shadow: 0 8px 24px rgba(251, 191, 36, 0.3); flex-shrink: 0;">
+                            🏠
+                        </div>
+                        <div style="flex: 1; min-width: 0;">
+                            <h1 style="font-size: 32px; font-weight: 700; color: var(--fg-default); margin: 0 0 8px 0; line-height: 1.2;">My Personal Shed</h1>
+                            <p style="font-size: 18px; color: var(--attention-fg); margin: 0 0 12px 0; font-weight: 600;">@${escapeHtml(currentUser.username)}</p>
+                            <p style="font-size: 16px; color: var(--fg-muted); line-height: 1.5; margin: 0; max-width: 600px;">
+                                Your private space for personal thoughts, drafts, and private posts. Only you can see what's in your shed.
+                            </p>
+                        </div>
+                        <div style="flex-shrink: 0; margin-top: 8px;">
+                            <button class="btn" onclick="openModal('composeModal')" style="padding: 12px 24px; font-weight: 600; box-shadow: 0 2px 8px rgba(0,0,0,0.15);">
+                                + New Private Post
+                            </button>
+                        </div>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 24px; padding: 20px 0 0 0; border-top: 1px solid var(--border-default); flex-wrap: wrap;">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span style="font-size: 18px; font-weight: 700; color: var(--attention-fg);">${privatePosts.length}</span>
+                            <span style="font-size: 14px; color: var(--fg-muted); font-weight: 500;">private posts</span>
+                        </div>
+                        <div style="width: 1px; height: 20px; background-color: var(--border-default);"></div>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span style="font-size: 14px; color: var(--fg-muted); font-weight: 500;">🔒 Only visible to you</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            if (privatePosts.length === 0) {
+                const emptyStateHtml = `
+                    ${shedHeaderHtml}
+                    <div class="feature-placeholder">
+                        <h3>📝 Your Shed is Empty</h3>
+                        <p>You haven't created any private posts yet. Private posts are perfect for:</p>
+                        <div style="text-align: left; margin: 20px 0; max-width: 400px; margin-left: auto; margin-right: auto;">
+                            <p style="color: var(--fg-muted); font-size: 14px; margin-bottom: 8px;">• Personal thoughts and reflections</p>
+                            <p style="color: var(--fg-muted); font-size: 14px; margin-bottom: 8px;">• Draft posts before sharing publicly</p>
+                            <p style="color: var(--fg-muted); font-size: 14px; margin-bottom: 8px;">• Private notes and reminders</p>
+                            <p style="color: var(--fg-muted); font-size: 14px; margin-bottom: 8px;">• Content you want to keep just for yourself</p>
+                        </div>
+                        <button class="btn" onclick="openModal('composeModal')" style="margin-top: 16px;">
+                            🔒 Create Your First Private Post
+                        </button>
+                    </div>
+                `;
+                updateFeedContent(emptyStateHtml);
+            } else {
+                const postsHtml = renderPostList(privatePosts, 'No private posts yet!');
+                updateFeedContent(shedHeaderHtml + postsHtml);
+            }
         }
 
         // Render user profile page
@@ -1056,6 +1146,8 @@
                 renderCommunityPage();
             } else if (currentPage === 'profile') {
                 renderProfilePage();
+            } else if (currentPage === 'myshed') {
+                renderMyShedPage();
             } else if (currentPage === 'admin') {
                 renderAdminPage();
             }
@@ -1550,16 +1642,13 @@
                 return;
             }
 
-            // User is logged in, render based on current tab
+            // User is logged in, render based on current tab (now only 'general' and 'followed')
             switch (currentFeedTab) {
                 case 'general':
                     renderGeneralFeed();
                     break;
                 case 'followed':
                     renderFollowedFeed();
-                    break;
-                case 'private':
-                    renderPrivateFeed();
                     break;
                 default:
                     renderGeneralFeed();
@@ -1685,16 +1774,6 @@
             // Render the followed posts with the info header
             const postsHtml = renderPostList(followedPosts, 'No posts from your followed communities yet!');
             updateFeedContent(followedCommunitiesInfo + postsHtml);
-        }
-
-        function renderPrivateFeed() {
-            if (!currentUser) {
-                updateFeedContent('<div class="empty-state"><p>Please sign in to view private posts.</p></div>');
-                return;
-            }
-            
-            const privatePosts = posts.filter(post => post.isPrivate && post.author === currentUser.username);
-            updateFeedContent(renderPostList(privatePosts, 'You haven\'t created any private posts yet!'));
         }
 
         function renderFeed() {
