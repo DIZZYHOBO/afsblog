@@ -343,6 +343,8 @@ function renderCurrentPage() {
         renderCommunityPage();
     } else if (currentPage === 'profile') {
         renderProfilePage();
+    } else if (currentPage === 'myshed') {
+        renderMyShedPage();
     } else if (currentPage === 'admin') {
         renderAdminPage();
     }
