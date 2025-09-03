@@ -255,6 +255,11 @@
             updateUI();
         }
 
+        // FIXED: Add the missing openCreate function
+        function openCreate() {
+            openCreateCommunity();
+        }
+
         function openCreateCommunity() {
             toggleMenu();
             if (!currentUser) {
@@ -284,6 +289,12 @@
             currentPage = 'admin';
             updateActiveMenuItem('menuAdmin');
             updateUI();
+        }
+
+        function navigateToSettings() {
+            toggleMenu();
+            // TODO: Implement settings page
+            showSuccessMessage('Settings page coming soon!');
         }
 
         function updateActiveMenuItem(activeId) {
@@ -1048,12 +1059,6 @@
             } else if (currentPage === 'admin') {
                 renderAdminPage();
             }
-        }
-
-        function navigateToSettings() {
-            toggleMenu();
-            // TODO: Implement settings page
-            showSuccessMessage('Settings page coming soon!');
         }
 
         // Admin page rendering and functionality
@@ -2795,7 +2800,7 @@
                 showError('createCommunityError', 'Failed to create community. Please try again.');
             } finally {
                 submitBtn.disabled = false;
-                submitBtn.textContent = 'Create Community';
+                submitBtn.textContent = 'Build Shed';
             }
         }
 
