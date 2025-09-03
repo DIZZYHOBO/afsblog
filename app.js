@@ -226,6 +226,7 @@ function updateFeedTabsVisibility() {
         const followedTab = document.getElementById('followedTab');
         followedTab.disabled = false;
     } else {
+        // Hide tabs for all other pages including My Shed
         feedTabs.style.display = 'none';
     }
 }
