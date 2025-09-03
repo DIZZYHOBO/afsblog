@@ -10,7 +10,7 @@ let isLoading = false;
 let adminData = null;
 let currentPostType = 'text';
 let inlineLoginFormOpen = false;
-let currentFeedTab = 'general'; // Track current feed tab
+let currentFeedTab = 'general'; // Track current feed tab - only 'general' and 'followed' now
 
 // Menu functions
 function toggleMenu() {
@@ -179,6 +179,59 @@ function navigateToProfile() {
     updateUI();
 }
 
+// NEW: Updated navigateToMyShed to show private posts instead of separate page
+function navigateToMyShed() {
+    toggleMenu();
+    currentPage = 'myshed';
+    updateActiveMenuItem('menuMyShed');
+    updateUI();
+}
+
+// Add missing navigation functions
+function navigateToAdmin() {
+    toggleMenu();
+    currentPage = 'admin';
+    updateActiveMenuItem('menuAdmin');
+    updateUI();
+}
+
+function navigateToSettings() {
+    toggleMenu();
+    // For now, just show a placeholder
+    showSuccessMessage('Settings page coming soon!');
+}
+
+function navigateToCommunity(communityName) {
+    console.log('navigateToCommunity called with:', communityName);
+    
+    // Find the community
+    const community = communities.find(c => c.name === communityName);
+    if (!community) {
+        console.error('Community not found:', communityName);
+        showSuccessMessage('Community not found');
+        return;
+    }
+    
+    console.log('Found community, navigating to:', community.displayName);
+    
+    // Close menu if open
+    if (document.getElementById('slideMenu').classList.contains('open')) {
+        toggleMenu();
+    }
+    
+    // Set page state
+    currentPage = 'community';
+    currentCommunity = communityName;
+    
+    // Update active menu item - clear all active states for community navigation
+    document.querySelectorAll('.menu-item').forEach(item => {
+        item.classList.remove('active');
+    });
+    
+    // Update UI
+    updateUI();
+}
+
 // FIXED: Add the missing openCreate function
 function openCreate() {
     openCreateCommunity();
@@ -193,8 +246,6 @@ function openCreateCommunity() {
     openModal('createCommunityModal');
 }
 
-// FIXED: navigateToCommunity function with better debugging - moved above
-
 function updateActiveMenuItem(activeId) {
     document.querySelectorAll('.menu-item').forEach(item => {
         item.classList.remove('active');
@@ -202,8 +253,14 @@ function updateActiveMenuItem(activeId) {
     document.getElementById(activeId).classList.add('active');
 }
 
-// Feed Tab Functions
+// Feed Tab Functions - Updated to only handle 'general' and 'followed'
 function switchFeedTab(tabName) {
+    // Only allow 'general' and 'followed' tabs now
+    if (tabName !== 'general' && tabName !== 'followed') {
+        console.warn('Invalid tab name:', tabName);
+        return;
+    }
+    
     currentFeedTab = tabName;
     
     // Update tab visual states
@@ -222,11 +279,11 @@ function updateFeedTabsVisibility() {
     if (currentPage === 'feed' && currentUser) {
         feedTabs.style.display = 'flex';
         
-        // Enable all tabs for logged in users
+        // Enable followed tab for logged in users
         const followedTab = document.getElementById('followedTab');
         followedTab.disabled = false;
     } else {
-        // Hide tabs for all other pages including My Shed
+        // Hide tabs for all other pages including My Shed (since My Shed is now its own page)
         feedTabs.style.display = 'none';
     }
 }
