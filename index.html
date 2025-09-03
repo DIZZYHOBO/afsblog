@@ -18,13 +18,10 @@
         <!-- Feed Tabs (centered, only show when on feed page and user is logged in) -->
         <div id="feedTabs" class="feed-tabs">
             <button class="feed-tab active" id="generalTab" onclick="switchFeedTab('general')">
-                General
+                All
             </button>
             <button class="feed-tab" id="followedTab" onclick="switchFeedTab('followed')">
                 Following
-            </button>
-            <button class="feed-tab" id="privateTab" onclick="switchFeedTab('private')">
-                Private
             </button>
         </div>
     </div>
@@ -47,6 +44,11 @@
             <button class="menu-item" id="menuProfile" onclick="navigateToProfile()">
                 <span class="menu-item-icon">👤</span>
                 <span>Profile</span>
+            </button>
+
+              <button class="menu-item" id="menuPrivateFeed" onclick="navigateToPrivateFeed()">
+                <span class="menu-item-icon">🏠</span>
+                <span>My Shed</span>
             </button>
             
             <button class="menu-item" id="menuCreateCommunity" onclick="openCreateCommunity()">
