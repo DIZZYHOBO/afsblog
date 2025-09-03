@@ -193,33 +193,7 @@ function openCreateCommunity() {
     openModal('createCommunityModal');
 }
 
-// FIXED: navigateToCommunity function with better debugging
-function navigateToCommunity(communityName) {
-    console.log('navigateToCommunity called with:', communityName);
-    toggleMenu();
-    currentPage = 'community';
-    currentCommunity = communityName;
-    console.log('Set currentCommunity to:', currentCommunity);
-    console.log('Communities array:', communities.map(c => c.name));
-    updateUI();
-}
-
-function navigateToAdmin() {
-    toggleMenu();
-    if (!currentUser?.profile?.isAdmin) {
-        showSuccessMessage('Access denied. Admin privileges required.');
-        return;
-    }
-    currentPage = 'admin';
-    updateActiveMenuItem('menuAdmin');
-    updateUI();
-}
-
-function navigateToSettings() {
-    toggleMenu();
-    // TODO: Implement settings page
-    showSuccessMessage('Settings page coming soon!');
-}
+// FIXED: navigateToCommunity function with better debugging - moved above
 
 function updateActiveMenuItem(activeId) {
     document.querySelectorAll('.menu-item').forEach(item => {
