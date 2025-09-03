@@ -698,6 +698,68 @@ function renderFeedWithTabs() {
     }
 }
 
+// My Shed page rendering (private posts)
+function renderMyShedPage() {
+    if (!currentUser) {
+        const loginRequiredHtml = `
+            <div class="feature-placeholder">
+                <h3>🏠 My Shed</h3>
+                <p>Please sign in to view your private posts and personal content.</p>
+                <div style="display: flex; gap: 12px; justify-content: center; margin-top: 16px;">
+                    <button class="btn" onclick="openAuthModal('signin')">Sign In</button>
+                    <button class="btn btn-secondary" onclick="openAuthModal('signup')">Sign Up</button>
+                </div>
+            </div>
+        `;
+        updateFeedContent(loginRequiredHtml);
+        return;
+    }
+
+    // Show loading
+    updateFeedContent('<div class="loading">Loading your shed...</div>');
+    
+    const privatePosts = posts.filter(post => post.isPrivate && post.author === currentUser.username);
+    
+    // Create header for My Shed
+    const myShedHeader = `
+        <div style="background: var(--bg-default); border: 1px solid var(--border-default); border-radius: 8px; padding: 24px; margin-bottom: 16px;">
+            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
+                <span style="font-size: 32px;">🏠</span>
+                <div>
+                    <h1 style="color: var(--fg-default); margin: 0 0 4px 0; font-size: 28px;">My Shed</h1>
+                    <p style="color: var(--fg-muted); margin: 0; font-size: 16px;">Your private posts and personal content</p>
+                </div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 16px; padding-top: 16px; border-top: 1px solid var(--border-default);">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <span style="font-size: 18px; font-weight: 600; color: var(--accent-fg);">${privatePosts.length}</span>
+                    <span style="color: var(--fg-muted); font-size: 14px;">private ${privatePosts.length === 1 ? 'post' : 'posts'}</span>
+                </div>
+                <div style="width: 1px; height: 20px; background: var(--border-default);"></div>
+                <div style="color: var(--fg-muted); font-size: 14px;">
+                    Only visible to you
+                </div>
+            </div>
+        </div>
+    `;
+    
+    const postsHtml = renderPostList(privatePosts, `
+        <div style="text-align: center; padding: 40px; color: var(--fg-muted);">
+            <div style="font-size: 48px; margin-bottom: 16px;">📝</div>
+            <h3 style="color: var(--fg-default); margin-bottom: 8px;">No Private Posts Yet</h3>
+            <p style="margin-bottom: 20px;">Your private posts will appear here. Create a private post to get started!</p>
+            <button class="btn" onclick="openModal('composeModal')" style="margin-right: 12px;">
+                Create Private Post
+            </button>
+            <button class="btn btn-secondary" onclick="navigateToFeed()">
+                Browse Public Feed
+            </button>
+        </div>
+    `);
+    
+    updateFeedContent(myShedHeader + postsHtml);
+}
+
 // Legacy function - now redirects to renderFeedWithTabs
 function renderFeed() {
     renderFeedWithTabs();
