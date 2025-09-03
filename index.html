@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -22,7 +21,7 @@
                 General
             </button>
             <button class="feed-tab" id="followedTab" onclick="switchFeedTab('followed')">
-                Followed
+                Following
             </button>
             <button class="feed-tab" id="privateTab" onclick="switchFeedTab('private')">
                 Private
@@ -50,19 +49,19 @@
                 <span>Profile</span>
             </button>
             
-            <button class="menu-item" id="menuCreateCommunity" onclick="openCreate()">
-                <span class="menu-item-icon">➕</span>
-                <span>Create Shed</span>
+            <button class="menu-item" id="menuCreateCommunity" onclick="openCreateCommunity()">
+                <span class="menu-item-icon">🔨</span>
+                <span>Build Shed</span>
             </button>
             
             <button class="menu-item" id="menuBrowseCommunities" onclick="toggleCommunitiesDropdown()">
-                <span class="menu-item-icon">🏘️</span>
+                <span class="menu-item-icon">🏚️</span>
                 <span>Browse Sheds</span>
                 <span style="margin-left: auto; font-size: 12px;" id="communitiesToggle">▼</span>
             </button>
             
             <div class="communities-dropdown" id="communitiesDropdown">
-                <!-- Communities will be inserted here -->
+                <!-- Sheds will be inserted here -->
             </div>
             
             <div class="menu-divider"></div>
@@ -110,14 +109,14 @@
             </div>
             <div class="admin-stat-card">
                 <div class="admin-stat-number" id="totalCommunities">0</div>
-                <div class="admin-stat-label">Communities</div>
+                <div class="admin-stat-label">Sheds</div>
             </div>
         </div>
 
         <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px;">
             <button class="btn btn-danger btn-small" onclick="loadPendingUsers()">Pending Users</button>
             <button class="btn btn-danger btn-small" onclick="loadAllUsers()">All Users</button>
-            <button class="btn btn-danger btn-small" onclick="loadAdminCommunities()">Manage Communities</button>
+            <button class="btn btn-danger btn-small" onclick="loadAdminCommunities()">Manage Sheds</button>
             <button class="btn btn-danger btn-small" onclick="refreshAdminStats()">Refresh Stats</button>
         </div>
 
@@ -133,7 +132,7 @@
         </div>
 
         <div id="adminCommunitiesSection" class="admin-section" style="display: none;">
-            <h4 style="color: var(--danger-fg); margin-bottom: 12px;">Community Management</h4>
+            <h4 style="color: var(--danger-fg); margin-bottom: 12px;">Shed Management</h4>
             <div id="adminCommunitiesList"></div>
         </div>
     </div>
@@ -179,29 +178,29 @@
         </div>
     </div>
 
-    <!-- Create Community Modal -->
+    <!-- Create Shed Modal -->
     <div class="modal" id="createCommunityModal">
         <div class="modal-content">
             <div class="modal-header">
-                <h3>Build Shed</h3>
+                <h3>🔨 Build New Shed</h3>
                 <button class="close-btn" onclick="closeModal('createCommunityModal')">&times;</button>
             </div>
             <div id="createCommunityError"></div>
             <form id="createCommunityForm">
                 <div class="form-group">
                     <label for="communityName">Shed Name</label>
-                    <input type="text" id="communityName" required minlength="3" maxlength="25" pattern="[a-z0-9_]+" placeholder="programming">
+                    <input type="text" id="communityName" required minlength="3" maxlength="25" pattern="[a-z0-9_]+" placeholder="woodworking">
                     <small>3-25 characters, lowercase, letters, numbers, and underscores only</small>
                 </div>
                 <div class="form-group">
                     <label for="communityDisplayName">Display Name</label>
-                    <input type="text" id="communityDisplayName" required maxlength="50" placeholder="Programming">
+                    <input type="text" id="communityDisplayName" required maxlength="50" placeholder="Woodworking">
                 </div>
                 <div class="form-group">
                     <label for="communityDescription">Description</label>
-                    <textarea id="communityDescription" maxlength="500" placeholder="A community for programming discussions and help"></textarea>
+                    <textarea id="communityDescription" maxlength="500" placeholder="A shed for woodworking discussions and projects"></textarea>
                 </div>
-                <button type="submit" class="btn" id="createCommunitySubmitBtn">Build Shed</button>
+                <button type="submit" class="btn" id="createCommunitySubmitBtn">🔨 Build Shed</button>
             </form>
         </div>
     </div>
@@ -292,7 +291,7 @@
             <div id="composeError"></div>
             <form id="composeForm">
                 <div class="form-group">
-                    <label for="postCommunity">Community (Optional)</label>
+                    <label for="postCommunity">Shed (Optional)</label>
                     <select id="postCommunity">
                         <option value="">General Feed</option>
                     </select>
