@@ -371,7 +371,7 @@ async function handleAuth(e) {
     }
 }
 
-async function logout() {
+window.logout = async function() {
     try {
         currentUser = null;
         followedCommunities = new Set(); // Clear followed communities
