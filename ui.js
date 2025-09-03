@@ -1,4 +1,4 @@
-// ui.js - UI rendering and modal functions
+// ui.js - UI rendering and modal functions - Updated to remove private tab
 
 let markdownRenderer;
 let uploadedMedia = null;
@@ -545,7 +545,7 @@ function renderPostList(postList, emptyMessage) {
     }).join('');
 }
 
-// Feed rendering functions
+// Feed rendering functions - UPDATED to only handle 'general' and 'followed'
 function renderGeneralFeed() {
     const publicPosts = posts.filter(post => !post.isPrivate);
     updateFeedContent(renderPostList(publicPosts, 'No public posts yet!'));
@@ -648,16 +648,7 @@ async function renderFollowedFeed() {
     updateFeedContent(followedCommunitiesInfo + postsHtml);
 }
 
-function renderPrivateFeed() {
-    if (!currentUser) {
-        updateFeedContent('<div class="empty-state"><p>Please sign in to view private posts.</p></div>');
-        return;
-    }
-    
-    const privatePosts = posts.filter(post => post.isPrivate && post.author === currentUser.username);
-    updateFeedContent(renderPostList(privatePosts, 'You haven\'t created any private posts yet!'));
-}
-
+// UPDATED: renderFeedWithTabs - no longer handles private tab, only general and followed
 function renderFeedWithTabs() {
     if (!currentUser) {
         // If user is not logged in, show login required message
@@ -682,7 +673,7 @@ function renderFeedWithTabs() {
         return;
     }
 
-    // User is logged in, render based on current tab
+    // User is logged in, render based on current tab (only general and followed now)
     switch (currentFeedTab) {
         case 'general':
             renderGeneralFeed();
@@ -690,15 +681,12 @@ function renderFeedWithTabs() {
         case 'followed':
             renderFollowedFeed();
             break;
-        case 'private':
-            renderPrivateFeed();
-            break;
         default:
             renderGeneralFeed();
     }
 }
 
-// My Shed page rendering (private posts)
+// My Shed page rendering (private posts) - UPDATED to be its own page
 function renderMyShedPage() {
     if (!currentUser) {
         const loginRequiredHtml = `
@@ -994,7 +982,7 @@ async function renderProfilePage() {
                 <div class="profile-tab-content">
                     <!-- Posts Tab Content (default) - Only shows PUBLIC posts -->
                     <div id="profilePostsContent" class="profile-tab-panel active">
-                        ${userPosts.length > 0 ? renderPostList(userPosts, 'No public posts yet!') : '<div class="empty-state"><p>You haven\'t created any public posts yet. <a href="#" onclick="openModal(\'composeModal\'); return false;" style="color: var(--accent-fg);">Create your first post!</a></p><p style="margin-top: 12px; color: var(--fg-muted); font-size: 14px;">Note: Only public posts are shown on profiles. Private posts remain private and are only visible to you in the Private feed tab.</p></div>'}
+                        ${userPosts.length > 0 ? renderPostList(userPosts, 'No public posts yet!') : '<div class="empty-state"><p>You haven\'t created any public posts yet. <a href="#" onclick="openModal(\'composeModal\'); return false;" style="color: var(--accent-fg);">Create your first post!</a></p><p style="margin-top: 12px; color: var(--fg-muted); font-size: 14px;">Note: Only public posts are shown on profiles. Private posts remain private and are only visible to you in "My Shed".</p></div>'}
                     </div>
 
                     <!-- Communities Tab Content -->
