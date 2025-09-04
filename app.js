@@ -1,4 +1,4 @@
-// app.js - Main application logic and initialization
+// app.js - Main application logic and initialization - Updated to remove c/ prefix
 
 // App state
 let currentUser = null;
@@ -142,9 +142,10 @@ function updateCommunitiesInMenu() {
     if (communities.length === 0) {
         dropdown.innerHTML = '<div class="community-item">No communities yet</div>';
     } else {
+        // UPDATED: Removed "c/" prefix from menu items
         dropdown.innerHTML = communities.map(community => `
             <a href="#" class="community-item" onclick="navigateToCommunity('${community.name}'); return false;">
-                c/${escapeHtml(community.displayName)}
+                ${escapeHtml(community.displayName)}
             </a>
         `).join('');
     }
@@ -326,12 +327,12 @@ async function toggleCommunityFollow(communityName) {
                 followBtn.textContent = '✓ Following';
                 followBtn.className = 'btn btn-secondary';
                 followBtn.style.cssText = 'padding: 12px 24px; font-weight: 600; box-shadow: 0 2px 8px rgba(0,0,0,0.15);';
-                showSuccessMessage(`Now following c/${communityName}! 🎉`);
+                showSuccessMessage(`Now following ${communityName}! 🎉`);
             } else {
                 followBtn.textContent = '+ Follow';
                 followBtn.className = 'btn';
                 followBtn.style.cssText = 'padding: 12px 24px; font-weight: 600; box-shadow: 0 2px 8px rgba(0,0,0,0.15);';
-                showSuccessMessage(`Unfollowed c/${communityName}`);
+                showSuccessMessage(`Unfollowed ${communityName}`);
             }
             
             console.log(`Follow toggle successful. New member count: ${response.memberCount}`);
