@@ -1,480 +1,520 @@
-// chat-rooms.js - Chat room management and creation
+// chat-rooms.js - Complete Chat Room Management
 
-// Create new chat room
-async function handleCreateRoom(e) {
-    e.preventDefault();
+// Global variables for chat rooms
+let userRooms = [];
+let currentChatRoom = null;
+let chatMessages = [];
+let chatRefreshInterval = null;
+
+// FIXED: Room creation/join flow (FIX 1)
+async function handleCreateRoom(event) {
+    event.preventDefault();
     
-    if (!currentUser) {
-        showError('createRoomError', 'Please sign in to create a room');
+    const roomName = document.getElementById('roomName');
+    const roomDescription = document.getElementById('roomDescription');
+    const isPrivate = document.getElementById('isPrivate');
+    
+    if (!roomName || !roomDescription || !isPrivate) {
+        console.error('Room form elements not found');
         return;
     }
     
-    const name = document.getElementById('roomName').value.trim();
-    const description = document.getElementById('roomDescription').value.trim();
-    const isPrivate = document.getElementById('roomIsPrivate').checked;
-    const submitBtn = document.getElementById('createRoomSubmitBtn');
-    const errorDiv = document.getElementById('createRoomError');
+    const name = roomName.value.trim();
+    const description = roomDescription.value.trim();
+    const privateRoom = isPrivate.checked;
     
-    errorDiv.innerHTML = '';
-    
-    // Validation
     if (!name) {
-        showError('createRoomError', 'Room name is required');
-        return;
-    }
-    
-    if (name.length < 3 || name.length > 50) {
-        showError('createRoomError', 'Room name must be 3-50 characters');
-        return;
-    }
-    
-    if (description && description.length > 200) {
-        showError('createRoomError', 'Description must be 200 characters or less');
-        return;
-    }
-    
-    // Check for inappropriate characters in room name
-    if (!/^[a-zA-Z0-9\s\-_!?.]+$/.test(name)) {
-        showError('createRoomError', 'Room name contains invalid characters');
+        showSuccessMessage('Please enter a room name');
         return;
     }
     
     try {
-        submitBtn.disabled = true;
-        submitBtn.textContent = 'Creating...';
+        const token = await getAuthToken();
+        if (!token) {
+            showSuccessMessage('Please log in to create rooms');
+            return;
+        }
+
+        // Create the room
+        const response = await fetch('/.netlify/functions/chat-api/rooms', {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ 
+                name, 
+                description, 
+                isPrivate: privateRoom 
+            })
+        });
         
-        const roomData = {
-            name: name,
-            description: description || '',
-            isPrivate: isPrivate
-        };
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || `HTTP ${response.status}`);
+        }
         
-        const response = await chatAPI.createRoom(roomData);
+        const result = await response.json();
+        console.log('Room created successfully:', result.room);
         
-        if (response.success) {
-            // Add room to user's rooms
-            userRooms.unshift(response.room);
-            
+        // FIX 1: Don't try to join the room after creating it
+        // The backend already adds the creator as a member
+        
+        // Update the UI - add room to user's rooms list
+        if (result.room && typeof userRooms !== 'undefined') {
+            if (!userRooms.some(r => r.id === result.room.id)) {
+                userRooms.unshift(result.room);
+            }
+        }
+        
+        showSuccessMessage(`Room "${name}" created successfully!`);
+        
+        // Clear the form
+        event.target.reset();
+        
+        // Close the modal if it exists
+        const modal = document.getElementById('createRoomModal');
+        if (modal) {
             closeModal('createRoomModal');
-            document.getElementById('createRoomForm').reset();
-            
-            showSuccessMessage(`Room "${response.room.name}" created successfully!`);
-            
-            // Navigate to the new room
-            await joinChatRoom(response.room.id);
-        } else {
-            showError('createRoomError', response.error || 'Failed to create room');
+        }
+        
+        // Navigate to the new room (just load it, don't join)
+        if (typeof loadChatRoom === 'function' && result.room) {
+            await loadChatRoom(result.room.id);
+        }
+        
+        // Refresh the rooms list
+        if (typeof loadUserRooms === 'function') {
+            await loadUserRooms();
         }
         
     } catch (error) {
         console.error('Error creating room:', error);
-        showError('createRoomError', 'Failed to create room. Please try again.');
-    } finally {
-        submitBtn.disabled = false;
-        submitBtn.textContent = 'Create Room';
+        const errorDiv = document.getElementById('createRoomError');
+        if (errorDiv) {
+            errorDiv.innerHTML = `<div class="error-message">${error.message || 'Failed to create room'}</div>`;
+        }
+        showSuccessMessage(error.message || 'Failed to create room');
     }
 }
 
-// Delete a room (owner only)
-async function deleteRoom(roomId) {
-    const room = userRooms.find(r => r.id === roomId);
-    if (!room) {
-        showSuccessMessage('Room not found');
-        return;
-    }
-    
-    if (room.createdBy !== currentUser.username && !currentUser.profile?.isAdmin) {
-        showSuccessMessage('Only the room creator or admins can delete rooms');
-        return;
-    }
-    
-    if (!confirm(`Are you sure you want to delete the room "${room.name}"? This action cannot be undone and will remove all messages.`)) {
-        return;
-    }
-    
+// Load a chat room without joining (for rooms we're already members of)
+async function loadChatRoom(roomId) {
     try {
-        const response = await fetch(`/.netlify/functions/chat-api/rooms/${roomId}/delete`, {
-            method: 'DELETE',
-            headers: { 
-                'Authorization': `Bearer ${await getAuthToken()}`
+        // Find the room in user's rooms
+        if (typeof userRooms !== 'undefined') {
+            currentChatRoom = userRooms.find(r => r.id === roomId);
+        }
+        
+        if (!currentChatRoom) {
+            // If not in user rooms, try to fetch it
+            const token = await getAuthToken();
+            if (!token) {
+                showSuccessMessage('Please log in to access chat');
+                return;
             }
-        });
-        
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-        
-        // Remove from local cache
-        userRooms = userRooms.filter(r => r.id !== roomId);
-        
-        // If we're currently in this room, go back to lobby
-        if (currentChatRoom && currentChatRoom.id === roomId) {
-            currentChatRoom = null;
-            chatMessages = [];
-            stopChatRefresh();
-            renderChatRoomList();
-        }
-        
-        showSuccessMessage(`Room "${room.name}" deleted successfully`);
-        
-    } catch (error) {
-        console.error('Error deleting room:', error);
-        showSuccessMessage('Failed to delete room. Please try again.');
-    }
-}
-
-// Update room settings (owner only)
-async function updateRoomSettings(roomId, settings) {
-    try {
-        const response = await fetch(`/.netlify/functions/chat-api/rooms/${roomId}/settings`, {
-            method: 'PUT',
-            headers: { 
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${await getAuthToken()}`
-            },
-            body: JSON.stringify(settings)
-        });
-        
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-        
-        const result = await response.json();
-        
-        // Update local cache
-        const roomIndex = userRooms.findIndex(r => r.id === roomId);
-        if (roomIndex !== -1) {
-            userRooms[roomIndex] = { ...userRooms[roomIndex], ...result.room };
-        }
-        
-        // Update current room if it's the one we're in
-        if (currentChatRoom && currentChatRoom.id === roomId) {
-            currentChatRoom = { ...currentChatRoom, ...result.room };
-        }
-        
-        showSuccessMessage('Room settings updated successfully');
-        return result.room;
-        
-    } catch (error) {
-        console.error('Error updating room settings:', error);
-        showSuccessMessage('Failed to update room settings');
-        throw error;
-    }
-}
-
-// Get room statistics
-async function getRoomStats(roomId) {
-    try {
-        const response = await fetch(`/.netlify/functions/chat-api/rooms/${roomId}/stats`, {
-            method: 'GET',
-            headers: { 
-                'Authorization': `Bearer ${await getAuthToken()}`
+            
+            const response = await fetch(`/.netlify/functions/chat-api/rooms/${roomId}`, {
+                headers: { 
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+            
+            if (!response.ok) {
+                throw new Error('Room not found or access denied');
             }
-        });
-        
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            
+            currentChatRoom = await response.json();
         }
         
-        return await response.json();
+        // Update UI to show this room
+        document.querySelectorAll('.room-item').forEach(item => {
+            item.classList.remove('active');
+        });
+        
+        const roomElement = document.querySelector(`[data-room-id="${roomId}"]`);
+        if (roomElement) {
+            roomElement.classList.add('active');
+        }
+        
+        // Load messages for this room
+        if (typeof loadRoomMessages === 'function') {
+            await loadRoomMessages(roomId);
+        }
+        
+        // Update the chat header
+        const chatHeader = document.getElementById('chatHeader');
+        if (chatHeader && currentChatRoom) {
+            chatHeader.innerHTML = `
+                <h3>${escapeHtml(currentChatRoom.name)}</h3>
+                ${currentChatRoom.description ? 
+                    `<p class="chat-room-description">${escapeHtml(currentChatRoom.description)}</p>` : ''}
+                <div class="chat-room-meta">
+                    <span>👥 ${currentChatRoom.members ? currentChatRoom.members.length : 0} members</span>
+                    <span>${currentChatRoom.isPrivate ? '🔒 Private' : '🌐 Public'}</span>
+                </div>
+            `;
+        }
+        
+        // Show the chat messages area
+        const chatMessages = document.getElementById('chatMessages');
+        const chatInput = document.getElementById('chatInput');
+        if (chatMessages) chatMessages.style.display = 'block';
+        if (chatInput) chatInput.style.display = 'block';
+        
+        // Start auto-refresh if not already running
+        if (typeof startChatRefresh === 'function') {
+            startChatRefresh();
+        }
+        
+        // Update page to show chat room view
+        if (typeof renderChatRoom === 'function') {
+            renderChatRoom();
+        }
         
     } catch (error) {
-        console.error('Error getting room stats:', error);
-        return null;
+        console.error('Error loading chat room:', error);
+        showSuccessMessage('Failed to load chat room');
     }
 }
 
-// Search public rooms
-async function searchPublicRooms(query) {
+// Join a chat room (for rooms we're not members of yet)
+async function joinChatRoom(roomId) {
     try {
-        const params = new URLSearchParams({ q: query, limit: '20' });
-        const response = await fetch(`/.netlify/functions/chat-api/rooms/search?${params}`, {
-            method: 'GET',
-            headers: { 
-                'Authorization': `Bearer ${await getAuthToken()}`
-            }
-        });
-        
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-        
-        return await response.json();
-        
-    } catch (error) {
-        console.error('Error searching rooms:', error);
-        return { rooms: [] };
-    }
-}
-
-// Join room by invite code
-async function joinRoomByCode(inviteCode) {
-    try {
-        const response = await fetch(`/.netlify/functions/chat-api/rooms/join-by-code`, {
-            method: 'POST',
-            headers: { 
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${await getAuthToken()}`
-            },
-            body: JSON.stringify({ inviteCode })
-        });
-        
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-        
-        const result = await response.json();
-        
-        // Add room to user's rooms if not already there
-        if (!userRooms.some(r => r.id === result.room.id)) {
-            userRooms.unshift(result.room);
-        }
-        
-        showSuccessMessage(`Joined room "${result.room.name}" successfully!`);
-        
-        // Navigate to the room
-        await joinChatRoom(result.room.id);
-        
-        return result.room;
-        
-    } catch (error) {
-        console.error('Error joining room by code:', error);
-        showSuccessMessage('Invalid invite code or failed to join room');
-        throw error;
-    }
-}
-
-// Generate invite code for room (owner only)
-async function generateInviteCode(roomId) {
-    try {
-        const response = await fetch(`/.netlify/functions/chat-api/rooms/${roomId}/invite-code`, {
-            method: 'POST',
-            headers: { 
-                'Authorization': `Bearer ${await getAuthToken()}`
-            }
-        });
-        
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-        
-        const result = await response.json();
-        return result.inviteCode;
-        
-    } catch (error) {
-        console.error('Error generating invite code:', error);
-        showSuccessMessage('Failed to generate invite code');
-        throw error;
-    }
-}
-
-// Get room activity (recent messages count, active users, etc.)
-async function getRoomActivity(roomId) {
-    try {
-        const response = await fetch(`/.netlify/functions/chat-api/rooms/${roomId}/activity`, {
-            method: 'GET',
-            headers: { 
-                'Authorization': `Bearer ${await getAuthToken()}`
-            }
-        });
-        
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-        
-        return await response.json();
-        
-    } catch (error) {
-        console.error('Error getting room activity:', error);
-        return null;
-    }
-}
-
-// Archive/unarchive room (owner only)
-async function toggleRoomArchive(roomId) {
-    try {
-        const room = userRooms.find(r => r.id === roomId);
-        if (!room) {
-            showSuccessMessage('Room not found');
+        const token = await getAuthToken();
+        if (!token) {
+            showSuccessMessage('Please log in to join rooms');
             return;
         }
         
-        const response = await fetch(`/.netlify/functions/chat-api/rooms/${roomId}/archive`, {
+        console.log('Joining room:', roomId);
+        
+        const response = await fetch(`/.netlify/functions/chat-api/rooms/${roomId}/join`, {
             method: 'POST',
             headers: { 
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${await getAuthToken()}`
-            },
-            body: JSON.stringify({ archived: !room.archived })
+                'Authorization': `Bearer ${token}`
+            }
         });
-        
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
         
         const result = await response.json();
         
-        // Update local cache
-        const roomIndex = userRooms.findIndex(r => r.id === roomId);
-        if (roomIndex !== -1) {
-            userRooms[roomIndex].archived = result.archived;
+        // FIX 1: Handle both new joins and already-member cases
+        if (!response.ok && !result.alreadyMember) {
+            throw new Error(result.error || 'Failed to join room');
         }
         
-        const action = result.archived ? 'archived' : 'unarchived';
-        showSuccessMessage(`Room "${room.name}" ${action} successfully`);
-        
-        return result;
+        if (result.room) {
+            currentChatRoom = result.room;
+            
+            // Add to user rooms if not already there
+            if (typeof userRooms !== 'undefined' && !userRooms.some(r => r.id === result.room.id)) {
+                userRooms.unshift(result.room);
+            }
+            
+            if (result.alreadyMember) {
+                console.log('Already a member of this room');
+            } else {
+                showSuccessMessage('Successfully joined room!');
+            }
+            
+            // Now load the room
+            await loadChatRoom(roomId);
+        }
         
     } catch (error) {
-        console.error('Error toggling room archive:', error);
-        showSuccessMessage('Failed to update room archive status');
-        throw error;
+        console.error('Error joining room:', error);
+        showSuccessMessage(error.message || 'Failed to join room');
     }
 }
 
-// Bulk actions for room management
-async function bulkManageRooms(action, roomIds) {
+// Leave a chat room
+async function leaveChatRoom() {
+    if (!currentChatRoom) return;
+    
     try {
-        const response = await fetch('/.netlify/functions/chat-api/rooms/bulk', {
+        const token = await getAuthToken();
+        if (!token) {
+            showSuccessMessage('Please log in');
+            return;
+        }
+        
+        const response = await fetch(`/.netlify/functions/chat-api/rooms/${currentChatRoom.id}/leave`, {
             method: 'POST',
             headers: { 
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${await getAuthToken()}`
-            },
-            body: JSON.stringify({ action, roomIds })
+                'Authorization': `Bearer ${token}`
+            }
         });
         
         if (!response.ok) {
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            const error = await response.json();
+            throw new Error(error.error || 'Failed to leave room');
         }
         
-        const result = await response.json();
+        // Remove from user rooms
+        if (typeof userRooms !== 'undefined') {
+            userRooms = userRooms.filter(r => r.id !== currentChatRoom.id);
+        }
         
-        // Refresh user rooms
-        await loadUserRooms();
+        showSuccessMessage('Left room successfully');
         
-        showSuccessMessage(`Bulk ${action} completed successfully`);
-        return result;
+        // Clear current room and go back to room list
+        currentChatRoom = null;
+        if (typeof stopChatRefresh === 'function') {
+            stopChatRefresh();
+        }
+        
+        // Refresh room list
+        if (typeof renderChatRoomList === 'function') {
+            renderChatRoomList();
+        }
         
     } catch (error) {
-        console.error('Error with bulk room action:', error);
-        showSuccessMessage(`Failed to perform bulk ${action}`);
-        throw error;
+        console.error('Error leaving room:', error);
+        showSuccessMessage(error.message || 'Failed to leave room');
     }
 }
 
-// Room validation helpers
-function validateRoomName(name) {
-    if (!name || typeof name !== 'string') {
-        return { valid: false, error: 'Room name is required' };
+// Confirm before leaving a room
+function leaveRoomConfirm(roomId) {
+    if (confirm('Are you sure you want to leave this room?')) {
+        leaveRoom(roomId);
     }
-    
-    const trimmed = name.trim();
-    
-    if (trimmed.length < 3) {
-        return { valid: false, error: 'Room name must be at least 3 characters' };
-    }
-    
-    if (trimmed.length > 50) {
-        return { valid: false, error: 'Room name must be 50 characters or less' };
-    }
-    
-    if (!/^[a-zA-Z0-9\s\-_!?.]+$/.test(trimmed)) {
-        return { valid: false, error: 'Room name contains invalid characters' };
-    }
-    
-    return { valid: true, name: trimmed };
 }
 
-function validateRoomDescription(description) {
-    if (!description) {
-        return { valid: true, description: '' };
+// Leave a specific room
+async function leaveRoom(roomId) {
+    try {
+        const token = await getAuthToken();
+        if (!token) {
+            showSuccessMessage('Please log in');
+            return;
+        }
+        
+        const response = await fetch(`/.netlify/functions/chat-api/rooms/${roomId}/leave`, {
+            method: 'POST',
+            headers: { 
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Failed to leave room');
+        }
+        
+        // Remove from user rooms
+        if (typeof userRooms !== 'undefined') {
+            userRooms = userRooms.filter(r => r.id !== roomId);
+        }
+        
+        showSuccessMessage('Left room successfully');
+        
+        // If this was the current room, clear it
+        if (currentChatRoom && currentChatRoom.id === roomId) {
+            currentChatRoom = null;
+            if (typeof stopChatRefresh === 'function') {
+                stopChatRefresh();
+            }
+        }
+        
+        // Refresh the room list
+        if (typeof renderChatRoomList === 'function') {
+            renderChatRoomList();
+        }
+        
+    } catch (error) {
+        console.error('Error leaving room:', error);
+        showSuccessMessage(error.message || 'Failed to leave room');
     }
-    
-    if (typeof description !== 'string') {
-        return { valid: false, error: 'Description must be text' };
+}
+
+// Load user's rooms
+async function loadUserRooms() {
+    try {
+        const token = await getAuthToken();
+        if (!token) {
+            console.log('No auth token, skipping room load');
+            return;
+        }
+        
+        const response = await fetch('/.netlify/functions/chat-api/rooms', {
+            headers: { 
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error('Failed to load rooms');
+        }
+        
+        const data = await response.json();
+        userRooms = data.rooms || [];
+        console.log('Loaded user rooms:', userRooms.length);
+        
+    } catch (error) {
+        console.error('Error loading user rooms:', error);
+        userRooms = [];
     }
-    
-    const trimmed = description.trim();
-    
-    if (trimmed.length > 200) {
-        return { valid: false, error: 'Description must be 200 characters or less' };
+}
+
+// Load messages for a room
+async function loadRoomMessages(roomId) {
+    try {
+        const token = await getAuthToken();
+        if (!token) {
+            return;
+        }
+        
+        const response = await fetch(`/.netlify/functions/chat-api/rooms/${roomId}/messages?limit=50`, {
+            headers: { 
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error('Failed to load messages');
+        }
+        
+        const data = await response.json();
+        chatMessages = data.messages || [];
+        
+        // Update the UI with messages
+        if (typeof updateChatMessages === 'function') {
+            updateChatMessages();
+        }
+        
+    } catch (error) {
+        console.error('Error loading messages:', error);
+        chatMessages = [];
     }
-    
-    return { valid: true, description: trimmed };
 }
 
-// Room permissions helpers
-function canUserAccessRoom(room, user) {
-    if (!room || !user) return false;
+// Send a chat message
+async function sendChatMessage(content) {
+    if (!currentChatRoom || !content.trim()) return;
     
-    // Public rooms are accessible to all authenticated users
-    if (!room.isPrivate) return true;
-    
-    // Private rooms only accessible to members
-    return room.members && room.members.includes(user.username);
+    try {
+        const token = await getAuthToken();
+        if (!token) {
+            showSuccessMessage('Please log in to send messages');
+            return;
+        }
+        
+        const response = await fetch(`/.netlify/functions/chat-api/rooms/${currentChatRoom.id}/messages`, {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ content: content.trim() })
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Failed to send message');
+        }
+        
+        const data = await response.json();
+        
+        // Add message to local array
+        chatMessages.push(data.message);
+        
+        // Update UI
+        if (typeof updateChatMessages === 'function') {
+            updateChatMessages();
+        }
+        
+        // Clear input
+        const input = document.getElementById('chatMessageInput');
+        if (input) {
+            input.value = '';
+            if (typeof autoResizeChatInput === 'function') {
+                autoResizeChatInput(input);
+            }
+        }
+        
+        // Scroll to bottom
+        if (typeof scrollChatToBottom === 'function') {
+            scrollChatToBottom();
+        }
+        
+    } catch (error) {
+        console.error('Error sending message:', error);
+        showSuccessMessage(error.message || 'Failed to send message');
+    }
 }
 
-function canUserModerateRoom(room, user) {
-    if (!room || !user) return false;
+// Start chat refresh interval
+function startChatRefresh() {
+    stopChatRefresh(); // Clear any existing interval
     
-    // Room creator and admins can moderate
-    return room.createdBy === user.username || user.isAdmin;
+    if (!currentChatRoom) return;
+    
+    chatRefreshInterval = setInterval(async () => {
+        if (currentChatRoom) {
+            await loadRoomMessages(currentChatRoom.id);
+        }
+    }, 3000); // Refresh every 3 seconds
 }
 
-function canUserInviteToRoom(room, user) {
-    if (!room || !user) return false;
-    
-    // For now, only room creators can invite
-    // You could extend this to allow all members or specific moderators
-    return room.createdBy === user.username;
+// Stop chat refresh interval
+function stopChatRefresh() {
+    if (chatRefreshInterval) {
+        clearInterval(chatRefreshInterval);
+        chatRefreshInterval = null;
+    }
 }
 
-// Room search and filtering
-function filterUserRooms(rooms, filter) {
-    if (!rooms || !Array.isArray(rooms)) return [];
+// Process chat commands
+function processChatCommand(content) {
+    if (!content.startsWith('/')) return false;
     
-    switch (filter) {
-        case 'public':
-            return rooms.filter(room => !room.isPrivate);
-        case 'private':
-            return rooms.filter(room => room.isPrivate);
-        case 'owned':
-            return rooms.filter(room => room.createdBy === currentUser?.username);
-        case 'joined':
-            return rooms.filter(room => room.createdBy !== currentUser?.username);
-        case 'archived':
-            return rooms.filter(room => room.archived);
-        case 'active':
-            return rooms.filter(room => !room.archived);
+    const parts = content.split(' ');
+    const command = parts[0].toLowerCase();
+    
+    switch (command) {
+        case '/help':
+            showSuccessMessage('Commands: /help, /members, /leave');
+            return true;
+            
+        case '/members':
+            if (currentChatRoom && currentChatRoom.members) {
+                showSuccessMessage(`Members: ${currentChatRoom.members.join(', ')}`);
+            }
+            return true;
+            
+        case '/leave':
+            leaveChatRoom();
+            return true;
+            
         default:
-            return rooms;
+            showSuccessMessage('Unknown command. Type /help for available commands.');
+            return true;
     }
 }
 
-function sortRooms(rooms, sortBy = 'recent') {
-    if (!rooms || !Array.isArray(rooms)) return [];
-    
-    const sortedRooms = [...rooms];
-    
-    switch (sortBy) {
-        case 'name':
-            return sortedRooms.sort((a, b) => a.name.localeCompare(b.name));
-        case 'members':
-            return sortedRooms.sort((a, b) => (b.members?.length || 0) - (a.members?.length || 0));
-        case 'created':
-            return sortedRooms.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-        case 'recent':
-        default:
-            return sortedRooms.sort((a, b) => new Date(b.lastActivity || b.createdAt) - new Date(a.lastActivity || a.createdAt));
+// Render chat page (main entry point)
+function renderChatPage() {
+    if (!currentUser) {
+        const html = `
+            <div class="feature-placeholder">
+                <h3>💬 Chat Rooms</h3>
+                <p>Please sign in to access chat rooms.</p>
+                <button class="btn" onclick="openAuthModal('signin')">Sign In</button>
+            </div>
+        `;
+        updateFeedContent(html);
+        return;
     }
-}
-
-// Cleanup room-related data
-function cleanupRoomData() {
-    userRooms = [];
-    currentChatRoom = null;
-    chatMessages = [];
-    stopChatRefresh();
-    console.log('Room data cleaned up');
+    
+    // If we have a current room, show it; otherwise show room list
+    if (currentChatRoom) {
+        if (typeof renderChatRoom === 'function') {
+            renderChatRoom();
+        }
+    } else {
+        if (typeof renderChatRoomList === 'function') {
+            renderChatRoomList();
+        }
+    }
 }
