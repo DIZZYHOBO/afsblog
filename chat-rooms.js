@@ -1,7 +1,11 @@
 // chat-rooms.js - Complete Chat Room Management
 
-// Global variables for chat rooms
-let userRooms = [];
+// Note: userRooms might be declared in chat.js, so we'll check first
+if (typeof userRooms === 'undefined') {
+    var userRooms = [];
+}
+
+// Other chat-specific variables
 let currentChatRoom = null;
 let chatMessages = [];
 let chatRefreshInterval = null;
