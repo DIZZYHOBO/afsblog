@@ -682,24 +682,36 @@
         let chatMessages = [];
         let refreshInterval = null;
 
-        // Initialize the app
+        // Initialize the app with better error handling and retry
         async function initApp() {
             try {
+                console.log('=== INITIALIZING CHAT APP ===');
+                
                 const token = getAuthToken();
+                console.log('Found token:', token ? 'Yes' : 'No');
+                
                 if (!token) {
+                    console.log('No token found, showing auth required');
                     showAuthRequired();
                     return;
                 }
+
+                // Show loading state
+                document.getElementById('authRequired').style.display = 'none';
+                document.getElementById('chatApp').style.display = 'flex';
 
                 currentUser = await validateAndGetUser(token);
                 if (!currentUser) {
+                    console.log('Token validation failed, showing auth required');
                     showAuthRequired();
                     return;
                 }
 
+                console.log('User validated successfully:', currentUser.username);
+
                 updateUserInfo();
                 await loadUserServers();
-                console.log('Chat app initialized successfully');
+                console.log('=== CHAT APP INITIALIZED SUCCESSFULLY ===');
 
             } catch (error) {
                 console.error('Failed to initialize app:', error);
