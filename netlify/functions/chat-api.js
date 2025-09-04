@@ -11,6 +11,9 @@ const CHAT_CONFIG = {
   ROOM_INACTIVE_DAYS: 30
 };
 
+// Export the handler
+module.exports = { handler };
+
 module.exports = async (req, context) => {
   const chatStore = getStore("chat-data");
   const blogStore = getStore("blog-data"); // For user authentication
