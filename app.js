@@ -383,6 +383,298 @@ function renderCurrentPage() {
     }
 }
 
+// ==============================================
+// 🔧 AUTHENTICATION FUNCTIONS WITH SESSION TOKEN STORAGE
+// ==============================================
+
+// Authentication functions
+async function handleAuth(e) {
+    e.preventDefault();
+    const form = e.target;
+    const mode = form.dataset.mode;
+    const username = document.getElementById('username').value.trim();
+    const password = document.getElementById('password').value;
+    const bio = document.getElementById('bio').value.trim();
+    const errorDiv = document.getElementById('authError');
+    const submitBtn = document.getElementById('authSubmitBtn');
+
+    errorDiv.innerHTML = '';
+    
+    if (username.length < 3) {
+        showError('authError', 'Username must be at least 3 characters long');
+        return;
+    }
+    
+    if (password.length < 6) {
+        showError('authError', 'Password must be at least 6 characters long');
+        return;
+    }
+
+    try {
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Loading...';
+
+        if (mode === 'signup') {
+            // SIGNUP MODE - uses new API
+            console.log('🔐 Attempting signup for user:', username);
+            
+            const response = await fetch('/api/auth/register', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ username, password, bio: bio || `Hello! I'm ${username}` })
+            });
+
+            const data = await response.json();
+            
+            if (response.ok && data.success) {
+                console.log('✅ Signup successful:', data);
+                closeModal('authModal');
+                showSuccess('authError', 'Registration submitted! Please wait for admin approval.');
+            } else {
+                console.error('❌ Signup failed:', data);
+                showError('authError', data.error || 'Signup failed!');
+            }
+            
+        } else {
+            // LOGIN MODE - UPDATED with session token storage
+            console.log('🔐 Attempting login for user:', username);
+            
+            const response = await fetch('/api/auth/login', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ username, password })
+            });
+
+            const data = await response.json();
+            
+            if (response.ok && data.success) {
+                console.log('✅ Login successful:', data);
+                
+                // 🚨 CRITICAL FIX: Store the session token in localStorage
+                if (data.token) {
+                    console.log('💾 Storing session token in localStorage...');
+                    localStorage.setItem('sessionToken', data.token);
+                    console.log('✅ Session token stored successfully');
+                } else {
+                    console.warn('⚠️ No token received from server');
+                }
+                
+                // Set current user
+                currentUser = data.user;
+                currentUser.profile = data.user; // Ensure profile is available
+                
+                console.log('🎉 User authenticated:', currentUser.username);
+                
+                closeModal('authModal');
+                updateUI();
+                await loadData();
+                showSuccess('authError', 'Login successful!');
+                
+                // Load admin stats if user is admin
+                if (currentUser?.profile?.isAdmin) {
+                    await loadAdminStats();
+                }
+                
+            } else {
+                console.error('❌ Login failed:', data);
+                showError('authError', data.error || 'Login failed!');
+            }
+        }
+        
+        form.reset();
+        
+    } catch (error) {
+        console.error('🚨 Authentication error:', error);
+        showError('authError', 'Network error. Please try again.');
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = mode === 'signup' ? 'Sign Up' : 'Sign In';
+    }
+}
+
+// Inline login form handler (used in menu)
+async function handleInlineLogin(e) {
+    e.preventDefault();
+    const username = document.getElementById('inlineUsername').value.trim();
+    const password = document.getElementById('inlinePassword').value;
+    const errorDiv = document.getElementById('inlineLoginError');
+    const submitBtn = document.getElementById('inlineLoginBtn');
+
+    errorDiv.innerHTML = '';
+    
+    if (username.length < 3 || password.length < 6) {
+        showError('inlineLoginError', 'Invalid username or password');
+        return;
+    }
+
+    try {
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Signing In...';
+
+        console.log('🔐 Attempting inline login for user:', username);
+        
+        const response = await fetch('/api/auth/login', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ username, password })
+        });
+
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+            console.log('✅ Inline login successful:', data);
+            
+            // 🚨 CRITICAL FIX: Store the session token in localStorage
+            if (data.token) {
+                console.log('💾 Storing session token in localStorage...');
+                localStorage.setItem('sessionToken', data.token);
+                console.log('✅ Session token stored successfully');
+            } else {
+                console.warn('⚠️ No token received from server');
+            }
+            
+            // Set current user
+            currentUser = data.user;
+            currentUser.profile = data.user; // Ensure profile is available
+            
+            console.log('🎉 User authenticated via inline login:', currentUser.username);
+            
+            // Close menu and update UI
+            toggleMenu();
+            updateUI();
+            await loadData();
+            
+            // Load admin stats if user is admin
+            if (currentUser?.profile?.isAdmin) {
+                await loadAdminStats();
+            }
+            
+        } else {
+            console.error('❌ Inline login failed:', data);
+            showError('inlineLoginError', data.error || 'Login failed!');
+        }
+        
+    } catch (error) {
+        console.error('🚨 Inline login error:', error);
+        showError('inlineLoginError', 'Network error. Please try again.');
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Sign In';
+    }
+}
+
+// Logout function - Updated to properly clear session token
+async function logout() {
+    console.log('🚪 Logging out user...');
+    
+    try {
+        const token = localStorage.getItem('sessionToken');
+        
+        if (token) {
+            // Call the logout API to invalidate the session on the server
+            await fetch('/api/auth/logout', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+        }
+    } catch (error) {
+        console.error('🚨 Logout API call failed:', error);
+    }
+    
+    // Clear local session data
+    localStorage.removeItem('sessionToken');
+    currentUser = null;
+    
+    console.log('✅ User logged out successfully');
+    
+    // Update UI and redirect to feed
+    updateUI();
+    navigateToFeed();
+    showSuccessMessage('Logged out successfully!');
+}
+
+// Session validation function - Check if user has valid session on page load
+async function validateSession() {
+    const token = localStorage.getItem('sessionToken');
+    
+    if (!token) {
+        console.log('🔍 No session token found');
+        return false;
+    }
+    
+    try {
+        console.log('🔍 Validating existing session token...');
+        
+        const response = await fetch('/api/auth/validate', {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            }
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+            console.log('✅ Session token is valid');
+            
+            currentUser = data.user;
+            currentUser.profile = data.user; // Ensure profile is available
+            
+            console.log('🎉 User session restored:', currentUser.username);
+            return true;
+            
+        } else {
+            console.log('❌ Session token is invalid, removing...');
+            localStorage.removeItem('sessionToken');
+            return false;
+        }
+    } catch (error) {
+        console.error('🚨 Session validation error:', error);
+        localStorage.removeItem('sessionToken');
+        return false;
+    }
+}
+
+// Add localStorage monitoring to debug session storage
+function setupSessionMonitoring() {
+    console.log('🔍 Setting up session monitoring for main app...');
+    
+    const originalSetItem = localStorage.setItem;
+    const originalRemoveItem = localStorage.removeItem;
+    
+    localStorage.setItem = function(key, value) {
+        console.log(`📝 MAIN APP localStorage.setItem("${key}", "${value?.substring(0, 50)}${value?.length > 50 ? '...' : ''}")`);
+        
+        if (key === 'sessionToken') {
+            console.log('🎉 MAIN APP: SESSION TOKEN STORED!');
+            console.log('Token value:', value?.substring(0, 30) + '...');
+        }
+        
+        return originalSetItem.apply(this, arguments);
+    };
+    
+    localStorage.removeItem = function(key) {
+        console.log(`🗑️ MAIN APP localStorage.removeItem("${key}")`);
+        
+        if (key === 'sessionToken') {
+            console.log('❌ MAIN APP: SESSION TOKEN REMOVED!');
+        }
+        
+        return originalRemoveItem.apply(this, arguments);
+    };
+    
+    console.log('✅ Session monitoring active in main app');
+}
+
 function setupEventListeners() {
     // Auth form
     document.getElementById('authForm').addEventListener('submit', handleAuth);
@@ -429,6 +721,9 @@ function setupEventListeners() {
 
 // Initialize app
 document.addEventListener('DOMContentLoaded', async () => {
+    // Set up session monitoring for debugging
+    setupSessionMonitoring();
+    
     // Configure marked.js for markdown rendering
     marked.setOptions({
         highlight: function(code, lang) {
@@ -457,6 +752,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         return `<img src="${href}" alt="${text || 'Image'}" ${title ? `title="${title}"` : ''} onclick="openImageModal('${href}')" style="cursor: pointer;">`;
     };
 
+    // Try to restore session on page load
+    const sessionValid = await validateSession();
+    
     await loadUser();
     await loadCommunities();
     await loadPosts();
@@ -466,5 +764,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Load admin stats if user is admin
     if (currentUser?.profile?.isAdmin) {
         await loadAdminStats();
+    }
+    
+    // Show session restoration message if applicable
+    if (sessionValid) {
+        console.log('✅ Session restored successfully on page load');
     }
 });
