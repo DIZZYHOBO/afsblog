@@ -1547,9 +1547,27 @@
         async function handleCreateServer(event) {
             event.preventDefault();
             
-            const name = document.getElementById('newServerName').value.trim();
-            const description = document.getElementById('newServerDescription').value.trim();
-            const isPrivate = document.getElementById('newServerIsPrivate').checked;
+            console.log('Create server form submitted');
+            
+            // Debug: check if elements exist
+            const nameElement = document.getElementById('newServerName');
+            const descElement = document.getElementById('newServerDescription');
+            const privateElement = document.getElementById('newServerIsPrivate');
+            
+            console.log('Name element:', nameElement);
+            console.log('Desc element:', descElement);
+            console.log('Private element:', privateElement);
+            
+            if (!nameElement) {
+                showCreateServerError('Form elements not found. Please refresh the page.');
+                return;
+            }
+            
+            const name = nameElement.value.trim();
+            const description = descElement.value.trim();
+            const isPrivate = privateElement.checked;
+            
+            console.log('Form values:', { name, description, isPrivate });
             
             if (!name) {
                 showCreateServerError('Please enter a server name');
