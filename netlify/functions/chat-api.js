@@ -1,5 +1,5 @@
-// netlify/functions/chat-api.js - Chat system backend API
-import { getStore } from "@netlify/blobs";
+// netlify/functions/chat-api.js - Complete CommonJS Chat system backend API
+const { getStore } = require("@netlify/blobs");
 
 // Chat API configuration
 const CHAT_CONFIG = {
@@ -11,7 +11,7 @@ const CHAT_CONFIG = {
   ROOM_INACTIVE_DAYS: 30
 };
 
-export default async (req, context) => {
+module.exports = async (req, context) => {
   const chatStore = getStore("chat-data");
   const blogStore = getStore("blog-data"); // For user authentication
   
@@ -84,8 +84,6 @@ async function validateChatAuth(req, blogStore) {
     return { valid: false, error: "Authentication required", status: 401 };
   }
 
-  // For now, we'll use a simple token validation
-  // In a real implementation, you'd validate against your session store
   try {
     // Get current user from blog store (adapt this to your auth system)
     const currentUser = await blogStore.get('current_user', { type: "json" });
@@ -193,7 +191,7 @@ async function handleChatPut(path, req, chatStore, user, headers) {
 
 // DELETE request handler
 async function handleChatDelete(path, req, chatStore, user, headers) {
-  if (path[0] === 'rooms' && path[1] && path[2] === 'delete') {
+  if (path[0] === 'rooms' && path[1]) {
     return await deleteRoom(path[1], req, chatStore, user, headers);
   }
 
@@ -203,345 +201,24 @@ async function handleChatDelete(path, req, chatStore, user, headers) {
   );
 }
 
-// Create room
-async function createRoom(req, chatStore, user, headers) {
-  try {
-    const { name, description, isPrivate } = await req.json();
-
-    // Validation
-    if (!name || typeof name !== 'string') {
-      return new Response(
-        JSON.stringify({ error: "Room name is required" }),
-        { status: 400, headers }
-      );
-    }
-
-    const trimmedName = name.trim();
-    if (trimmedName.length < 3 || trimmedName.length > CHAT_CONFIG.MAX_ROOM_NAME_LENGTH) {
-      return new Response(
-        JSON.stringify({ error: `Room name must be 3-${CHAT_CONFIG.MAX_ROOM_NAME_LENGTH} characters` }),
-        { status: 400, headers }
-      );
-    }
-
-    if (description && description.length > CHAT_CONFIG.MAX_DESCRIPTION_LENGTH) {
-      return new Response(
-        JSON.stringify({ error: `Description must be ${CHAT_CONFIG.MAX_DESCRIPTION_LENGTH} characters or less` }),
-        { status: 400, headers }
-      );
-    }
-
-    // Check if user has too many rooms
-    const userRooms = await getUserRoomsList(chatStore, user.username);
-    if (userRooms.length >= CHAT_CONFIG.MAX_ROOMS_PER_USER) {
-      return new Response(
-        JSON.stringify({ error: "Maximum number of rooms reached" }),
-        { status: 400, headers }
-      );
-    }
-
-    // Create room
-    const roomId = `room_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    const room = {
-      id: roomId,
-      name: trimmedName,
-      description: description?.trim() || '',
-      isPrivate: Boolean(isPrivate),
-      createdBy: user.username,
-      createdAt: new Date().toISOString(),
-      members: [user.username],
-      messageCount: 0,
-      lastActivity: new Date().toISOString(),
-      archived: false
-    };
-
-    await chatStore.set(roomId, JSON.stringify(room));
-
-    // Add room to user's room list
-    userRooms.push(roomId);
-    await chatStore.set(`user_rooms_${user.username}`, JSON.stringify(userRooms));
-
-    return new Response(
-      JSON.stringify({
-        success: true,
-        message: "Room created successfully",
-        room: room
-      }),
-      { status: 201, headers }
-    );
-
-  } catch (error) {
-    console.error("Create room error:", error);
-    return new Response(
-      JSON.stringify({ error: "Failed to create room" }),
-      { status: 500, headers }
-    );
-  }
-}
-
-// Join room
-async function joinRoom(roomId, req, chatStore, user, headers) {
-  try {
-    const room = await chatStore.get(roomId, { type: "json" });
-    
-    if (!room) {
-      return new Response(
-        JSON.stringify({ error: "Room not found" }),
-        { status: 404, headers }
-      );
-    }
-
-    // Check access permissions
-    if (room.isPrivate && !room.members.includes(user.username)) {
-      return new Response(
-        JSON.stringify({ error: "Access denied to private room" }),
-        { status: 403, headers }
-      );
-    }
-
-    // Add user to room if not already a member
-    if (!room.members.includes(user.username)) {
-      room.members.push(user.username);
-      room.lastActivity = new Date().toISOString();
-      await chatStore.set(roomId, JSON.stringify(room));
-    }
-
-    // Add room to user's room list
-    const userRooms = await getUserRoomsList(chatStore, user.username);
-    if (!userRooms.includes(roomId)) {
-      userRooms.push(roomId);
-      await chatStore.set(`user_rooms_${user.username}`, JSON.stringify(userRooms));
-    }
-
-    return new Response(
-      JSON.stringify({
-        success: true,
-        message: "Joined room successfully",
-        room: room
-      }),
-      { status: 200, headers }
-    );
-
-  } catch (error) {
-    console.error("Join room error:", error);
-    return new Response(
-      JSON.stringify({ error: "Failed to join room" }),
-      { status: 500, headers }
-    );
-  }
-}
-
-// Leave room
-async function leaveRoom(roomId, req, chatStore, user, headers) {
-  try {
-    const room = await chatStore.get(roomId, { type: "json" });
-    
-    if (!room) {
-      return new Response(
-        JSON.stringify({ error: "Room not found" }),
-        { status: 404, headers }
-      );
-    }
-
-    // Remove user from room members
-    room.members = room.members.filter(member => member !== user.username);
-    room.lastActivity = new Date().toISOString();
-
-    // If room is empty and not owned by anyone, delete it
-    if (room.members.length === 0) {
-      await chatStore.delete(roomId);
-      // Also delete all messages for this room
-      await deleteRoomMessages(chatStore, roomId);
-    } else {
-      await chatStore.set(roomId, JSON.stringify(room));
-    }
-
-    // Remove room from user's room list
-    const userRooms = await getUserRoomsList(chatStore, user.username);
-    const updatedUserRooms = userRooms.filter(id => id !== roomId);
-    await chatStore.set(`user_rooms_${user.username}`, JSON.stringify(updatedUserRooms));
-
-    return new Response(
-      JSON.stringify({
-        success: true,
-        message: "Left room successfully"
-      }),
-      { status: 200, headers }
-    );
-
-  } catch (error) {
-    console.error("Leave room error:", error);
-    return new Response(
-      JSON.stringify({ error: "Failed to leave room" }),
-      { status: 500, headers }
-    );
-  }
-}
-
-// Send message
-async function sendMessage(roomId, req, chatStore, user, headers) {
-  try {
-    const { content } = await req.json();
-
-    if (!content || typeof content !== 'string') {
-      return new Response(
-        JSON.stringify({ error: "Message content is required" }),
-        { status: 400, headers }
-      );
-    }
-
-    const trimmedContent = content.trim();
-    if (trimmedContent.length === 0) {
-      return new Response(
-        JSON.stringify({ error: "Message cannot be empty" }),
-        { status: 400, headers }
-      );
-    }
-
-    if (trimmedContent.length > CHAT_CONFIG.MAX_MESSAGE_LENGTH) {
-      return new Response(
-        JSON.stringify({ error: `Message must be ${CHAT_CONFIG.MAX_MESSAGE_LENGTH} characters or less` }),
-        { status: 400, headers }
-      );
-    }
-
-    const room = await chatStore.get(roomId, { type: "json" });
-    if (!room) {
-      return new Response(
-        JSON.stringify({ error: "Room not found" }),
-        { status: 404, headers }
-      );
-    }
-
-    // Check if user is a member
-    if (!room.members.includes(user.username)) {
-      return new Response(
-        JSON.stringify({ error: "You are not a member of this room" }),
-        { status: 403, headers }
-      );
-    }
-
-    // Create message
-    const messageId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    const message = {
-      id: messageId,
-      roomId: roomId,
-      author: user.username,
-      content: trimmedContent,
-      timestamp: new Date().toISOString(),
-      edited: false
-    };
-
-    // Store message
-    await chatStore.set(`message_${roomId}_${messageId}`, JSON.stringify(message));
-
-    // Update room stats
-    room.messageCount = (room.messageCount || 0) + 1;
-    room.lastActivity = new Date().toISOString();
-    await chatStore.set(roomId, JSON.stringify(room));
-
-    return new Response(
-      JSON.stringify({
-        success: true,
-        message: message
-      }),
-      { status: 201, headers }
-    );
-
-  } catch (error) {
-    console.error("Send message error:", error);
-    return new Response(
-      JSON.stringify({ error: "Failed to send message" }),
-      { status: 500, headers }
-    );
-  }
-}
-
-// Get room messages
-async function getRoomMessages(roomId, req, chatStore, user, headers) {
-  try {
-    const room = await chatStore.get(roomId, { type: "json" });
-    if (!room) {
-      return new Response(
-        JSON.stringify({ error: "Room not found" }),
-        { status: 404, headers }
-      );
-    }
-
-    // Check access
-    if (room.isPrivate && !room.members.includes(user.username)) {
-      return new Response(
-        JSON.stringify({ error: "Access denied" }),
-        { status: 403, headers }
-      );
-    }
-
-    const url = new URL(req.url);
-    const limit = Math.min(parseInt(url.searchParams.get('limit')) || 50, 100);
-    const before = url.searchParams.get('before');
-
-    // Get messages for this room
-    const { blobs } = await chatStore.list({ prefix: `message_${roomId}_` });
-    
-    const messagePromises = blobs.map(async (blob) => {
-      try {
-        return await chatStore.get(blob.key, { type: "json" });
-      } catch (error) {
-        console.error(`Error loading message ${blob.key}:`, error);
-        return null;
-      }
-    });
-
-    const messages = await Promise.all(messagePromises);
-    const validMessages = messages.filter(Boolean);
-
-    // Sort by timestamp
-    validMessages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-
-    // Apply before filter if specified
-    let filteredMessages = validMessages;
-    if (before) {
-      filteredMessages = validMessages.filter(msg => new Date(msg.timestamp) < new Date(before));
-    }
-
-    // Apply limit
-    const limitedMessages = filteredMessages.slice(-limit);
-
-    return new Response(
-      JSON.stringify({
-        success: true,
-        messages: limitedMessages,
-        total: validMessages.length,
-        hasMore: filteredMessages.length > limit
-      }),
-      { status: 200, headers }
-    );
-
-  } catch (error) {
-    console.error("Get messages error:", error);
-    return new Response(
-      JSON.stringify({ error: "Failed to load messages" }),
-      { status: 500, headers }
-    );
-  }
-}
+// Core API Functions
 
 // Get user's rooms
 async function getUserRooms(req, chatStore, user, headers) {
   try {
-    const userRoomIds = await getUserRoomsList(chatStore, user.username);
+    const userRoomsList = await getUserRoomsList(chatStore, user.username);
     
-    const roomPromises = userRoomIds.map(async (roomId) => {
+    const roomPromises = userRoomsList.map(async (roomId) => {
       try {
-        return await chatStore.get(roomId, { type: "json" });
+        return await chatStore.get(`room_${roomId}`, { type: "json" });
       } catch (error) {
         console.error(`Error loading room ${roomId}:`, error);
         return null;
       }
     });
 
-    const rooms = await Promise.all(roomPromises);
-    const validRooms = rooms.filter(Boolean);
+    const allRooms = await Promise.all(roomPromises);
+    const validRooms = allRooms.filter(room => room !== null);
 
     // Sort by last activity
     validRooms.sort((a, b) => new Date(b.lastActivity || b.createdAt) - new Date(a.lastActivity || a.createdAt));
@@ -604,84 +281,76 @@ async function getPublicRooms(req, chatStore, user, headers) {
   }
 }
 
-// Invite user to room
-async function inviteUser(roomId, req, chatStore, user, headers) {
+// Create new room
+async function createRoom(req, chatStore, user, headers) {
   try {
-    const { username } = await req.json();
+    const { name, description, isPrivate } = await req.json();
 
-    if (!username) {
+    if (!name || name.length > CHAT_CONFIG.MAX_ROOM_NAME_LENGTH) {
       return new Response(
-        JSON.stringify({ error: "Username is required" }),
+        JSON.stringify({ error: "Invalid room name" }),
         { status: 400, headers }
       );
     }
 
-    const room = await chatStore.get(roomId, { type: "json" });
-    if (!room) {
+    if (description && description.length > CHAT_CONFIG.MAX_DESCRIPTION_LENGTH) {
       return new Response(
-        JSON.stringify({ error: "Room not found" }),
-        { status: 404, headers }
-      );
-    }
-
-    // Check permissions
-    if (room.createdBy !== user.username && !user.isAdmin) {
-      return new Response(
-        JSON.stringify({ error: "Only room creators can invite users" }),
-        { status: 403, headers }
-      );
-    }
-
-    // Check if user is already a member
-    if (room.members.includes(username)) {
-      return new Response(
-        JSON.stringify({ error: "User is already a member" }),
+        JSON.stringify({ error: "Description too long" }),
         { status: 400, headers }
       );
     }
 
-    // Add user to room
-    room.members.push(username);
-    room.lastActivity = new Date().toISOString();
-    await chatStore.set(roomId, JSON.stringify(room));
-
-    // Add room to user's room list
-    const userRooms = await getUserRoomsList(chatStore, username);
-    if (!userRooms.includes(roomId)) {
-      userRooms.push(roomId);
-      await chatStore.set(`user_rooms_${username}`, JSON.stringify(userRooms));
+    // Check user's room limit
+    const userRooms = await getUserRoomsList(chatStore, user.username);
+    if (userRooms.length >= CHAT_CONFIG.MAX_ROOMS_PER_USER) {
+      return new Response(
+        JSON.stringify({ error: "Room limit reached" }),
+        { status: 400, headers }
+      );
     }
+
+    // Create room
+    const roomId = generateId();
+    const room = {
+      id: roomId,
+      name,
+      description: description || "",
+      isPrivate: !!isPrivate,
+      createdBy: user.username,
+      createdAt: new Date().toISOString(),
+      lastActivity: new Date().toISOString(),
+      members: [user.username],
+      messageCount: 0,
+      archived: false
+    };
+
+    await chatStore.set(`room_${roomId}`, JSON.stringify(room));
+
+    // Add to user's room list
+    userRooms.push(roomId);
+    await chatStore.set(`user_rooms_${user.username}`, JSON.stringify(userRooms));
 
     return new Response(
       JSON.stringify({
         success: true,
-        message: `User ${username} invited successfully`
+        room
       }),
-      { status: 200, headers }
+      { status: 201, headers }
     );
 
   } catch (error) {
-    console.error("Invite user error:", error);
+    console.error("Create room error:", error);
     return new Response(
-      JSON.stringify({ error: "Failed to invite user" }),
+      JSON.stringify({ error: "Failed to create room" }),
       { status: 500, headers }
     );
   }
 }
 
-// Remove user from room
-async function removeUser(roomId, req, chatStore, user, headers) {
+// Join room
+async function joinRoom(roomId, req, chatStore, user, headers) {
   try {
-    const { username } = await req.json();
-
-    if (!username) {
-      return new Response(
-        JSON.stringify({ error: "Username is required" }),
-        { status: 400, headers }
-      );
-    }
-
-    const room = await chatStore.get(roomId, { type: "json" });
+    const room = await chatStore.get(`room_${roomId}`, { type: "json" });
     if (!room) {
       return new Response(
         JSON.stringify({ error: "Room not found" }),
@@ -689,44 +358,212 @@ async function removeUser(roomId, req, chatStore, user, headers) {
       );
     }
 
-    // Check permissions
-    if (room.createdBy !== user.username && !user.isAdmin) {
+    if (room.members.includes(user.username)) {
       return new Response(
-        JSON.stringify({ error: "Only room creators can remove users" }),
-        { status: 403, headers }
+        JSON.stringify({ success: true, room }),
+        { status: 200, headers }
       );
     }
 
-    // Can't remove room creator
-    if (username === room.createdBy) {
+    // Add user to room
+    room.members.push(user.username);
+    room.lastActivity = new Date().toISOString();
+    await chatStore.set(`room_${roomId}`, JSON.stringify(room));
+
+    // Add room to user's list
+    const userRooms = await getUserRoomsList(chatStore, user.username);
+    if (!userRooms.includes(roomId)) {
+      userRooms.push(roomId);
+      await chatStore.set(`user_rooms_${user.username}`, JSON.stringify(userRooms));
+    }
+
+    return new Response(
+      JSON.stringify({ success: true, room }),
+      { status: 200, headers }
+    );
+
+  } catch (error) {
+    console.error("Join room error:", error);
+    return new Response(
+      JSON.stringify({ error: "Failed to join room" }),
+      { status: 500, headers }
+    );
+  }
+}
+
+// Leave room
+async function leaveRoom(roomId, req, chatStore, user, headers) {
+  try {
+    const room = await chatStore.get(`room_${roomId}`, { type: "json" });
+    if (!room) {
       return new Response(
-        JSON.stringify({ error: "Cannot remove room creator" }),
-        { status: 400, headers }
+        JSON.stringify({ error: "Room not found" }),
+        { status: 404, headers }
       );
     }
 
     // Remove user from room
-    room.members = room.members.filter(member => member !== username);
-    room.lastActivity = new Date().toISOString();
-    await chatStore.set(roomId, JSON.stringify(room));
+    room.members = room.members.filter(member => member !== user.username);
+    
+    // If room is empty and not the creator's, delete it
+    if (room.members.length === 0 && room.createdBy !== user.username) {
+      await chatStore.delete(`room_${roomId}`);
+      await deleteRoomMessages(chatStore, roomId);
+    } else {
+      room.lastActivity = new Date().toISOString();
+      await chatStore.set(`room_${roomId}`, JSON.stringify(room));
+    }
 
-    // Remove room from user's room list
-    const userRooms = await getUserRoomsList(chatStore, username);
+    // Remove room from user's list
+    const userRooms = await getUserRoomsList(chatStore, user.username);
     const updatedUserRooms = userRooms.filter(id => id !== roomId);
-    await chatStore.set(`user_rooms_${username}`, JSON.stringify(updatedUserRooms));
+    await chatStore.set(`user_rooms_${user.username}`, JSON.stringify(updatedUserRooms));
+
+    return new Response(
+      JSON.stringify({ success: true }),
+      { status: 200, headers }
+    );
+
+  } catch (error) {
+    console.error("Leave room error:", error);
+    return new Response(
+      JSON.stringify({ error: "Failed to leave room" }),
+      { status: 500, headers }
+    );
+  }
+}
+
+// Get room messages
+async function getRoomMessages(roomId, req, chatStore, user, headers) {
+  try {
+    const room = await chatStore.get(`room_${roomId}`, { type: "json" });
+    if (!room) {
+      return new Response(
+        JSON.stringify({ error: "Room not found" }),
+        { status: 404, headers }
+      );
+    }
+
+    if (!room.members.includes(user.username)) {
+      return new Response(
+        JSON.stringify({ error: "Not a member of this room" }),
+        { status: 403, headers }
+      );
+    }
+
+    const url = new URL(req.url);
+    const limit = parseInt(url.searchParams.get('limit') || '50');
+    const before = url.searchParams.get('before');
+
+    const { blobs } = await chatStore.list({ prefix: `message_${roomId}_` });
+    
+    // Sort by timestamp (newest first)
+    const sortedBlobs = blobs.sort((a, b) => {
+      const timeA = a.key.split('_')[2];
+      const timeB = b.key.split('_')[2];
+      return timeB.localeCompare(timeA);
+    });
+
+    // Filter by 'before' parameter if provided
+    const filteredBlobs = before 
+      ? sortedBlobs.filter(blob => blob.key.split('_')[2] < before)
+      : sortedBlobs;
+
+    // Limit results
+    const limitedBlobs = filteredBlobs.slice(0, limit);
+
+    const messagePromises = limitedBlobs.map(async (blob) => {
+      try {
+        return await chatStore.get(blob.key, { type: "json" });
+      } catch (error) {
+        console.error(`Error loading message ${blob.key}:`, error);
+        return null;
+      }
+    });
+
+    const messages = await Promise.all(messagePromises);
+    const validMessages = messages.filter(msg => msg !== null);
+
+    // Reverse to get chronological order (oldest first)
+    validMessages.reverse();
 
     return new Response(
       JSON.stringify({
         success: true,
-        message: `User ${username} removed successfully`
+        messages: validMessages,
+        hasMore: filteredBlobs.length > limit
       }),
       { status: 200, headers }
     );
 
   } catch (error) {
-    console.error("Remove user error:", error);
+    console.error("Get room messages error:", error);
     return new Response(
-      JSON.stringify({ error: "Failed to remove user" }),
+      JSON.stringify({ error: "Failed to load messages" }),
+      { status: 500, headers }
+    );
+  }
+}
+
+// Send message
+async function sendMessage(roomId, req, chatStore, user, headers) {
+  try {
+    const { content } = await req.json();
+
+    if (!content || content.length > CHAT_CONFIG.MAX_MESSAGE_LENGTH) {
+      return new Response(
+        JSON.stringify({ error: "Invalid message content" }),
+        { status: 400, headers }
+      );
+    }
+
+    const room = await chatStore.get(`room_${roomId}`, { type: "json" });
+    if (!room) {
+      return new Response(
+        JSON.stringify({ error: "Room not found" }),
+        { status: 404, headers }
+      );
+    }
+
+    if (!room.members.includes(user.username)) {
+      return new Response(
+        JSON.stringify({ error: "Not a member of this room" }),
+        { status: 403, headers }
+      );
+    }
+
+    // Create message
+    const timestamp = new Date().toISOString();
+    const messageId = generateId();
+    const message = {
+      id: messageId,
+      roomId,
+      content,
+      author: user.username,
+      authorDisplayName: user.displayName || user.username,
+      createdAt: timestamp,
+      edited: false
+    };
+
+    await chatStore.set(`message_${roomId}_${timestamp}_${messageId}`, JSON.stringify(message));
+
+    // Update room activity
+    room.lastActivity = timestamp;
+    room.messageCount = (room.messageCount || 0) + 1;
+    await chatStore.set(`room_${roomId}`, JSON.stringify(room));
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        message
+      }),
+      { status: 201, headers }
+    );
+
+  } catch (error) {
+    console.error("Send message error:", error);
+    return new Response(
+      JSON.stringify({ error: "Failed to send message" }),
       { status: 500, headers }
     );
   }
@@ -753,6 +590,11 @@ async function deleteRoomMessages(chatStore, roomId) {
   } catch (error) {
     console.error("Error deleting room messages:", error);
   }
+}
+
+// Generate unique ID
+function generateId() {
+  return Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
 }
 
 // Placeholder implementations for remaining endpoints
@@ -817,3 +659,122 @@ async function deleteRoom(roomId, req, chatStore, user, headers) {
     JSON.stringify({ error: "Room deletion not implemented yet" }),
     { status: 501, headers }
   );
+}
+
+async function inviteUser(roomId, req, chatStore, user, headers) {
+  try {
+    const { username } = await req.json();
+
+    if (!username) {
+      return new Response(
+        JSON.stringify({ error: "Username is required" }),
+        { status: 400, headers }
+      );
+    }
+
+    const room = await chatStore.get(`room_${roomId}`, { type: "json" });
+    if (!room) {
+      return new Response(
+        JSON.stringify({ error: "Room not found" }),
+        { status: 404, headers }
+      );
+    }
+
+    // Check permissions
+    if (room.createdBy !== user.username && !user.isAdmin) {
+      return new Response(
+        JSON.stringify({ error: "Only room creators can invite users" }),
+        { status: 403, headers }
+      );
+    }
+
+    // Check if user is already a member
+    if (room.members.includes(username)) {
+      return new Response(
+        JSON.stringify({ error: "User is already a member" }),
+        { status: 400, headers }
+      );
+    }
+
+    // Add user to room
+    room.members.push(username);
+    room.lastActivity = new Date().toISOString();
+    await chatStore.set(`room_${roomId}`, JSON.stringify(room));
+
+    // Add room to user's list
+    const userRooms = await getUserRoomsList(chatStore, username);
+    if (!userRooms.includes(roomId)) {
+      userRooms.push(roomId);
+      await chatStore.set(`user_rooms_${username}`, JSON.stringify(userRooms));
+    }
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        message: "User invited successfully"
+      }),
+      { status: 200, headers }
+    );
+
+  } catch (error) {
+    console.error("Invite user error:", error);
+    return new Response(
+      JSON.stringify({ error: "Failed to invite user" }),
+      { status: 500, headers }
+    );
+  }
+}
+
+async function removeUser(roomId, req, chatStore, user, headers) {
+  try {
+    const { username } = await req.json();
+
+    if (!username) {
+      return new Response(
+        JSON.stringify({ error: "Username is required" }),
+        { status: 400, headers }
+      );
+    }
+
+    const room = await chatStore.get(`room_${roomId}`, { type: "json" });
+    if (!room) {
+      return new Response(
+        JSON.stringify({ error: "Room not found" }),
+        { status: 404, headers }
+      );
+    }
+
+    // Check permissions
+    if (room.createdBy !== user.username && !user.isAdmin) {
+      return new Response(
+        JSON.stringify({ error: "Only room creators can remove users" }),
+        { status: 403, headers }
+      );
+    }
+
+    // Remove user from room
+    room.members = room.members.filter(member => member !== username);
+    room.lastActivity = new Date().toISOString();
+    await chatStore.set(`room_${roomId}`, JSON.stringify(room));
+
+    // Remove room from user's list
+    const userRooms = await getUserRoomsList(chatStore, username);
+    const updatedUserRooms = userRooms.filter(id => id !== roomId);
+    await chatStore.set(`user_rooms_${username}`, JSON.stringify(updatedUserRooms));
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        message: "User removed successfully"
+      }),
+      { status: 200, headers }
+    );
+
+  } catch (error) {
+    console.error("Remove user error:", error);
+    return new Response(
+      JSON.stringify({ error: "Failed to remove user" }),
+      { status: 500, headers }
+    );
+  }
+}
