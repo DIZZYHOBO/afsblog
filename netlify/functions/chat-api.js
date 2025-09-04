@@ -1,5 +1,5 @@
-// netlify/functions/chat-api.js - Complete CommonJS Chat system backend API
-const { getStore } = require("@netlify/blobs");
+// netlify/functions/chat-api.js - Complete ESM Chat system backend API
+import { getStore } from "@netlify/blobs";
 
 // Chat API configuration
 const CHAT_CONFIG = {
@@ -11,9 +11,19 @@ const CHAT_CONFIG = {
   ROOM_INACTIVE_DAYS: 30
 };
 
-const handler = async (req, context) => {
-  const chatStore = getStore("chat-data");
-  const blogStore = getStore("blog-data"); // For user authentication
+export default async (req, context) => {
+  // Use the context object provided by Netlify - this contains the necessary configuration
+  const chatStore = getStore({
+    name: "chat-data",
+    siteID: context.site?.id || process.env.SITE_ID,
+    token: context.token || process.env.NETLIFY_AUTH_TOKEN
+  });
+  
+  const blogStore = getStore({
+    name: "blog-data",
+    siteID: context.site?.id || process.env.SITE_ID,
+    token: context.token || process.env.NETLIFY_AUTH_TOKEN
+  });
   
   const headers = {
     "Access-Control-Allow-Origin": "*",
@@ -32,37 +42,76 @@ const handler = async (req, context) => {
     
     // Remove 'chat-api' from path if present
     const apiIndex = pathParts.indexOf('chat-api');
-    const path = apiIndex !== -1 ? pathParts.slice(apiIndex + 1) : pathParts;
+    const path = apiIndex !== -1 ? 
+      pathParts.slice(apiIndex + 1).join('/') : 
+      pathParts.join('/');
 
-    console.log(`Chat API called: ${req.method} ${path.join('/')}`);
+    // Helper function to get authenticated user
+    async function getAuthenticatedUser(req) {
+      const authHeader = req.headers.get('authorization');
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return null;
+      }
 
-    // Validate authentication for all routes
-    const authResult = await validateChatAuth(req, blogStore);
-    if (!authResult.valid) {
-      return new Response(
-        JSON.stringify({ error: authResult.error }),
-        { status: authResult.status, headers }
-      );
+      const token = authHeader.substring(7);
+      const session = await blogStore.get(`session_${token}`, { type: "json" });
+      
+      if (!session || new Date(session.expiresAt) < new Date()) {
+        return null;
+      }
+
+      const user = await blogStore.get(`user_${session.username}`, { type: "json" });
+      return user;
     }
 
-    const user = authResult.user;
+    // Check authentication for protected routes
+    const publicRoutes = ['rooms/public'];
+    const requiresAuth = !publicRoutes.includes(path);
+    
+    let user = null;
+    if (requiresAuth) {
+      user = await getAuthenticatedUser(req);
+      if (!user) {
+        return new Response(
+          JSON.stringify({ error: "Authentication required" }),
+          { status: 401, headers }
+        );
+      }
+    }
 
     // Route handling
-    switch (req.method) {
-      case 'GET':
-        return await handleChatGet(path, req, chatStore, user, headers);
-      case 'POST':
-        return await handleChatPost(path, req, chatStore, user, headers);
-      case 'PUT':
-        return await handleChatPut(path, req, chatStore, user, headers);
-      case 'DELETE':
-        return await handleChatDelete(path, req, chatStore, user, headers);
-      default:
-        return new Response(
-          JSON.stringify({ error: "Method not allowed" }),
-          { status: 405, headers }
-        );
+    if (path === 'user/rooms' && req.method === 'GET') {
+      return await getUserRooms(chatStore, user, headers);
     }
+
+    if (path === 'rooms' && req.method === 'POST') {
+      return await createRoom(req, chatStore, user, headers);
+    }
+
+    if (path.startsWith('rooms/') && path.endsWith('/join') && req.method === 'POST') {
+      const roomId = path.split('/')[1];
+      return await joinRoom(roomId, chatStore, user, headers);
+    }
+
+    if (path.startsWith('rooms/') && path.endsWith('/leave') && req.method === 'POST') {
+      const roomId = path.split('/')[1];
+      return await leaveRoom(roomId, chatStore, user, headers);
+    }
+
+    if (path.startsWith('rooms/') && path.endsWith('/messages') && req.method === 'GET') {
+      const roomId = path.split('/')[1];
+      return await getRoomMessages(roomId, req, chatStore, user, headers);
+    }
+
+    if (path.startsWith('rooms/') && path.endsWith('/messages') && req.method === 'POST') {
+      const roomId = path.split('/')[1];
+      return await sendMessage(roomId, req, chatStore, user, headers);
+    }
+
+    return new Response(
+      JSON.stringify({ error: "Not found" }),
+      { status: 404, headers }
+    );
 
   } catch (error) {
     console.error("Chat API error:", error);
@@ -76,157 +125,45 @@ const handler = async (req, context) => {
   }
 };
 
-// Authentication validation
-async function validateChatAuth(req, blogStore) {
-  const authHeader = req.headers.get("Authorization");
-  
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    return { valid: false, error: "Authentication required", status: 401 };
-  }
-
-  try {
-    // Get current user from blog store (adapt this to your auth system)
-    const currentUser = await blogStore.get('current_user', { type: "json" });
-    
-    if (!currentUser || !currentUser.username) {
-      return { valid: false, error: "Invalid authentication", status: 401 };
-    }
-
-    // Get full user profile
-    const userProfile = await blogStore.get(`user_${currentUser.username}`, { type: "json" });
-    
-    if (!userProfile) {
-      return { valid: false, error: "User not found", status: 404 };
-    }
-
-    return { valid: true, user: userProfile };
-  } catch (error) {
-    console.error("Auth validation error:", error);
-    return { valid: false, error: "Authentication error", status: 500 };
-  }
+// Helper function to generate unique IDs
+function generateId() {
+  return `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 }
-
-// GET request handler
-async function handleChatGet(path, req, chatStore, user, headers) {
-  if (path[0] === 'user' && path[1] === 'rooms') {
-    return await getUserRooms(req, chatStore, user, headers);
-  }
-  
-  if (path[0] === 'rooms') {
-    if (path[1] === 'public') {
-      return await getPublicRooms(req, chatStore, user, headers);
-    }
-    if (path[1] === 'search') {
-      return await searchRooms(req, chatStore, user, headers);
-    }
-    if (path[1] && path[2] === 'messages') {
-      return await getRoomMessages(path[1], req, chatStore, user, headers);
-    }
-    if (path[1] && path[2] === 'stats') {
-      return await getRoomStats(path[1], req, chatStore, user, headers);
-    }
-    if (path[1] && path[2] === 'activity') {
-      return await getRoomActivity(path[1], req, chatStore, user, headers);
-    }
-  }
-
-  return new Response(
-    JSON.stringify({ error: "Endpoint not found" }),
-    { status: 404, headers }
-  );
-}
-
-// POST request handler
-async function handleChatPost(path, req, chatStore, user, headers) {
-  if (path[0] === 'rooms') {
-    if (path[1] === 'create') {
-      return await createRoom(req, chatStore, user, headers);
-    }
-    if (path[1] === 'join-by-code') {
-      return await joinRoomByCode(req, chatStore, user, headers);
-    }
-    if (path[1] === 'bulk') {
-      return await bulkManageRooms(req, chatStore, user, headers);
-    }
-    if (path[1] && path[2] === 'join') {
-      return await joinRoom(path[1], req, chatStore, user, headers);
-    }
-    if (path[1] && path[2] === 'leave') {
-      return await leaveRoom(path[1], req, chatStore, user, headers);
-    }
-    if (path[1] && path[2] === 'messages') {
-      return await sendMessage(path[1], req, chatStore, user, headers);
-    }
-    if (path[1] && path[2] === 'invite') {
-      return await inviteUser(path[1], req, chatStore, user, headers);
-    }
-    if (path[1] && path[2] === 'remove') {
-      return await removeUser(path[1], req, chatStore, user, headers);
-    }
-    if (path[1] && path[2] === 'invite-code') {
-      return await generateInviteCode(path[1], req, chatStore, user, headers);
-    }
-    if (path[1] && path[2] === 'archive') {
-      return await toggleRoomArchive(path[1], req, chatStore, user, headers);
-    }
-  }
-
-  return new Response(
-    JSON.stringify({ error: "Endpoint not found" }),
-    { status: 404, headers }
-  );
-}
-
-// PUT request handler
-async function handleChatPut(path, req, chatStore, user, headers) {
-  if (path[0] === 'rooms' && path[1] && path[2] === 'settings') {
-    return await updateRoomSettings(path[1], req, chatStore, user, headers);
-  }
-
-  return new Response(
-    JSON.stringify({ error: "Endpoint not found" }),
-    { status: 404, headers }
-  );
-}
-
-// DELETE request handler
-async function handleChatDelete(path, req, chatStore, user, headers) {
-  if (path[0] === 'rooms' && path[1]) {
-    return await deleteRoom(path[1], req, chatStore, user, headers);
-  }
-
-  return new Response(
-    JSON.stringify({ error: "Endpoint not found" }),
-    { status: 404, headers }
-  );
-}
-
-// Core API Functions
 
 // Get user's rooms
-async function getUserRooms(req, chatStore, user, headers) {
+async function getUserRooms(chatStore, user, headers) {
   try {
-    const userRoomsList = await getUserRoomsList(chatStore, user.username);
+    const userRooms = await chatStore.get(`user_rooms_${user.username}`, { type: "json" }) || [];
     
-    const roomPromises = userRoomsList.map(async (roomId) => {
-      try {
-        return await chatStore.get(`room_${roomId}`, { type: "json" });
-      } catch (error) {
-        console.error(`Error loading room ${roomId}:`, error);
-        return null;
+    const roomPromises = userRooms.map(async (roomId) => {
+      const room = await chatStore.get(`room_${roomId}`, { type: "json" });
+      if (!room) return null;
+      
+      // Get last message
+      const { blobs } = await chatStore.list({ 
+        prefix: `message_${roomId}_`,
+        limit: 1
+      });
+      
+      let lastMessage = null;
+      if (blobs.length > 0) {
+        lastMessage = await chatStore.get(blobs[0].key, { type: "json" });
       }
+
+      return {
+        ...room,
+        lastMessage,
+        unreadCount: 0 // TODO: Implement read receipts
+      };
     });
 
-    const allRooms = await Promise.all(roomPromises);
-    const validRooms = allRooms.filter(room => room !== null);
-
-    // Sort by last activity
-    validRooms.sort((a, b) => new Date(b.lastActivity || b.createdAt) - new Date(a.lastActivity || a.createdAt));
+    const rooms = await Promise.all(roomPromises);
+    const validRooms = rooms.filter(room => room !== null);
 
     return new Response(
-      JSON.stringify({
-        success: true,
-        rooms: validRooms
+      JSON.stringify({ 
+        success: true, 
+        rooms: validRooms 
       }),
       { status: 200, headers }
     );
@@ -240,51 +177,10 @@ async function getUserRooms(req, chatStore, user, headers) {
   }
 }
 
-// Get public rooms
-async function getPublicRooms(req, chatStore, user, headers) {
-  try {
-    const { blobs } = await chatStore.list({ prefix: "room_" });
-    
-    const roomPromises = blobs.map(async (blob) => {
-      try {
-        return await chatStore.get(blob.key, { type: "json" });
-      } catch (error) {
-        console.error(`Error loading room ${blob.key}:`, error);
-        return null;
-      }
-    });
-
-    const allRooms = await Promise.all(roomPromises);
-    const publicRooms = allRooms.filter(room => room && !room.isPrivate && !room.archived);
-
-    // Sort by member count and activity
-    publicRooms.sort((a, b) => {
-      const aScore = (a.members?.length || 0) + (new Date(a.lastActivity || a.createdAt).getTime() / 1000000);
-      const bScore = (b.members?.length || 0) + (new Date(b.lastActivity || b.createdAt).getTime() / 1000000);
-      return bScore - aScore;
-    });
-
-    return new Response(
-      JSON.stringify({
-        success: true,
-        rooms: publicRooms
-      }),
-      { status: 200, headers }
-    );
-
-  } catch (error) {
-    console.error("Get public rooms error:", error);
-    return new Response(
-      JSON.stringify({ error: "Failed to load public rooms" }),
-      { status: 500, headers }
-    );
-  }
-}
-
-// Create new room
+// Create room
 async function createRoom(req, chatStore, user, headers) {
   try {
-    const { name, description, isPrivate } = await req.json();
+    const { name, description = "", isPrivate = false } = await req.json();
 
     if (!name || name.length > CHAT_CONFIG.MAX_ROOM_NAME_LENGTH) {
       return new Response(
@@ -293,7 +189,7 @@ async function createRoom(req, chatStore, user, headers) {
       );
     }
 
-    if (description && description.length > CHAT_CONFIG.MAX_DESCRIPTION_LENGTH) {
+    if (description.length > CHAT_CONFIG.MAX_DESCRIPTION_LENGTH) {
       return new Response(
         JSON.stringify({ error: "Description too long" }),
         { status: 400, headers }
@@ -301,7 +197,7 @@ async function createRoom(req, chatStore, user, headers) {
     }
 
     // Check user's room limit
-    const userRooms = await getUserRoomsList(chatStore, user.username);
+    const userRooms = await chatStore.get(`user_rooms_${user.username}`, { type: "json" }) || [];
     if (userRooms.length >= CHAT_CONFIG.MAX_ROOMS_PER_USER) {
       return new Response(
         JSON.stringify({ error: "Room limit reached" }),
@@ -309,32 +205,33 @@ async function createRoom(req, chatStore, user, headers) {
       );
     }
 
-    // Create room
     const roomId = generateId();
     const room = {
       id: roomId,
       name,
-      description: description || "",
-      isPrivate: !!isPrivate,
-      createdBy: user.username,
-      createdAt: new Date().toISOString(),
-      lastActivity: new Date().toISOString(),
+      description,
+      owner: user.username,
       members: [user.username],
-      messageCount: 0,
-      archived: false
+      isPrivate,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
     };
 
     await chatStore.set(`room_${roomId}`, JSON.stringify(room));
-
-    // Add to user's room list
+    
+    // Add to user's rooms
     userRooms.push(roomId);
     await chatStore.set(`user_rooms_${user.username}`, JSON.stringify(userRooms));
 
+    // Add to public rooms index if not private
+    if (!isPrivate) {
+      const publicRooms = await chatStore.get('public_rooms', { type: "json" }) || [];
+      publicRooms.push(roomId);
+      await chatStore.set('public_rooms', JSON.stringify(publicRooms));
+    }
+
     return new Response(
-      JSON.stringify({
-        success: true,
-        room
-      }),
+      JSON.stringify({ success: true, room }),
       { status: 201, headers }
     );
 
@@ -348,7 +245,7 @@ async function createRoom(req, chatStore, user, headers) {
 }
 
 // Join room
-async function joinRoom(roomId, req, chatStore, user, headers) {
+async function joinRoom(roomId, chatStore, user, headers) {
   try {
     const room = await chatStore.get(`room_${roomId}`, { type: "json" });
     if (!room) {
@@ -360,22 +257,20 @@ async function joinRoom(roomId, req, chatStore, user, headers) {
 
     if (room.members.includes(user.username)) {
       return new Response(
-        JSON.stringify({ success: true, room }),
-        { status: 200, headers }
+        JSON.stringify({ error: "Already a member" }),
+        { status: 400, headers }
       );
     }
 
     // Add user to room
     room.members.push(user.username);
-    room.lastActivity = new Date().toISOString();
+    room.updatedAt = new Date().toISOString();
     await chatStore.set(`room_${roomId}`, JSON.stringify(room));
 
-    // Add room to user's list
-    const userRooms = await getUserRoomsList(chatStore, user.username);
-    if (!userRooms.includes(roomId)) {
-      userRooms.push(roomId);
-      await chatStore.set(`user_rooms_${user.username}`, JSON.stringify(userRooms));
-    }
+    // Add room to user's rooms
+    const userRooms = await chatStore.get(`user_rooms_${user.username}`, { type: "json" }) || [];
+    userRooms.push(roomId);
+    await chatStore.set(`user_rooms_${user.username}`, JSON.stringify(userRooms));
 
     return new Response(
       JSON.stringify({ success: true, room }),
@@ -392,7 +287,7 @@ async function joinRoom(roomId, req, chatStore, user, headers) {
 }
 
 // Leave room
-async function leaveRoom(roomId, req, chatStore, user, headers) {
+async function leaveRoom(roomId, chatStore, user, headers) {
   try {
     const room = await chatStore.get(`room_${roomId}`, { type: "json" });
     if (!room) {
@@ -402,20 +297,28 @@ async function leaveRoom(roomId, req, chatStore, user, headers) {
       );
     }
 
-    // Remove user from room
-    room.members = room.members.filter(member => member !== user.username);
-    
-    // If room is empty and not the creator's, delete it
-    if (room.members.length === 0 && room.createdBy !== user.username) {
-      await chatStore.delete(`room_${roomId}`);
-      await deleteRoomMessages(chatStore, roomId);
-    } else {
-      room.lastActivity = new Date().toISOString();
-      await chatStore.set(`room_${roomId}`, JSON.stringify(room));
+    if (!room.members.includes(user.username)) {
+      return new Response(
+        JSON.stringify({ error: "Not a member" }),
+        { status: 400, headers }
+      );
     }
 
-    // Remove room from user's list
-    const userRooms = await getUserRoomsList(chatStore, user.username);
+    // Don't allow owner to leave
+    if (room.owner === user.username) {
+      return new Response(
+        JSON.stringify({ error: "Owner cannot leave room" }),
+        { status: 400, headers }
+      );
+    }
+
+    // Remove user from room
+    room.members = room.members.filter(member => member !== user.username);
+    room.updatedAt = new Date().toISOString();
+    await chatStore.set(`room_${roomId}`, JSON.stringify(room));
+
+    // Remove room from user's rooms
+    const userRooms = await chatStore.get(`user_rooms_${user.username}`, { type: "json" }) || [];
     const updatedUserRooms = userRooms.filter(id => id !== roomId);
     await chatStore.set(`user_rooms_${user.username}`, JSON.stringify(updatedUserRooms));
 
@@ -547,16 +450,12 @@ async function sendMessage(roomId, req, chatStore, user, headers) {
 
     await chatStore.set(`message_${roomId}_${timestamp}_${messageId}`, JSON.stringify(message));
 
-    // Update room activity
-    room.lastActivity = timestamp;
-    room.messageCount = (room.messageCount || 0) + 1;
+    // Update room's last activity
+    room.updatedAt = timestamp;
     await chatStore.set(`room_${roomId}`, JSON.stringify(room));
 
     return new Response(
-      JSON.stringify({
-        success: true,
-        message
-      }),
+      JSON.stringify({ success: true, message }),
       { status: 201, headers }
     );
 
@@ -568,218 +467,3 @@ async function sendMessage(roomId, req, chatStore, user, headers) {
     );
   }
 }
-
-// Invite user to room
-async function inviteUser(roomId, req, chatStore, user, headers) {
-  try {
-    const { username } = await req.json();
-
-    if (!username) {
-      return new Response(
-        JSON.stringify({ error: "Username is required" }),
-        { status: 400, headers }
-      );
-    }
-
-    const room = await chatStore.get(`room_${roomId}`, { type: "json" });
-    if (!room) {
-      return new Response(
-        JSON.stringify({ error: "Room not found" }),
-        { status: 404, headers }
-      );
-    }
-
-    // Check permissions
-    if (room.createdBy !== user.username && !user.isAdmin) {
-      return new Response(
-        JSON.stringify({ error: "Only room creators can invite users" }),
-        { status: 403, headers }
-      );
-    }
-
-    // Check if user is already a member
-    if (room.members.includes(username)) {
-      return new Response(
-        JSON.stringify({ error: "User is already a member" }),
-        { status: 400, headers }
-      );
-    }
-
-    // Add user to room
-    room.members.push(username);
-    room.lastActivity = new Date().toISOString();
-    await chatStore.set(`room_${roomId}`, JSON.stringify(room));
-
-    // Add room to user's list
-    const userRooms = await getUserRoomsList(chatStore, username);
-    if (!userRooms.includes(roomId)) {
-      userRooms.push(roomId);
-      await chatStore.set(`user_rooms_${username}`, JSON.stringify(userRooms));
-    }
-
-    return new Response(
-      JSON.stringify({
-        success: true,
-        message: "User invited successfully"
-      }),
-      { status: 200, headers }
-    );
-
-  } catch (error) {
-    console.error("Invite user error:", error);
-    return new Response(
-      JSON.stringify({ error: "Failed to invite user" }),
-      { status: 500, headers }
-    );
-  }
-}
-
-// Remove user from room
-async function removeUser(roomId, req, chatStore, user, headers) {
-  try {
-    const { username } = await req.json();
-
-    if (!username) {
-      return new Response(
-        JSON.stringify({ error: "Username is required" }),
-        { status: 400, headers }
-      );
-    }
-
-    const room = await chatStore.get(`room_${roomId}`, { type: "json" });
-    if (!room) {
-      return new Response(
-        JSON.stringify({ error: "Room not found" }),
-        { status: 404, headers }
-      );
-    }
-
-    // Check permissions
-    if (room.createdBy !== user.username && !user.isAdmin) {
-      return new Response(
-        JSON.stringify({ error: "Only room creators can remove users" }),
-        { status: 403, headers }
-      );
-    }
-
-    // Remove user from room
-    room.members = room.members.filter(member => member !== username);
-    room.lastActivity = new Date().toISOString();
-    await chatStore.set(`room_${roomId}`, JSON.stringify(room));
-
-    // Remove room from user's list
-    const userRooms = await getUserRoomsList(chatStore, username);
-    const updatedUserRooms = userRooms.filter(id => id !== roomId);
-    await chatStore.set(`user_rooms_${username}`, JSON.stringify(updatedUserRooms));
-
-    return new Response(
-      JSON.stringify({
-        success: true,
-        message: "User removed successfully"
-      }),
-      { status: 200, headers }
-    );
-
-  } catch (error) {
-    console.error("Remove user error:", error);
-    return new Response(
-      JSON.stringify({ error: "Failed to remove user" }),
-      { status: 500, headers }
-    );
-  }
-}
-
-// Helper functions
-async function getUserRoomsList(chatStore, username) {
-  try {
-    const userRooms = await chatStore.get(`user_rooms_${username}`, { type: "json" });
-    return userRooms || [];
-  } catch (error) {
-    return [];
-  }
-}
-
-async function deleteRoomMessages(chatStore, roomId) {
-  try {
-    const { blobs } = await chatStore.list({ prefix: `message_${roomId}_` });
-    
-    const deletePromises = blobs.map(blob => chatStore.delete(blob.key));
-    await Promise.all(deletePromises);
-    
-    console.log(`Deleted ${blobs.length} messages for room ${roomId}`);
-  } catch (error) {
-    console.error("Error deleting room messages:", error);
-  }
-}
-
-// Generate unique ID
-function generateId() {
-  return Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
-}
-
-// Placeholder implementations for remaining endpoints
-async function searchRooms(req, chatStore, user, headers) {
-  return new Response(
-    JSON.stringify({ success: true, rooms: [] }),
-    { status: 200, headers }
-  );
-}
-
-async function getRoomStats(roomId, req, chatStore, user, headers) {
-  return new Response(
-    JSON.stringify({ success: true, stats: {} }),
-    { status: 200, headers }
-  );
-}
-
-async function getRoomActivity(roomId, req, chatStore, user, headers) {
-  return new Response(
-    JSON.stringify({ success: true, activity: {} }),
-    { status: 200, headers }
-  );
-}
-
-async function joinRoomByCode(req, chatStore, user, headers) {
-  return new Response(
-    JSON.stringify({ error: "Invite codes not implemented yet" }),
-    { status: 501, headers }
-  );
-}
-
-async function bulkManageRooms(req, chatStore, user, headers) {
-  return new Response(
-    JSON.stringify({ error: "Bulk operations not implemented yet" }),
-    { status: 501, headers }
-  );
-}
-
-async function generateInviteCode(roomId, req, chatStore, user, headers) {
-  return new Response(
-    JSON.stringify({ error: "Invite codes not implemented yet" }),
-    { status: 501, headers }
-  );
-}
-
-async function toggleRoomArchive(roomId, req, chatStore, user, headers) {
-  return new Response(
-    JSON.stringify({ error: "Room archiving not implemented yet" }),
-    { status: 501, headers }
-  );
-}
-
-async function updateRoomSettings(roomId, req, chatStore, user, headers) {
-  return new Response(
-    JSON.stringify({ error: "Room settings update not implemented yet" }),
-    { status: 501, headers }
-  );
-}
-
-async function deleteRoom(roomId, req, chatStore, user, headers) {
-  return new Response(
-    JSON.stringify({ error: "Room deletion not implemented yet" }),
-    { status: 501, headers }
-  );
-}
-
-// Export the handler
-module.exports = { handler };
