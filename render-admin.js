@@ -1,307 +1,438 @@
-// render-admin.js - Admin UI rendering functions - UPDATED: Private posts removed from admin view
+// admin.js - Admin functionality - UPDATED: Private post access removed
 
-// Admin page rendering and functionality
-async function renderAdminPage() {
-    if (!currentUser?.profile?.isAdmin) {
-        const accessDeniedHtml = `
-            <div class="feature-placeholder">
-                <h3>🚫 Access Denied</h3>
-                <p>You need administrator privileges to access this page.</p>
-                <button class="btn" onclick="navigateToFeed()">Return to Feed</button>
-            </div>
-        `;
-        updateFeedContent(accessDeniedHtml);
+// Admin stats loading
+async function loadAdminStats() {
+    try {
+        // Load actual approved users (not pending ones)
+        const userKeys = await blobAPI.list('user_');
+        const actualUserKeys = userKeys.filter(key => key.startsWith('user_') && !key.startsWith('user_follows_'));
+        
+        // Load and validate users to avoid counting invalid entries
+        const userPromises = actualUserKeys.map(async (key) => {
+            try {
+                const user = await blobAPI.get(key);
+                return user && user.username ? user : null;
+            } catch (error) {
+                return null;
+            }
+        });
+        
+        const validUsers = await Promise.all(userPromises);
+        const uniqueUsers = validUsers.filter(Boolean);
+        
+        // Remove duplicates based on username
+        const finalUsers = uniqueUsers.reduce((acc, user) => {
+            const existing = acc.find(u => u.username === user.username);
+            if (!existing) {
+                acc.push(user);
+            }
+            return acc;
+        }, []);
+        
+        const pendingUserKeys = await blobAPI.list('pending_user_');
+        const postKeys = await blobAPI.list('post_');
+        
+        // UPDATED: Only count PUBLIC posts for admin stats
+        const publicPostCount = posts.filter(post => !post.isPrivate).length;
+        
+        const communityKeys = await blobAPI.list('community_');
+
+        // Update the old admin panel stats if they exist
+        const totalUsersEl = document.getElementById('totalUsers');
+        const pendingUsersEl = document.getElementById('pendingUsers');
+        const totalPostsEl = document.getElementById('totalPosts');
+        const totalCommunitiesEl = document.getElementById('totalCommunities');
+        
+        if (totalUsersEl) totalUsersEl.textContent = finalUsers.length;
+        if (pendingUsersEl) pendingUsersEl.textContent = pendingUserKeys.length;
+        if (totalPostsEl) totalPostsEl.textContent = publicPostCount; // Only public posts
+        if (totalCommunitiesEl) totalCommunitiesEl.textContent = communityKeys.length;
+        
+        // Update the new admin page stats if they exist
+        const adminTotalUsersEl = document.getElementById('adminTotalUsers');
+        const adminPendingUsersEl = document.getElementById('adminPendingUsers');
+        const adminTotalPostsEl = document.getElementById('adminTotalPosts');
+        const adminTotalCommunitiesEl = document.getElementById('adminTotalCommunities');
+        
+        if (adminTotalUsersEl) adminTotalUsersEl.textContent = finalUsers.length;
+        if (adminPendingUsersEl) adminPendingUsersEl.textContent = pendingUserKeys.length;
+        if (adminTotalPostsEl) adminTotalPostsEl.textContent = publicPostCount; // Only public posts
+        if (adminTotalCommunitiesEl) adminTotalCommunitiesEl.textContent = communityKeys.length;
+        
+        console.log(`Admin stats: ${finalUsers.length} users, ${pendingUserKeys.length} pending, ${publicPostCount} public posts, ${communityKeys.length} communities`);
+        
+    } catch (error) {
+        console.error('Error loading admin stats:', error);
+    }
+}
+
+// Load pending users list (make sure we only get pending users, not approved ones)
+async function loadPendingUsersList() {
+    try {
+        const pendingKeys = await blobAPI.list('pending_user_');
+        console.log(`Found ${pendingKeys.length} pending user keys:`, pendingKeys);
+        
+        const pendingPromises = pendingKeys.map(async (key) => {
+            try {
+                const user = await blobAPI.get(key);
+                if (user && user.username && user.status === 'pending') {
+                    return { ...user, key };
+                }
+                return null;
+            } catch (error) {
+                console.error(`Error loading pending user ${key}:`, error);
+                return null;
+            }
+        });
+        
+        const pendingUsers = await Promise.all(pendingPromises);
+        const validPendingUsers = pendingUsers.filter(Boolean);
+        
+        console.log(`Loaded ${validPendingUsers.length} valid pending users`);
+        return validPendingUsers.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    } catch (error) {
+        console.error('Error loading pending users:', error);
+        return [];
+    }
+}
+
+// Load all users list (only approved users, not pending ones)
+async function loadAllUsersList() {
+    try {
+        const userKeys = await blobAPI.list('user_');
+        // Filter out any keys that might be pending users or other data
+        const actualUserKeys = userKeys.filter(key => key.startsWith('user_') && !key.startsWith('user_follows_'));
+        
+        const userPromises = actualUserKeys.map(async (key) => {
+            try {
+                const user = await blobAPI.get(key);
+                if (user && user.username) { // Only include valid user objects
+                    return { ...user, key };
+                }
+                return null;
+            } catch (error) {
+                console.error(`Error loading user ${key}:`, error);
+                return null;
+            }
+        });
+        
+        const allUsers = await Promise.all(userPromises);
+        const validUsers = allUsers.filter(Boolean);
+        
+        // Remove duplicates based on username
+        const uniqueUsers = validUsers.reduce((acc, user) => {
+            const existing = acc.find(u => u.username === user.username);
+            if (!existing) {
+                acc.push(user);
+            }
+            return acc;
+        }, []);
+        
+        console.log(`Loaded ${uniqueUsers.length} unique users from ${actualUserKeys.length} user keys`);
+        return uniqueUsers.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+    } catch (error) {
+        console.error('Error loading all users:', error);
+        return [];
+    }
+}
+
+// Load all communities list
+async function loadAllCommunitiesList() {
+    return communities; // We already have this loaded
+}
+
+// Admin actions
+async function approveUser(username, pendingKey) {
+    if (!confirm(`Approve user @${username}?`)) return;
+    
+    try {
+        // Get pending user data
+        const pendingUser = await blobAPI.get(pendingKey);
+        if (!pendingUser) {
+            showSuccessMessage('Pending user not found');
+            return;
+        }
+
+        // Create approved user
+        const approvedUser = {
+            ...pendingUser,
+            status: 'approved',
+            approvedAt: new Date().toISOString(),
+            approvedBy: currentUser.username
+        };
+
+        // Save as regular user
+        await blobAPI.set(`user_${username}`, approvedUser);
+        
+        // Delete pending user
+        await blobAPI.delete(pendingKey);
+
+        showSuccessMessage(`User @${username} approved successfully!`);
+        
+        // Refresh admin page
+        renderAdminPage();
+        
+    } catch (error) {
+        console.error('Error approving user:', error);
+        showSuccessMessage('Failed to approve user. Please try again.');
+    }
+}
+
+async function rejectUser(username, pendingKey) {
+    if (!confirm(`Reject user @${username}? This action cannot be undone.`)) return;
+    
+    try {
+        // Delete pending user
+        await blobAPI.delete(pendingKey);
+        showSuccessMessage(`User @${username} rejected and removed.`);
+        
+        // Refresh admin page
+        renderAdminPage();
+        
+    } catch (error) {
+        console.error('Error rejecting user:', error);
+        showSuccessMessage('Failed to reject user. Please try again.');
+    }
+}
+
+async function promoteToAdmin(username) {
+    if (!confirm(`Promote @${username} to administrator? They will have full admin privileges.`)) return;
+    
+    try {
+        const user = await blobAPI.get(`user_${username}`);
+        if (!user) {
+            showSuccessMessage('User not found');
+            return;
+        }
+
+        if (user.isAdmin) {
+            showSuccessMessage(`@${username} is already an admin!`);
+            return;
+        }
+
+        // Update user to admin
+        const updatedUser = {
+            ...user,
+            isAdmin: true,
+            promotedAt: new Date().toISOString(),
+            promotedBy: currentUser.username
+        };
+
+        await blobAPI.set(`user_${username}`, updatedUser);
+        showSuccessMessage(`@${username} promoted to administrator!`);
+        
+        // Refresh admin page
+        renderAdminPage();
+        
+    } catch (error) {
+        console.error('Error promoting user:', error);
+        showSuccessMessage('Failed to promote user. Please try again.');
+    }
+}
+
+// NEW: Admin demotion function with @dumbass protection
+async function demoteFromAdmin(username) {
+    // Check if trying to demote the protected admin
+    if (username === PROTECTED_ADMIN) {
+        showSuccessMessage(`@${PROTECTED_ADMIN} is a protected admin and cannot be demoted by anyone.`);
         return;
     }
 
-    // Show loading
-    updateFeedContent('<div class="loading">Loading admin panel...</div>');
-
-    // Load all admin data
-    await loadAdminStats();
-    const pendingUsers = await loadPendingUsersList();
-    const allUsers = await loadAllUsersList();
-    const allCommunities = await loadAllCommunitiesList();
-
-    // Only count PUBLIC posts for admin stats (private posts are not admin business)
-    const publicPosts = posts.filter(post => !post.isPrivate);
-
-    const adminHtml = `
-        <div class="admin-page">
-            <div class="admin-header">
-                <h1 class="admin-title">🔧 Admin Panel</h1>
-                <p class="admin-subtitle">Manage users, communities, and public content</p>
-            </div>
-
-            <!-- Admin Stats Cards -->
-            <div class="admin-overview">
-                <div class="admin-stat-card">
-                    <div class="admin-stat-icon">👥</div>
-                    <div class="admin-stat-info">
-                        <div class="admin-stat-number" id="adminTotalUsers">0</div>
-                        <div class="admin-stat-label">Total Users</div>
-                    </div>
-                </div>
-                <div class="admin-stat-card pending">
-                    <div class="admin-stat-icon">⏳</div>
-                    <div class="admin-stat-info">
-                        <div class="admin-stat-number" id="adminPendingUsers">0</div>
-                        <div class="admin-stat-label">Pending Approval</div>
-                    </div>
-                </div>
-                <div class="admin-stat-card">
-                    <div class="admin-stat-icon">📝</div>
-                    <div class="admin-stat-info">
-                        <div class="admin-stat-number" id="adminTotalPosts">0</div>
-                        <div class="admin-stat-label">Public Posts</div>
-                    </div>
-                </div>
-                <div class="admin-stat-card">
-                    <div class="admin-stat-icon">🏘️</div>
-                    <div class="admin-stat-info">
-                        <div class="admin-stat-number" id="adminTotalCommunities">0</div>
-                        <div class="admin-stat-label">Communities</div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Admin Tabs -->
-            <div class="admin-content">
-                <div class="admin-tabs">
-                    <button class="admin-tab active" id="adminPendingTab" onclick="switchAdminTab('pending')">
-                        ⏳ Pending Users (${pendingUsers.length})
-                    </button>
-                    <button class="admin-tab" id="adminUsersTab" onclick="switchAdminTab('users')">
-                        👥 All Users (${allUsers.length})
-                    </button>
-                    <button class="admin-tab" id="adminCommunitiesTab" onclick="switchAdminTab('communities')">
-                        🏘️ Communities (${allCommunities.length})
-                    </button>
-                    <button class="admin-tab" id="adminPostsTab" onclick="switchAdminTab('posts')">
-                        📝 Public Posts (${publicPosts.length})
-                    </button>
-                </div>
-
-                <div class="admin-tab-content">
-                    <!-- Pending Users Tab -->
-                    <div id="adminPendingContent" class="admin-tab-panel active">
-                        ${renderPendingUsersPanel(pendingUsers)}
-                    </div>
-
-                    <!-- All Users Tab -->
-                    <div id="adminUsersContent" class="admin-tab-panel">
-                        ${renderAllUsersPanel(allUsers)}
-                    </div>
-
-                    <!-- Communities Tab -->
-                    <div id="adminCommunitiesContent" class="admin-tab-panel">
-                        ${renderCommunitiesPanel(allCommunities)}
-                    </div>
-
-                    <!-- Posts Tab (PUBLIC ONLY) -->
-                    <div id="adminPostsContent" class="admin-tab-panel">
-                        ${renderPublicPostsPanel(publicPosts)}
-                    </div>
-                </div>
-            </div>
-        </div>
-    `;
-
-    updateFeedContent(adminHtml);
-    
-    // Update the stats numbers (only public posts)
-    document.getElementById('adminTotalUsers').textContent = allUsers.length;
-    document.getElementById('adminPendingUsers').textContent = pendingUsers.length;
-    document.getElementById('adminTotalPosts').textContent = publicPosts.length;
-    document.getElementById('adminTotalCommunities').textContent = allCommunities.length;
-}
-
-// Render pending users panel
-function renderPendingUsersPanel(pendingUsers) {
-    if (pendingUsers.length === 0) {
-        return `
-            <div class="admin-empty-state">
-                <div class="admin-empty-icon">✅</div>
-                <h3>No Pending Users</h3>
-                <p>All user registrations have been processed!</p>
-            </div>
-        `;
+    // Prevent self-demotion
+    if (username === currentUser.username) {
+        showSuccessMessage('You cannot demote yourself.');
+        return;
     }
 
-    return `
-        <div class="admin-section-header">
-            <h3>Pending User Approvals</h3>
-            <p>Review and approve new user registrations</p>
-        </div>
-        <div class="admin-users-list">
-            ${pendingUsers.map(user => `
-                <div class="admin-user-card">
-                    <div class="admin-user-info">
-                        <div class="admin-user-avatar">
-                            ${user.username.charAt(0).toUpperCase()}
-                        </div>
-                        <div class="admin-user-details">
-                            <h4>@${escapeHtml(user.username)}</h4>
-                            <p class="admin-user-bio">${escapeHtml(user.bio || 'No bio provided')}</p>
-                            <div class="admin-user-meta">
-                                <span>📅 Registered ${formatDate(user.createdAt)}</span>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="admin-user-actions">
-                        <button class="btn admin-approve-btn" onclick="approveUser('${user.username}', '${user.key}')">
-                            ✅ Approve
-                        </button>
-                        <button class="btn btn-danger admin-reject-btn" onclick="rejectUser('${user.username}', '${user.key}')">
-                            ❌ Reject
-                        </button>
-                    </div>
-                </div>
-            `).join('')}
-        </div>
-    `;
+    if (!confirm(`Remove admin privileges from @${username}? They will become a regular user.`)) return;
+    
+    try {
+        const user = await blobAPI.get(`user_${username}`);
+        if (!user) {
+            showSuccessMessage('User not found');
+            return;
+        }
+
+        if (!user.isAdmin) {
+            showSuccessMessage('User is not an admin');
+            return;
+        }
+
+        // Update user to remove admin privileges
+        const updatedUser = {
+            ...user,
+            isAdmin: false,
+            demotedAt: new Date().toISOString(),
+            demotedBy: currentUser.username
+        };
+
+        await blobAPI.set(`user_${username}`, updatedUser);
+        showSuccessMessage(`@${username} admin privileges removed!`);
+        
+        // Refresh admin page
+        renderAdminPage();
+        
+    } catch (error) {
+        console.error('Error demoting user:', error);
+        showSuccessMessage('Failed to remove admin privileges. Please try again.');
+    }
 }
 
-// UPDATED: renderAllUsersPanel function with demote button and protection
-function renderAllUsersPanel(allUsers) {
-    return `
-        <div class="admin-section-header">
-            <h3>All Users Management</h3>
-            <p>View and manage all registered users</p>
-        </div>
-        <div class="admin-users-list">
-            ${allUsers.map(user => {
-                // Only count PUBLIC posts for admin view - private posts are not admin business
-                const userPublicPosts = posts.filter(p => p.author === user.username && !p.isPrivate);
-                
-                return `
-                <div class="admin-user-card">
-                    <div class="admin-user-info">
-                        <div class="admin-user-avatar">
-                            ${user.profilePicture ? 
-                                `<img src="${user.profilePicture}" alt="${user.username}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;" onerror="this.style.display='none'; this.parentNode.innerHTML='${user.username.charAt(0).toUpperCase()}';">` 
-                                : user.username.charAt(0).toUpperCase()
-                            }
-                        </div>
-                        <div class="admin-user-details">
-                            <h4>
-                                @${escapeHtml(user.username)}
-                                ${user.isAdmin ? `<span class="admin-badge-small ${user.username === PROTECTED_ADMIN ? 'protected-badge' : ''}">${user.username === PROTECTED_ADMIN ? '🛡️ Protected Admin' : '👑 Admin'}</span>` : ''}
-                            </h4>
-                            <p class="admin-user-bio">${escapeHtml(user.bio || 'No bio provided')}</p>
-                            <div class="admin-user-meta">
-                                <span>📅 Joined ${formatDate(user.createdAt || new Date().toISOString())}</span>
-                                <span>📝 ${userPublicPosts.length} public posts</span>
-                                <span>🏘️ ${communities.filter(c => c.createdBy === user.username).length} communities</span>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="admin-user-actions">
-                        ${!user.isAdmin ? `
-                            <button class="btn admin-promote-btn" onclick="promoteToAdmin('${user.username}')">
-                                👑 Make Admin
-                            </button>
-                        ` : user.username !== currentUser.username && user.username !== PROTECTED_ADMIN ? `
-                            <button class="btn admin-demote-btn" onclick="demoteFromAdmin('${user.username}')">
-                                📉 Remove Admin
-                            </button>
-                        ` : user.username === PROTECTED_ADMIN ? `
-                            <button class="btn btn-secondary" disabled title="Protected admin cannot be demoted">
-                                🛡️ Protected
-                            </button>
-                        ` : ''}
-                        ${user.username !== currentUser.username ? `
-                            <button class="btn btn-danger admin-delete-btn" onclick="deleteUser('${user.username}')">
-                                🗑️ Delete
-                            </button>
-                        ` : ''}
-                    </div>
-                </div>
-            `}).join('')}
-        </div>
-    `;
+async function deleteUser(username) {
+    if (!confirm(`Delete user @${username}? This will also delete all their PUBLIC posts and remove them from communities. This action cannot be undone. Note: Private posts are not accessible to admins and cannot be deleted through the admin panel.`)) return;
+    
+    try {
+        // Delete user
+        await blobAPI.delete(`user_${username}`);
+        
+        // Delete user's PUBLIC posts only (private posts are not admin business)
+        const userPublicPosts = posts.filter(p => p.author === username && !p.isPrivate);
+        for (const post of userPublicPosts) {
+            await blobAPI.delete(post.id);
+        }
+        
+        // Remove from communities
+        for (const community of communities) {
+            if (community.members && community.members.includes(username)) {
+                community.members = community.members.filter(m => m !== username);
+                await blobAPI.set(`community_${community.name}`, community);
+            }
+        }
+        
+        // Delete user follows
+        try {
+            await blobAPI.delete(`user_follows_${username}`);
+        } catch (e) {
+            // Ignore if doesn't exist
+        }
+
+        showSuccessMessage(`User @${username} deleted successfully. ${userPublicPosts.length} public posts were removed. Private posts remain private and were not affected.`);
+        
+        // Refresh data and admin page
+        await loadPosts();
+        await loadCommunities();
+        renderAdminPage();
+        
+    } catch (error) {
+        console.error('Error deleting user:', error);
+        showSuccessMessage('Failed to delete user. Please try again.');
+    }
 }
 
-// Render communities panel
-function renderCommunitiesPanel(allCommunities) {
-    return `
-        <div class="admin-section-header">
-            <h3>Communities Management</h3>
-            <p>View and manage all communities</p>
-        </div>
-        <div class="admin-communities-list">
-            ${allCommunities.map(community => {
-                // Only count PUBLIC posts in communities for admin view
-                const communityPublicPosts = posts.filter(p => p.communityName === community.name && !p.isPrivate);
-                return `
-                    <div class="admin-community-card">
-                        <div class="admin-community-info">
-                            <div class="admin-community-avatar">
-                                ${community.displayName.charAt(0).toUpperCase()}
-                            </div>
-                            <div class="admin-community-details">
-                                <h4>${escapeHtml(community.displayName)}</h4>
-                                <p class="admin-community-handle">c/${escapeHtml(community.name)}</p>
-                                ${community.description ? `<p class="admin-community-description">${escapeHtml(community.description)}</p>` : ''}
-                                <div class="admin-community-meta">
-                                    <span>📅 Created ${formatDate(community.createdAt)}</span>
-                                    <span>👤 By @${escapeHtml(community.createdBy)}</span>
-                                    <span>📝 ${communityPublicPosts.length} public posts</span>
-                                    <span>👥 ${community.members ? community.members.length : 0} members</span>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="admin-community-actions">
-                            <button class="btn btn-secondary" onclick="navigateToCommunity('${community.name}')" style="margin-right: 8px;">
-                                View
-                            </button>
-                            <button class="btn btn-danger" onclick="deleteCommunity('${community.name}')">
-                                🗑️ Delete
-                            </button>
-                        </div>
-                    </div>
-                `;
-            }).join('')}
-        </div>
-    `;
+async function deleteCommunity(communityName) {
+    if (!confirm(`Delete community ${communityName}? This will also delete all PUBLIC posts in this community. This action cannot be undone. Note: Private posts are not accessible to admins and cannot be deleted through the admin panel.`)) return;
+    
+    try {
+        // Delete community
+        await blobAPI.delete(`community_${communityName}`);
+        
+        // Delete community's PUBLIC posts only
+        const communityPublicPosts = posts.filter(p => p.communityName === communityName && !p.isPrivate);
+        for (const post of communityPublicPosts) {
+            await blobAPI.delete(post.id);
+        }
+
+        showSuccessMessage(`Community c/${communityName} deleted successfully. ${communityPublicPosts.length} public posts were removed. Private posts remain private and were not affected.`);
+        
+        // Refresh data and admin page
+        await loadPosts();
+        await loadCommunities();
+        renderAdminPage();
+        
+    } catch (error) {
+        console.error('Error deleting community:', error);
+        showSuccessMessage('Failed to delete community. Please try again.');
+    }
 }
 
-// UPDATED: Render PUBLIC posts panel only (private posts excluded)
-function renderPublicPostsPanel(publicPosts) {
-    return `
-        <div class="admin-section-header">
-            <h3>Public Posts Management</h3>
-            <p>View and manage public posts on the platform</p>
-            <div class="admin-privacy-notice" style="background: rgba(63, 185, 80, 0.1); border: 1px solid var(--success-fg); border-radius: 6px; padding: 12px; margin-top: 12px;">
-                <div style="display: flex; align-items: center; gap: 8px; color: var(--success-fg); font-weight: 600; margin-bottom: 4px;">
-                    <span>🔒</span>
-                    <span>Privacy Protected</span>
-                </div>
-                <p style="margin: 0; font-size: 14px; color: var(--fg-muted);">
-                    Only public posts are shown here. Private posts remain private and are not visible to administrators to protect user privacy.
-                </p>
-            </div>
-            <div class="admin-filters" style="margin-top: 16px;">
-                <button class="btn btn-secondary" onclick="filterAdminPosts('all')" id="filterAllPosts">
-                    All Public Posts (${publicPosts.length})
-                </button>
-                <button class="btn btn-secondary" onclick="filterAdminPosts('community')" id="filterCommunityPosts">
-                    Community Posts (${publicPosts.filter(p => p.communityName).length})
-                </button>
-                <button class="btn btn-secondary" onclick="filterAdminPosts('general')" id="filterGeneralPosts">
-                    General Posts (${publicPosts.filter(p => !p.communityName).length})
-                </button>
-            </div>
-        </div>
-        <div id="adminPostsList">
-            ${renderPostList(publicPosts.slice(0, 20), 'No public posts found')}
-            ${publicPosts.length > 20 ? `
-                <div class="admin-load-more">
-                    <button class="btn btn-secondary" onclick="loadMoreAdminPosts()">
-                        Load More Posts
-                    </button>
-                </div>
-            ` : ''}
-        </div>
-    `;
+// Admin tab switching
+let currentAdminTab = 'pending';
+
+function switchAdminTab(tabName) {
+    currentAdminTab = tabName;
+    
+    // Update tab visual states
+    document.querySelectorAll('.admin-tab').forEach(tab => {
+        tab.classList.remove('active');
+    });
+    document.getElementById(`admin${tabName.charAt(0).toUpperCase() + tabName.slice(1)}Tab`).classList.add('active');
+    
+    // Update content visibility
+    document.querySelectorAll('.admin-tab-panel').forEach(panel => {
+        panel.classList.remove('active');
+    });
+    document.getElementById(`admin${tabName.charAt(0).toUpperCase() + tabName.slice(1)}Content`).classList.add('active');
+}
+
+// UPDATED: Post filtering for admin - only public posts, no private option
+function filterAdminPosts(filter) {
+    let filteredPosts;
+    
+    // Only work with PUBLIC posts - private posts are not admin business
+    const publicPosts = posts.filter(p => !p.isPrivate);
+    
+    switch (filter) {
+        case 'community':
+            filteredPosts = publicPosts.filter(p => p.communityName);
+            break;
+        case 'general':
+            filteredPosts = publicPosts.filter(p => !p.communityName);
+            break;
+        default:
+            filteredPosts = publicPosts;
+    }
+    
+    const postsList = document.getElementById('adminPostsList');
+    if (postsList) {
+        postsList.innerHTML = renderPostList(filteredPosts.slice(0, 20), 'No public posts found') +
+            (filteredPosts.length > 20 ? `<div class="admin-load-more"><button class="btn btn-secondary" onclick="loadMoreAdminPosts()">Load More Posts</button></div>` : '');
+    }
+    
+    // Update filter button states
+    document.querySelectorAll('.admin-filters .btn').forEach(btn => {
+        btn.classList.remove('btn-primary');
+        btn.classList.add('btn-secondary');
+    });
+    
+    // Find and highlight active button
+    const activeButton = Array.from(document.querySelectorAll('.admin-filters .btn')).find(btn => 
+        btn.onclick.toString().includes(`'${filter}'`)
+    );
+    if (activeButton) {
+        activeButton.classList.remove('btn-secondary');
+        activeButton.classList.add('btn-primary');
+    }
+}
+
+// Legacy admin functions (keeping for compatibility)
+function showAdminPanel() {
+    const adminPanel = document.getElementById('adminPanel');
+    const isVisible = adminPanel.style.display !== 'none';
+    adminPanel.style.display = isVisible ? 'none' : 'block';
+
+    if (isVisible) {
+        document.getElementById('pendingUsersSection').style.display = 'none';
+        document.getElementById('allUsersSection').style.display = 'none';
+        document.getElementById('adminCommunitiesSection').style.display = 'none';
+    }
+}
+
+async function loadPendingUsers() {
+    // TODO: Implement pending users management
+    showSuccessMessage('Pending users management coming soon!');
+}
+
+async function loadAllUsers() {
+    // TODO: Implement all users management
+    showSuccessMessage('User management coming soon!');
+}
+
+async function loadAdminCommunities() {
+    // TODO: Implement community management
+    showSuccessMessage('Community management coming soon!');
+}
+
+function refreshAdminStats() {
+    loadAdminStats();
+    showSuccessMessage('Admin stats refreshed!');
 }
