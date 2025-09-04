@@ -114,9 +114,14 @@
 
     <!-- Feeds View -->
     <div id="feedsView" class="w-full feed-container mx-auto hidden">
-        <div class="text-center mb-8">
-            <h1 id="feedsHeader" class="text-3xl font-bold text-gray-100 mb-2">Welcome!</h1>
-            <p class="text-gray-400">Explore your feeds below.</p>
+        <div class="flex items-center justify-between mb-8">
+            <div class="flex-1">
+                <h1 id="feedsHeader" class="text-3xl font-bold text-gray-100">Welcome!</h1>
+                <p class="text-gray-400">Explore your feeds below.</p>
+            </div>
+            <button id="logoutButton" class="py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition ease-in-out duration-150">
+                Log Out
+            </button>
         </div>
 
         <!-- Tabs -->
@@ -148,6 +153,7 @@
             const allFeedTab = document.getElementById('allFeedTab');
             const subscribedFeedTab = document.getElementById('subscribedFeedTab');
             const localFeedTab = document.getElementById('localFeedTab');
+            const logoutButton = document.getElementById('logoutButton');
 
             // Modal elements
             const modal = document.getElementById('custom-modal');
@@ -175,6 +181,16 @@
 
             let instanceUrl = '';
             let authToken = '';
+
+            const saveSession = (url, token) => {
+                localStorage.setItem('piefed-instance-url', url);
+                localStorage.setItem('piefed-auth-token', token);
+            };
+
+            const clearSession = () => {
+                localStorage.removeItem('piefed-instance-url');
+                localStorage.removeItem('piefed-auth-token');
+            };
 
             const fetchFeed = async (feedType) => {
                 if (!instanceUrl || !authToken) {
@@ -206,8 +222,6 @@
 
                     const data = await response.json();
                     
-                    // The API response is an object with a 'posts' key, not a direct array.
-                    // We must extract the array before rendering.
                     const feedData = data.posts || [];
                     
                     if (Array.isArray(feedData)) {
@@ -228,28 +242,46 @@
             const renderFeed = (feedData) => {
                 feedContent.innerHTML = '';
                 if (!feedData || feedData.length === 0) {
-                    feedContent.innerHTML = `<p class="text-center text-gray-500">No posts to display in this feed.</p>`;
+                    feedContent.innerHTML = `<p class="text-center text-gray-500 mt-6">No posts to display in this feed.</p>`;
                     return;
                 }
+                
+                // Sort posts by date in descending order (newest first)
+                feedData.sort((a, b) => new Date(b.date) - new Date(a.date));
 
                 feedData.forEach(post => {
                     const postElement = document.createElement('div');
-                    postElement.className = 'feed-card mb-4';
+                    postElement.className = 'feed-card mb-4 p-6 rounded-xl space-y-4';
+                    
+                    // Fallback for author name
+                    const authorName = typeof post.author === 'string' ? post.author : post.author?.username || 'Unknown Author';
+                    
+                    // Simple initials for avatar
+                    const authorInitial = authorName.charAt(0).toUpperCase();
+
                     postElement.innerHTML = `
-                        <div class="flex items-center mb-2">
-                            <span class="font-semibold text-gray-100">${post.author}</span>
-                            <span class="text-xs text-gray-400 ml-2">&bull; ${new Date(post.date).toLocaleString()}</span>
+                        <div class="flex items-center space-x-4">
+                            <div class="flex items-center justify-center w-10 h-10 rounded-full bg-indigo-600 text-white font-bold text-lg">
+                                ${authorInitial}
+                            </div>
+                            <div>
+                                <h3 class="font-semibold text-gray-100">${authorName}</h3>
+                                <p class="text-xs text-gray-400">
+                                    <span class="mr-2">&bull; ${new Date(post.date).toLocaleString()}</span>
+                                </p>
+                            </div>
                         </div>
-                        <p class="text-gray-300">${post.content}</p>
-                        <!-- Placeholder for vote/comment section -->
-                        <div class="mt-4 flex items-center justify-between text-gray-400">
-                            <div class="flex items-center space-x-2">
+                        <p class="text-gray-300 whitespace-pre-wrap">${post.content}</p>
+                        
+                        <!-- Actions Section -->
+                        <div class="flex items-center space-x-6 text-gray-400">
+                            <div class="flex items-center space-x-1 cursor-pointer hover:text-indigo-400 transition-colors">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                                   <path fill-rule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clip-rule="evenodd" />
                                 </svg>
                                 <span>Vote</span>
                             </div>
-                            <div class="flex items-center space-x-2">
+                            <div class="flex items-center space-x-1 cursor-pointer hover:text-indigo-400 transition-colors">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                                   <path fill-rule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.492 12.11 2 10.536 2 9c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5a1 1 0 110-2h2a1 1 0 110 2zm.006 3.5a1 1 0 100-2 1 1 0 000 2zm3.994-3.5a1 1 0 110-2h-2a1 1 0 110 2h2z" clip-rule="evenodd" />
                                 </svg>
@@ -266,13 +298,33 @@
                     btn.classList.remove('active');
                 });
                 document.getElementById(tabId).classList.add('active');
-                feedContent.innerHTML = `<p class="text-center text-gray-500">Loading feed...</p>`;
+                feedContent.innerHTML = `<p class="text-center text-gray-500 mt-6">Loading feed...</p>`;
 
                 const data = await fetchFeed(feedType);
                 if (data) {
                     renderFeed(data);
                 } else {
-                    feedContent.innerHTML = `<p class="text-center text-red-500">Failed to load feed data.</p>`;
+                    feedContent.innerHTML = `<p class="text-center text-red-500 mt-6">Failed to load feed data.</p>`;
+                }
+            };
+
+            const showFeedsView = (username) => {
+                loginView.classList.add('hidden');
+                feedsView.classList.remove('hidden');
+                feedsHeader.textContent = `Welcome, ${username}!`;
+                handleTabClick('allFeedTab', 'all');
+            };
+
+            const checkSession = () => {
+                const storedUrl = localStorage.getItem('piefed-instance-url');
+                const storedToken = localStorage.getItem('piefed-auth-token');
+                
+                if (storedUrl && storedToken) {
+                    instanceUrl = storedUrl;
+                    authToken = storedToken;
+                    // We need a username to display, so we'll fetch it from the API or a stored value
+                    // For now, let's just use a placeholder to show the user is logged in
+                    showFeedsView('Piefed User');
                 }
             };
 
@@ -307,18 +359,14 @@
                     authToken = data.jwt;
 
                     if (authToken) {
+                        saveSession(instanceUrl, authToken);
                         resultMessage.classList.remove('hidden');
                         resultMessage.innerHTML = `
                             <p class="text-lg font-semibold text-green-400">Connection Successful!</p>
                             <p class="mt-2 text-gray-400">Logged in as: <span class="font-bold text-gray-200">${username}</span></p>
                         `;
 
-                        setTimeout(() => {
-                            loginView.classList.add('hidden');
-                            feedsView.classList.remove('hidden');
-                            feedsHeader.textContent = `Welcome, ${username}!`;
-                            handleTabClick('allFeedTab', 'all');
-                        }, 1000);
+                        setTimeout(() => showFeedsView(username), 1000);
 
                     } else {
                          console.error('No authentication token received. Please check the API response below and provide the correct key name.');
@@ -340,9 +388,17 @@
                 }
             });
 
+            logoutButton.addEventListener('click', () => {
+                clearSession();
+                feedsView.classList.add('hidden');
+                loginView.classList.remove('hidden');
+            });
+
             allFeedTab.addEventListener('click', () => handleTabClick('allFeedTab', 'all'));
             subscribedFeedTab.addEventListener('click', () => handleTabClick('subscribedFeedTab', 'subscribed'));
             localFeedTab.addEventListener('click', () => handleTabClick('localFeedTab', 'local'));
+
+            checkSession();
         });
     </script>
 </body>
