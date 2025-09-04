@@ -863,31 +863,72 @@
             window.location.href = '/';
         }
 
-        // *** MAIN SESSION TOKEN CHECKER FUNCTION ***
+        // *** ENHANCED SESSION TOKEN CHECKER WITH DEBUGGING ***
         async function checkSessionToken() {
             const statusDiv = document.getElementById('sessionStatus');
             statusDiv.style.display = 'block';
             statusDiv.style.backgroundColor = '#5865f2';
             statusDiv.style.color = '#ffffff';
-            statusDiv.innerHTML = '🔄 Checking for session token...';
+            statusDiv.innerHTML = '🔄 Starting session check...';
             
-            console.log('=== MANUAL SESSION TOKEN CHECK ===');
+            console.log('=== ENHANCED SESSION TOKEN CHECK ===');
+            console.log('Current domain:', window.location.hostname);
+            console.log('Current path:', window.location.pathname);
+            console.log('Current protocol:', window.location.protocol);
             
             try {
-                // Check if token exists in localStorage
-                const token = localStorage.getItem('sessionToken');
-                console.log('Token in localStorage:', token ? 'Found' : 'Not found');
-                console.log('Token preview:', token?.substring(0, 30) + '...');
+                // 1. Check localStorage availability
+                statusDiv.innerHTML = '🔄 Checking localStorage availability...';
                 
-                if (!token) {
+                try {
+                    localStorage.setItem('test', 'test');
+                    localStorage.removeItem('test');
+                    console.log('✅ localStorage is available');
+                } catch (e) {
+                    console.error('❌ localStorage is not available:', e);
                     statusDiv.style.backgroundColor = '#f04747';
-                    statusDiv.innerHTML = '❌ No session token found in localStorage.<br>Please log in to the main app first.';
+                    statusDiv.innerHTML = '❌ localStorage is not available. This might be a private browsing issue.';
                     return;
                 }
                 
-                statusDiv.innerHTML = '🔄 Validating session token with server...';
+                // 2. Check all localStorage keys
+                statusDiv.innerHTML = '🔄 Scanning all localStorage keys...';
                 
-                // Try to validate the token with the chat API
+                console.log('=== ALL LOCALSTORAGE KEYS ===');
+                const allKeys = [];
+                for (let i = 0; i < localStorage.length; i++) {
+                    const key = localStorage.key(i);
+                    allKeys.push(key);
+                    const value = localStorage.getItem(key);
+                    console.log(`Key: "${key}" = "${value?.substring(0, 50)}${value?.length > 50 ? '...' : ''}"`);
+                }
+                console.log('Total localStorage keys:', allKeys.length);
+                
+                // 3. Specifically check for sessionToken
+                statusDiv.innerHTML = '🔄 Looking for sessionToken...';
+                
+                const token = localStorage.getItem('sessionToken');
+                console.log('sessionToken exists:', !!token);
+                console.log('sessionToken value:', token?.substring(0, 50) + '...');
+                console.log('sessionToken length:', token?.length);
+                
+                if (!token) {
+                    statusDiv.style.backgroundColor = '#f04747';
+                    statusDiv.innerHTML = `❌ No sessionToken found.<br>Found ${allKeys.length} other keys: ${allKeys.join(', ')}<br><br>🔍 Make sure you're logged into the main app first!`;
+                    return;
+                }
+                
+                // 4. Validate token format
+                statusDiv.innerHTML = '🔄 Validating token format...';
+                
+                if (!token.startsWith('session_')) {
+                    console.warn('⚠️ Token does not start with session_');
+                }
+                
+                // 5. Test token with API
+                statusDiv.innerHTML = '🔄 Testing token with chat API...';
+                
+                console.log('Making API call to validate token...');
                 const response = await fetch('/.netlify/functions/chat-api/servers', {
                     method: 'GET',
                     headers: {
@@ -896,49 +937,68 @@
                     }
                 });
                 
-                console.log('API Response:', response.status, response.statusText);
+                console.log('API Response Status:', response.status);
+                console.log('API Response Headers:', [...response.headers.entries()]);
                 
                 if (response.status === 401) {
+                    console.log('❌ Token was rejected by server (401)');
                     statusDiv.style.backgroundColor = '#f04747';
-                    statusDiv.innerHTML = '❌ Session token is invalid or expired.<br>Please log in to the main app again.';
+                    statusDiv.innerHTML = '❌ Token was rejected by server (401 Unauthorized).<br>The token might be expired or invalid.<br><br>Try logging out and back into the main app.';
                     
                     // Clear the invalid token
                     localStorage.removeItem('sessionToken');
-                    console.log('Cleared invalid token from localStorage');
+                    console.log('🗑️ Cleared invalid token from localStorage');
+                    return;
+                }
+                
+                if (response.status === 404) {
+                    console.log('❌ Chat API endpoint not found (404)');
+                    statusDiv.style.backgroundColor = '#f04747';
+                    statusDiv.innerHTML = '❌ Chat API endpoint not found (404).<br>The chat API might not be deployed properly.';
                     return;
                 }
                 
                 if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    const errorText = await response.text();
+                    console.log('❌ API Error:', response.status, errorText);
+                    statusDiv.style.backgroundColor = '#f04747';
+                    statusDiv.innerHTML = `❌ API Error: ${response.status}<br>${errorText.substring(0, 100)}...`;
+                    return;
                 }
                 
-                // Token is valid, try to initialize the app
-                statusDiv.style.backgroundColor = '#43b581';
-                statusDiv.innerHTML = '✅ Valid session found! Initializing chat...';
+                // 6. Parse response
+                statusDiv.innerHTML = '🔄 Parsing API response...';
                 
-                console.log('Token is valid, initializing chat app...');
+                const data = await response.json();
+                console.log('✅ API Response Data:', data);
+                
+                // 7. Success! Initialize chat
+                statusDiv.style.backgroundColor = '#43b581';
+                statusDiv.innerHTML = '✅ Token is valid! Initializing chat...';
+                
+                console.log('🚀 Initializing chat app...');
                 
                 setTimeout(async () => {
                     try {
                         await initApp();
-                        statusDiv.innerHTML = '🎉 Chat initialized successfully!';
+                        statusDiv.innerHTML = '🎉 Chat initialized successfully!<br>You should now see your servers and channels.';
                         
                         // Hide the status message after success
                         setTimeout(() => {
                             statusDiv.style.display = 'none';
-                        }, 2000);
+                        }, 3000);
                         
                     } catch (error) {
-                        console.error('Error during initialization:', error);
+                        console.error('💥 Error during initialization:', error);
                         statusDiv.style.backgroundColor = '#f04747';
-                        statusDiv.innerHTML = `❌ Failed to initialize chat: ${error.message}`;
+                        statusDiv.innerHTML = `❌ Failed to initialize chat:<br>${error.message}`;
                     }
-                }, 1000);
+                }, 1500);
                 
             } catch (error) {
-                console.error('Error checking session:', error);
+                console.error('💥 Error during session check:', error);
                 statusDiv.style.backgroundColor = '#f04747';
-                statusDiv.innerHTML = `❌ Error checking session: ${error.message}`;
+                statusDiv.innerHTML = `❌ Error during session check:<br>${error.message}<br><br>Check the console for more details.`;
             }
         }
 
