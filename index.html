@@ -40,6 +40,11 @@
                 <span>Feed</span>
             </button>
             
+            <button class="menu-item" id="menuChat" onclick="navigateToChat()">
+                <span class="menu-item-icon">💬</span>
+                <span>Chat</span>
+            </button>
+            
             <button class="menu-item" id="menuProfile" onclick="navigateToProfile()">
                 <span class="menu-item-icon">👤</span>
                 <span>Profile</span>
@@ -202,6 +207,37 @@
                     <textarea id="communityDescription" maxlength="500" placeholder="A shed for woodworking discussions and projects"></textarea>
                 </div>
                 <button type="submit" class="btn" id="createCommunitySubmitBtn">🔨 Build Shed</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Create Chat Room Modal -->
+    <div class="modal" id="createRoomModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>💬 Create Chat Room</h3>
+                <button class="close-btn" onclick="closeModal('createRoomModal')">&times;</button>
+            </div>
+            <div id="createRoomError"></div>
+            <form id="createRoomForm" onsubmit="handleCreateRoom(event)">
+                <div class="form-group">
+                    <label for="roomName">Room Name</label>
+                    <input type="text" id="roomName" required minlength="3" maxlength="50" placeholder="General Discussion">
+                    <small>3-50 characters, letters, numbers, and basic punctuation</small>
+                </div>
+                <div class="form-group">
+                    <label for="roomDescription">Description (Optional)</label>
+                    <textarea id="roomDescription" maxlength="200" placeholder="What's this room for?"></textarea>
+                    <small>Optional description up to 200 characters</small>
+                </div>
+                <div class="form-group">
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                        <input type="checkbox" id="roomIsPrivate" style="width: auto;">
+                        <span>Private room (invite-only)</span>
+                    </label>
+                    <small>Private rooms don't appear in the public room list</small>
+                </div>
+                <button type="submit" class="btn" id="createRoomSubmitBtn">Create Room</button>
             </form>
         </div>
     </div>
@@ -414,6 +450,9 @@
     <!-- Load JavaScript files in correct order -->
     <script src="utils.js"></script>
     <script src="api.js"></script>
+    <script src="chat.js"></script>
+    <script src="chat-ui.js"></script>
+    <script src="chat-rooms.js"></script>
     <script src="ui.js"></script>
     <script src="render-admin.js"></script>
     <script src="admin.js"></script>
