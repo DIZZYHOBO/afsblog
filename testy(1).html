@@ -289,8 +289,9 @@
                     }
 
                     const data = await response.json();
-                    // Assuming the API returns a token upon successful login
-                    authToken = data.token; // You must replace 'data.token' with the actual field from your API response.
+                    
+                    // Correctly retrieve the token using the "jwt" field
+                    authToken = data.jwt;
                     
                     if (authToken) {
                         resultMessage.classList.remove('hidden');
@@ -309,6 +310,9 @@
                         }, 1000);
                         
                     } else {
+                         // If no token is found, log the response to help debug
+                         console.error('No authentication token received. Please check the API response below and provide the correct key name.');
+                         console.log('API Response Data:', data);
                          throw new Error('No authentication token received.');
                     }
 
