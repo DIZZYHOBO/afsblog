@@ -1,466 +1,268 @@
-// chat-ui.js - Chat UI rendering and interface
+// chat-ui.js - Chat UI rendering functions
 
-// Render main chat page
-function renderChatPage() {
+// Main chat interface renderer
+function renderChatInterface() {
     if (!currentUser) {
-        const loginRequiredHtml = `
-            <div class="feature-placeholder">
-                <h3>💬 Chat Rooms</h3>
-                <p>Please sign in to access chat rooms and talk with other community members.</p>
-                <div style="display: flex; gap: 12px; justify-content: center; margin-top: 16px;">
-                    <button class="btn" onclick="openAuthModal('signin')">Sign In</button>
-                    <button class="btn btn-secondary" onclick="openAuthModal('signup')">Sign Up</button>
-                </div>
-            </div>
-        `;
-        updateFeedContent(loginRequiredHtml);
-        return;
-    }
-
-    // Show loading initially
-    updateFeedContent('<div class="loading">Loading chat...</div>');
-    
-    // If we have a current room, show it, otherwise show room list
-    if (currentChatRoom) {
-        renderChatRoom();
-    } else {
-        renderChatRoomList();
-    }
-}
-
-// Render room list (lobby)
-async function renderChatRoomList() {
-    try {
-        // Load user's rooms and public rooms
-        const [userRoomsResponse, publicRoomsResponse] = await Promise.all([
-            chatAPI.getUserRooms(),
-            chatAPI.getPublicRooms()
-        ]);
-        
-        const myRooms = userRoomsResponse.rooms || [];
-        const publicRooms = publicRoomsResponse.rooms || [];
-        
-        // Filter out public rooms that user is already a member of
-        const availablePublicRooms = publicRooms.filter(room => 
-            !myRooms.some(myRoom => myRoom.id === room.id)
-        );
-        
-        const chatLobbyHtml = `
-            <div class="chat-page">
-                <div class="chat-header">
-                    <h1 class="chat-title">💬 Chat Rooms</h1>
-                    <div class="chat-actions">
-                        <button class="btn" onclick="openCreateRoomModal()">
-                            ➕ Create Room
-                        </button>
-                    </div>
-                </div>
-
-                <!-- My Rooms Section -->
-                <div class="chat-section">
-                    <h3 class="chat-section-title">Your Rooms (${myRooms.length})</h3>
-                    ${myRooms.length > 0 ? `
-                        <div class="chat-rooms-grid">
-                            ${myRooms.map(room => renderRoomCard(room, true)).join('')}
-                        </div>
-                    ` : `
-                        <div class="chat-empty-state">
-                            <p>You haven't joined any chat rooms yet.</p>
-                            <p>Create your own room or join a public room below!</p>
-                        </div>
-                    `}
-                </div>
-
-                <!-- Public Rooms Section -->
-                <div class="chat-section">
-                    <h3 class="chat-section-title">Public Rooms (${availablePublicRooms.length})</h3>
-                    ${availablePublicRooms.length > 0 ? `
-                        <div class="chat-rooms-grid">
-                            ${availablePublicRooms.map(room => renderRoomCard(room, false)).join('')}
-                        </div>
-                    ` : `
-                        <div class="chat-empty-state">
-                            <p>No public rooms available to join.</p>
-                            <p>Be the first to create a public room!</p>
-                        </div>
-                    `}
-                </div>
-            </div>
-        `;
-        
-        updateFeedContent(chatLobbyHtml);
-        
-    } catch (error) {
-        console.error('Error loading room list:', error);
         updateFeedContent(`
-            <div class="feature-placeholder">
-                <h3>💬 Chat Error</h3>
-                <p>Failed to load chat rooms. Please try again.</p>
-                <button class="btn" onclick="renderChatRoomList()">Retry</button>
+            <div class="chat-login-prompt">
+                <h2>Join the Conversation</h2>
+                <p>Sign in to access chat rooms</p>
+                <button class="btn" onclick="openAuthModal('signin')">Sign In</button>
             </div>
         `);
+        return;
     }
-}
-
-// Render individual room card
-function renderRoomCard(room, isMember) {
-    const memberCount = room.members ? room.members.length : 0;
-    const isOwner = room.createdBy === currentUser.username;
     
-    return `
-        <div class="chat-room-card">
-            <div class="room-card-header">
-                <div class="room-card-icon">
-                    ${room.isPrivate ? '🔒' : '🌐'}
+    // Initialize chat if needed
+    if (!chatInitialized) {
+        initializeChat();
+    }
+    
+    const html = `
+        <div class="chat-container">
+            <div class="chat-sidebar">
+                <div class="chat-sidebar-header">
+                    <h3>Chat Rooms</h3>
+                    <button class="btn-small" onclick="openModal('createRoomModal')">+</button>
                 </div>
-                <div class="room-card-info">
-                    <h4 class="room-card-name">${escapeHtml(room.name)}</h4>
-                    <p class="room-card-description">${escapeHtml(room.description || 'No description')}</p>
-                    <div class="room-card-meta">
-                        <span class="room-card-members">👥 ${memberCount} ${memberCount === 1 ? 'member' : 'members'}</span>
-                        <span class="room-card-privacy">${room.isPrivate ? 'Private' : 'Public'}</span>
-                        ${isOwner ? '<span class="room-card-owner">👑 Owner</span>' : ''}
-                    </div>
+                <div class="chat-rooms-list">
+                    ${renderChatRoomsList()}
                 </div>
             </div>
-            <div class="room-card-actions">
-                ${isMember ? `
-                    <button class="btn" onclick="joinChatRoom('${room.id}')">
-                        Enter Room
-                    </button>
-                    ${isOwner ? '' : `
-                        <button class="btn btn-secondary" onclick="leaveRoomConfirm('${room.id}')">
-                            Leave
-                        </button>
-                    `}
-                ` : `
-                    <button class="btn" onclick="joinChatRoom('${room.id}')">
-                        Join Room
-                    </button>
-                `}
+            <div class="chat-main">
+                ${currentChatRoom ? renderChatRoom() : renderNoChatSelected()}
             </div>
         </div>
     `;
+    
+    updateFeedContent(html);
+    
+    // Set up chat input handler if in a room
+    if (currentChatRoom) {
+        const input = document.getElementById('chatInput');
+        if (input) {
+            input.addEventListener('keydown', handleChatInput);
+            input.focus();
+        }
+    }
+}
+
+// Render list of chat rooms
+function renderChatRoomsList() {
+    if (!userRooms || userRooms.length === 0) {
+        return `
+            <div class="no-rooms">
+                <p>No chat rooms yet</p>
+                <button class="btn-secondary" onclick="openModal('createRoomModal')">
+                    Create your first room
+                </button>
+            </div>
+        `;
+    }
+    
+    return userRooms.map(room => `
+        <div class="chat-room-item ${currentChatRoom?.id === room.id ? 'active' : ''}" 
+             onclick="joinChatRoom('${room.id}')">
+            <div class="room-icon">${room.isPrivate ? '🔒' : '#'}</div>
+            <div class="room-info">
+                <div class="room-name">${escapeHtml(room.name)}</div>
+                ${room.lastMessage ? `
+                    <div class="room-last-message">
+                        ${escapeHtml(room.lastMessage.substring(0, 50))}${room.lastMessage.length > 50 ? '...' : ''}
+                    </div>
+                ` : ''}
+            </div>
+            ${room.unreadCount ? `
+                <div class="room-unread">${room.unreadCount}</div>
+            ` : ''}
+        </div>
+    `).join('');
 }
 
 // Render active chat room
 function renderChatRoom() {
-    if (!currentChatRoom) {
-        renderChatRoomList();
-        return;
-    }
+    if (!currentChatRoom) return '';
     
-    const memberCount = currentChatRoom.members ? currentChatRoom.members.length : 0;
-    const isOwner = currentChatRoom.createdBy === currentUser.username;
-    
-    const chatRoomHtml = `
+    return `
         <div class="chat-room">
             <div class="chat-room-header">
-                <button class="btn btn-secondary" onclick="leaveChatRoom()">
-                    ← Back to Lobby
-                </button>
-                <div class="chat-room-info">
-                    <h2 class="chat-room-title">
-                        ${currentChatRoom.isPrivate ? '🔒' : '🌐'} ${escapeHtml(currentChatRoom.name)}
-                    </h2>
-                    <p class="chat-room-meta">
-                        ${memberCount} ${memberCount === 1 ? 'member' : 'members'} • 
-                        ${currentChatRoom.isPrivate ? 'Private' : 'Public'} room
-                        ${isOwner ? ' • 👑 You own this room' : ''}
-                    </p>
+                <button class="btn-icon" onclick="leaveChatRoom()">←</button>
+                <div class="room-header-info">
+                    <h3>${escapeHtml(currentChatRoom.name)}</h3>
+                    ${currentChatRoom.description ? 
+                        `<p>${escapeHtml(currentChatRoom.description)}</p>` : ''}
                 </div>
-                <div class="chat-room-actions">
-                    ${isOwner ? `
-                        <button class="btn btn-secondary" onclick="openRoomManagementModal('${currentChatRoom.id}')">
-                            ⚙️ Manage
-                        </button>
+                <div class="room-header-actions">
+                    ${currentChatRoom.creator === currentUser.username ? `
+                        <button class="btn-icon" onclick="showRoomSettings('${currentChatRoom.id}')">⚙️</button>
                     ` : ''}
-                    <button class="btn btn-secondary" onclick="openRoomMembersModal('${currentChatRoom.id}')">
-                        👥 Members
-                    </button>
                 </div>
             </div>
-
-            <div class="chat-messages-container" id="chatMessagesContainer">
-                <div class="chat-messages" id="chatMessages">
-                    ${renderChatMessages()}
-                </div>
+            <div class="chat-messages" id="chatMessages">
+                ${renderChatMessages()}
             </div>
-
             <div class="chat-input-container">
-                <div class="chat-input-wrapper">
-                    <textarea 
-                        id="chatMessageInput" 
-                        class="chat-message-input" 
-                        placeholder="Type a message... (Enter to send, Shift+Enter for new line)"
-                        rows="1"
-                        onkeydown="handleChatInput(event)"
-                        oninput="autoResizeChatInput(this)"></textarea>
-                    <button class="chat-send-btn" onclick="sendChatMessageFromInput()">
-                        📤
-                    </button>
-                </div>
-                <div class="chat-input-help">
-                    <small>Commands: /help, /invite &lt;username&gt;, /leave</small>
-                </div>
+                <textarea 
+                    id="chatInput" 
+                    class="chat-input" 
+                    placeholder="Type a message..."
+                    rows="1"
+                ></textarea>
+                <button class="btn-send" onclick="sendChatMessage(document.getElementById('chatInput').value)">
+                    Send
+                </button>
             </div>
         </div>
     `;
-    
-    updateFeedContent(chatRoomHtml);
-    
-    // Scroll to bottom of messages
-    setTimeout(scrollChatToBottom, 100);
 }
 
 // Render chat messages
 function renderChatMessages() {
     if (!chatMessages || chatMessages.length === 0) {
         return `
-            <div class="chat-empty-messages">
-                <div class="chat-empty-icon">💬</div>
-                <p>No messages yet. Be the first to say hello!</p>
+            <div class="no-messages">
+                <p>No messages yet</p>
+                <p class="text-muted">Be the first to say something!</p>
             </div>
         `;
     }
     
-    return chatMessages.map(message => renderChatMessage(message)).join('');
-}
-
-// Render individual chat message
-function renderChatMessage(message) {
-    const isOwnMessage = message.author === currentUser.username;
-    const isSystemMessage = message.isSystem;
-    const timestamp = formatTimestamp(message.timestamp);
+    let lastDate = null;
+    let html = '';
     
-    if (isSystemMessage) {
-        return `
-            <div class="chat-message system-message">
-                <div class="system-message-content">
-                    <span class="system-message-icon">ℹ️</span>
-                    ${escapeHtml(message.content)}
-                </div>
+    chatMessages.forEach(message => {
+        const messageDate = new Date(message.timestamp).toDateString();
+        
+        // Add date separator if new day
+        if (messageDate !== lastDate) {
+            html += `<div class="message-date-separator">${messageDate}</div>`;
+            lastDate = messageDate;
+        }
+        
+        const isOwn = message.author === currentUser.username;
+        
+        html += `
+            <div class="chat-message ${isOwn ? 'own' : ''}">
+                <div class="message-author">${escapeHtml(message.author)}</div>
+                <div class="message-content">${escapeHtml(message.content)}</div>
+                <div class="message-time">${formatChatTime(message.timestamp)}</div>
             </div>
         `;
-    }
-    
-    return `
-        <div class="chat-message ${isOwnMessage ? 'own-message' : ''}">
-            <div class="message-avatar">
-                ${message.author.charAt(0).toUpperCase()}
-            </div>
-            <div class="message-content">
-                <div class="message-header">
-                    <span class="message-author">@${escapeHtml(message.author)}</span>
-                    <span class="message-timestamp">${timestamp}</span>
-                </div>
-                <div class="message-text">
-                    ${renderMessageContent(message.content)}
-                </div>
-            </div>
-        </div>
-    `;
-}
-
-// Render message content with basic formatting
-function renderMessageContent(content) {
-    if (!content) return '';
-    
-    let html = escapeHtml(content);
-    
-    // Basic link detection
-    html = html.replace(
-        /(https?:\/\/[^\s]+)/g, 
-        '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>'
-    );
-    
-    // Basic @mention highlighting
-    html = html.replace(
-        /@([a-zA-Z0-9_]+)/g,
-        '<span class="mention">@$1</span>'
-    );
-    
-    // Convert line breaks
-    html = html.replace(/\n/g, '<br>');
+    });
     
     return html;
 }
 
-// Send message from input
-function sendChatMessageFromInput() {
-    const input = document.getElementById('chatMessageInput');
-    if (!input) return;
+// Append a new message to the chat
+function appendChatMessage(message) {
+    const messagesContainer = document.getElementById('chatMessages');
+    if (!messagesContainer) return;
     
-    const content = input.value.trim();
-    if (!content) return;
+    const isOwn = message.author === currentUser.username;
     
-    // Check if it's a command
-    if (processChatCommand(content)) {
-        input.value = '';
-        autoResizeChatInput(input);
-        return;
+    // Check if we need a date separator
+    const lastMessage = messagesContainer.querySelector('.chat-message:last-child');
+    const messageDate = new Date(message.timestamp).toDateString();
+    
+    if (!lastMessage || new Date(chatMessages[chatMessages.length - 2]?.timestamp).toDateString() !== messageDate) {
+        const separator = document.createElement('div');
+        separator.className = 'message-date-separator';
+        separator.textContent = messageDate;
+        messagesContainer.appendChild(separator);
     }
     
-    // Send regular message
-    sendChatMessage(content);
-}
-
-// Auto-resize chat input
-function autoResizeChatInput(textarea) {
-    textarea.style.height = 'auto';
-    textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
-}
-
-// Scroll chat to bottom
-function scrollChatToBottom() {
-    const container = document.getElementById('chatMessagesContainer');
-    if (container) {
-        container.scrollTop = container.scrollHeight;
-    }
-}
-
-// Update chat messages (called when new messages arrive)
-function updateChatMessages() {
-    const messagesElement = document.getElementById('chatMessages');
-    if (messagesElement) {
-        const wasAtBottom = isScrolledToBottom();
-        messagesElement.innerHTML = renderChatMessages();
-        
-        // Only auto-scroll if user was already at bottom
-        if (wasAtBottom) {
-            scrollChatToBottom();
-        }
-    }
-}
-
-// Check if user is scrolled to bottom
-function isScrolledToBottom() {
-    const container = document.getElementById('chatMessagesContainer');
-    if (!container) return true;
-    
-    return container.scrollHeight - container.clientHeight <= container.scrollTop + 1;
-}
-
-// Open create room modal
-function openCreateRoomModal() {
-    if (!currentUser) {
-        openAuthModal('signin');
-        return;
-    }
-    
-    document.getElementById('createRoomForm').reset();
-    document.getElementById('createRoomError').innerHTML = '';
-    openModal('createRoomModal');
-}
-
-// Open room management modal (for room owners)
-function openRoomManagementModal(roomId) {
-    // TODO: Implement room management modal
-    showSuccessMessage('Room management coming soon!');
-}
-
-// Open room members modal
-function openRoomMembersModal(roomId) {
-    if (!currentChatRoom) return;
-    
-    const members = currentChatRoom.members || [];
-    const isOwner = currentChatRoom.createdBy === currentUser.username;
-    
-    const membersHtml = members.map(member => `
-        <div class="member-item">
-            <div class="member-avatar">
-                ${member.charAt(0).toUpperCase()}
-            </div>
-            <div class="member-info">
-                <span class="member-username">@${escapeHtml(member)}</span>
-                ${member === currentChatRoom.createdBy ? '<span class="member-badge">👑 Owner</span>' : ''}
-            </div>
-            ${isOwner && member !== currentUser.username ? `
-                <button class="btn btn-danger btn-small" onclick="removeUserFromRoom('${roomId}', '${member}')">
-                    Remove
-                </button>
-            ` : ''}
-        </div>
-    `).join('');
-    
-    const modalContent = `
-        <div class="members-modal-content">
-            <h4>Room Members (${members.length})</h4>
-            <div class="members-list">
-                ${membersHtml}
-            </div>
-            ${isOwner ? `
-                <div class="invite-section">
-                    <h5>Invite User</h5>
-                    <div class="invite-form">
-                        <input type="text" id="inviteUsername" placeholder="Username to invite" maxlength="20">
-                        <button class="btn" onclick="inviteUserFromModal('${roomId}')">Invite</button>
-                    </div>
-                </div>
-            ` : ''}
-        </div>
+    // Create and append the message
+    const messageDiv = document.createElement('div');
+    messageDiv.className = `chat-message ${isOwn ? 'own' : ''}`;
+    messageDiv.innerHTML = `
+        <div class="message-author">${escapeHtml(message.author)}</div>
+        <div class="message-content">${escapeHtml(message.content)}</div>
+        <div class="message-time">${formatChatTime(message.timestamp)}</div>
     `;
     
-    // Create and show modal (simplified implementation)
-    showModal('Room Members', modalContent);
+    messagesContainer.appendChild(messageDiv);
+    
+    // Scroll to bottom
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
 }
 
-// Invite user from modal
-function inviteUserFromModal(roomId) {
-    const usernameInput = document.getElementById('inviteUsername');
-    if (!usernameInput) return;
-    
-    const username = usernameInput.value.trim();
-    if (!username) {
-        showSuccessMessage('Please enter a username');
-        return;
-    }
-    
-    inviteUserToRoom(roomId, username);
-    usernameInput.value = '';
+// Render no chat selected state
+function renderNoChatSelected() {
+    return `
+        <div class="chat-empty-state">
+            <h2>Select a Chat Room</h2>
+            <p>Choose a room from the sidebar or create a new one</p>
+            <button class="btn" onclick="openModal('createRoomModal')">Create Room</button>
+        </div>
+    `;
 }
 
-// Leave room with confirmation
-function leaveRoomConfirm(roomId) {
+// Show room settings
+function showRoomSettings(roomId) {
     const room = userRooms.find(r => r.id === roomId);
-    const roomName = room ? room.name : 'this room';
+    if (!room || room.creator !== currentUser.username) return;
     
-    if (confirm(`Are you sure you want to leave "${roomName}"?`)) {
-        leaveChatRoom();
-    }
-}
-
-// Simple modal implementation (you might want to integrate with existing modal system)
-function showModal(title, content) {
+    // Create a simple settings modal
     const modal = document.createElement('div');
     modal.className = 'modal';
     modal.style.display = 'block';
     modal.innerHTML = `
         <div class="modal-content">
-            <div class="modal-header">
-                <h3>${escapeHtml(title)}</h3>
-                <button class="close-btn" onclick="this.closest('.modal').remove()">&times;</button>
-            </div>
-            <div class="modal-body">
-                ${content}
+            <span class="modal-close" onclick="this.parentElement.parentElement.remove()">&times;</span>
+            <h2>Room Settings</h2>
+            <div class="room-settings">
+                <h3>${escapeHtml(room.name)}</h3>
+                <p>${escapeHtml(room.description || 'No description')}</p>
+                <div class="settings-actions">
+                    ${room.isPrivate ? `
+                        <div class="form-group">
+                            <label>Invite User</label>
+                            <input type="text" id="inviteUsername" placeholder="Username">
+                            <button class="btn" onclick="inviteToRoom('${roomId}', document.getElementById('inviteUsername').value)">
+                                Send Invite
+                            </button>
+                        </div>
+                    ` : ''}
+                    <button class="btn btn-danger" onclick="confirmDeleteRoom('${roomId}')">
+                        Delete Room
+                    </button>
+                </div>
             </div>
         </div>
     `;
     
     document.body.appendChild(modal);
-    
-    // Close on background click
-    modal.addEventListener('click', (e) => {
-        if (e.target === modal) {
-            modal.remove();
-        }
-    });
 }
 
-// Navigation helper
-function navigateToChat() {
-    toggleMenu();
-    currentPage = 'chat';
-    updateActiveMenuItem('menuChat');
-    updateUI();
+// Confirm room deletion
+function confirmDeleteRoom(roomId) {
+    if (confirm('Are you sure you want to delete this room? This action cannot be undone.')) {
+        deleteChatRoom(roomId).then(success => {
+            if (success) {
+                showSuccessMessage('Room deleted successfully');
+                document.querySelector('.modal').remove();
+            } else {
+                showSuccessMessage('Failed to delete room');
+            }
+        });
+    }
+}
+
+// Auto-resize chat input
+function autoResizeChatInput() {
+    const input = document.getElementById('chatInput');
+    if (!input) return;
+    
+    input.style.height = 'auto';
+    input.style.height = Math.min(input.scrollHeight, 120) + 'px';
+}
+
+// Initialize chat UI listeners
+function initChatUIListeners() {
+    // Auto-resize textarea
+    document.addEventListener('input', (e) => {
+        if (e.target.id === 'chatInput') {
+            autoResizeChatInput();
+        }
+    });
 }
