@@ -1,9 +1,10 @@
-// app.js - Main application logic
+// app.js - Complete Main Application Logic with All Functions
 
 // Global state
 let currentUser = null;
 let currentPage = 'feed';
 let currentCommunityView = null;
+let currentCommunity = null; // Add this for community page
 let posts = [];
 let communities = [];
 let isLoading = false;
@@ -15,29 +16,34 @@ let createCommunityModal = null;
 let authModal = null;
 let communityDropdownOpen = false;
 let inlineLoginFormOpen = false;
+let followedCommunities = new Set(); // Add this for followed communities
 
 // Navigation functions
 function navigateToFeed() {
     currentPage = 'feed';
     currentCommunityView = null;
+    currentCommunity = null;
     updateUI();
 }
 
 function navigateToCommunity(communityName) {
     currentPage = 'community';
     currentCommunityView = communityName;
+    currentCommunity = communityName;
     updateUI();
 }
 
 function navigateToProfile() {
     currentPage = 'profile';
     currentCommunityView = null;
+    currentCommunity = null;
     updateUI();
 }
 
 function navigateToMyShed() {
     currentPage = 'myshed';
     currentCommunityView = null;
+    currentCommunity = null;
     updateUI();
 }
 
@@ -48,12 +54,28 @@ function navigateToAdmin() {
     }
     currentPage = 'admin';
     currentCommunityView = null;
+    currentCommunity = null;
     updateUI();
 }
 
 function navigateToChat() {
     currentPage = 'chat';
     currentCommunityView = null;
+    currentCommunity = null;
+    updateUI();
+}
+
+function navigateToBrowse() {
+    currentPage = 'browse';
+    currentCommunityView = null;
+    currentCommunity = null;
+    updateUI();
+}
+
+function navigateToSettings() {
+    currentPage = 'settings';
+    currentCommunityView = null;
+    currentCommunity = null;
     updateUI();
 }
 
@@ -77,20 +99,29 @@ function updateFeedTabsVisibility() {
             tab.classList.remove('active');
         });
         
-        if (currentFeedTab === 'general') {
-            document.getElementById('generalFeedTab')?.classList.add('active');
-        } else if (currentFeedTab === 'followed') {
-            document.getElementById('followedFeedTab')?.classList.add('active');
+        const generalTab = document.getElementById('generalTab');
+        const followedTab = document.getElementById('followedTab');
+        
+        if (currentFeedTab === 'general' && generalTab) {
+            generalTab.classList.add('active');
+        } else if (currentFeedTab === 'followed' && followedTab) {
+            followedTab.classList.add('active');
         }
     } else {
         feedTabs.style.display = 'none';
     }
 }
 
-// Menu functions
+// Menu functions - FIXED WITH NULL CHECKS (FIX 2)
 function toggleMenu() {
     const menu = document.getElementById('slideMenu');
     const menuToggle = document.getElementById('menuToggle');
+    
+    // FIX 2: Add null checks
+    if (!menu || !menuToggle) {
+        console.error('Menu elements not found');
+        return;
+    }
     
     if (menu.classList.contains('open')) {
         menu.classList.remove('open');
@@ -105,10 +136,17 @@ function toggleMenu() {
     }
 }
 
+// FIXED WITH COMPREHENSIVE NULL CHECKS (FIX 2)
 function updateMenuForUser() {
     const menuUserInfo = document.getElementById('menuUserInfo');
     const menuLogout = document.getElementById('menuLogout');
     const menuAdmin = document.getElementById('menuAdmin');
+    
+    // FIX 2: Check if required elements exist
+    if (!menuUserInfo) {
+        console.error('Menu user info element not found');
+        return;
+    }
     
     if (currentUser) {
         // Show user info
@@ -119,23 +157,31 @@ function updateMenuForUser() {
             </div>
         `;
         
-        // Show authenticated menu items
-        document.getElementById('menuFeed').style.display = 'flex';
-        document.getElementById('menuChat').style.display = 'flex';
-        document.getElementById('menuProfile').style.display = 'flex';
-        document.getElementById('menuMyShed').style.display = 'flex';
-        document.getElementById('menuCreateCommunity').style.display = 'flex';
-        document.getElementById('menuBrowseCommunities').style.display = 'flex';
+        // Show authenticated menu items with null checks
+        const menuFeed = document.getElementById('menuFeed');
+        const menuChat = document.getElementById('menuChat');
+        const menuProfile = document.getElementById('menuProfile');
+        const menuMyShed = document.getElementById('menuMyShed');
+        const menuCreateCommunity = document.getElementById('menuCreateCommunity');
+        const menuBrowseCommunities = document.getElementById('menuBrowseCommunities');
+        const menuSettings = document.getElementById('menuSettings');
+        
+        if (menuFeed) menuFeed.style.display = 'flex';
+        if (menuChat) menuChat.style.display = 'flex';
+        if (menuProfile) menuProfile.style.display = 'flex';
+        if (menuMyShed) menuMyShed.style.display = 'flex';
+        if (menuCreateCommunity) menuCreateCommunity.style.display = 'flex';
+        if (menuBrowseCommunities) menuBrowseCommunities.style.display = 'flex';
         
         // Show admin menu if admin
-        if (currentUser.profile?.isAdmin) {
-            document.getElementById('menuAdmin').style.display = 'flex';
-        } else {
-            document.getElementById('menuAdmin').style.display = 'none';
+        if (currentUser.profile?.isAdmin && menuAdmin) {
+            menuAdmin.style.display = 'flex';
+        } else if (menuAdmin) {
+            menuAdmin.style.display = 'none';
         }
         
-        document.getElementById('menuSettings').style.display = 'flex';
-        menuLogout.style.display = 'flex';
+        if (menuSettings) menuSettings.style.display = 'flex';
+        if (menuLogout) menuLogout.style.display = 'flex';
         
     } else {
         // Show login prompt
@@ -164,21 +210,34 @@ function updateMenuForUser() {
             </div>
         `;
         
-        // Hide authenticated menu items
-        document.getElementById('menuFeed').style.display = 'flex'; // Keep feed visible for non-auth users
-        document.getElementById('menuChat').style.display = 'none';
-        document.getElementById('menuProfile').style.display = 'none';
-        document.getElementById('menuMyShed').style.display = 'none';
-        document.getElementById('menuCreateCommunity').style.display = 'none';
-        document.getElementById('menuBrowseCommunities').style.display = 'none';
-        document.getElementById('menuAdmin').style.display = 'none';
-        document.getElementById('menuSettings').style.display = 'none';
-        menuLogout.style.display = 'none';
+        // Hide authenticated menu items with null checks
+        const menuFeed = document.getElementById('menuFeed');
+        const menuChat = document.getElementById('menuChat');
+        const menuProfile = document.getElementById('menuProfile');
+        const menuMyShed = document.getElementById('menuMyShed');
+        const menuCreateCommunity = document.getElementById('menuCreateCommunity');
+        const menuBrowseCommunities = document.getElementById('menuBrowseCommunities');
+        const menuSettings = document.getElementById('menuSettings');
+        
+        if (menuFeed) menuFeed.style.display = 'flex'; // Keep feed visible for non-auth users
+        if (menuChat) menuChat.style.display = 'none';
+        if (menuProfile) menuProfile.style.display = 'none';
+        if (menuMyShed) menuMyShed.style.display = 'none';
+        if (menuCreateCommunity) menuCreateCommunity.style.display = 'none';
+        if (menuBrowseCommunities) menuBrowseCommunities.style.display = 'none';
+        if (menuAdmin) menuAdmin.style.display = 'none';
+        if (menuSettings) menuSettings.style.display = 'none';
+        if (menuLogout) menuLogout.style.display = 'none';
     }
 }
 
 function toggleInlineLoginForm() {
     const form = document.getElementById('inlineLoginForm');
+    if (!form) {
+        console.error('Inline login form not found');
+        return;
+    }
+    
     const isOpen = form.classList.contains('open');
     
     if (isOpen) {
@@ -189,7 +248,8 @@ function toggleInlineLoginForm() {
         inlineLoginFormOpen = true;
         // Focus on username field
         setTimeout(() => {
-            document.getElementById('inlineUsername').focus();
+            const usernameField = document.getElementById('inlineUsername');
+            if (usernameField) usernameField.focus();
         }, 300);
     }
 }
@@ -237,6 +297,8 @@ function updateCommunitiesInMenu() {
 
 function toggleCommunitiesDropdown() {
     const dropdown = document.getElementById('communitiesDropdown');
+    if (!dropdown) return;
+    
     communityDropdownOpen = !communityDropdownOpen;
     dropdown.style.display = communityDropdownOpen ? 'block' : 'none';
 }
@@ -278,6 +340,14 @@ async function handleFollowCommunity(communityName, followBtn) {
     }
 }
 
+async function toggleCommunityFollow(communityName) {
+    const btn = document.getElementById(`followBtn-${communityName}`);
+    if (btn) {
+        await handleFollowCommunity(communityName, btn);
+    }
+}
+
+// UI Update functions
 function updateUI() {
     updateComposeButton();
     updateFeedTabsVisibility();
@@ -286,8 +356,14 @@ function updateUI() {
 
 function updateComposeButton() {
     const composeBtn = document.getElementById('composeBtn');
+    if (!composeBtn) return;
+    
     // Hide compose button on chat page
-    composeBtn.style.display = (currentUser && currentPage !== 'chat') ? 'block' : 'none';
+    if (currentUser && currentPage !== 'chat') {
+        composeBtn.style.display = 'block';
+    } else {
+        composeBtn.style.display = 'none';
+    }
 }
 
 function renderCurrentPage() {
@@ -296,6 +372,8 @@ function renderCurrentPage() {
     } else if (currentPage === 'chat') {
         if (typeof renderChatPage === 'function') {
             renderChatPage();
+        } else if (typeof renderChatRoomList === 'function') {
+            renderChatRoomList();
         }
     } else if (currentPage === 'community') {
         if (typeof renderCommunityPage === 'function') {
@@ -313,9 +391,95 @@ function renderCurrentPage() {
         if (typeof renderAdminPage === 'function') {
             renderAdminPage();
         }
+    } else if (currentPage === 'browse') {
+        renderBrowseCommunitiesPage();
+    } else if (currentPage === 'settings') {
+        renderSettingsPage();
     }
 }
 
+// Modal functions
+function openModal(modalId) {
+    const modal = document.getElementById(modalId);
+    if (modal) {
+        modal.style.display = 'block';
+    }
+}
+
+function closeModal(modalId) {
+    const modal = document.getElementById(modalId);
+    if (modal) {
+        modal.style.display = 'none';
+    }
+}
+
+function openComposeModal() {
+    if (!currentUser) {
+        openAuthModal('signin');
+        return;
+    }
+    openModal('composeModal');
+}
+
+function openCreateCommunityModal() {
+    if (!currentUser) {
+        openAuthModal('signin');
+        return;
+    }
+    openModal('createCommunityModal');
+}
+
+// Browse and Settings pages
+function renderBrowseCommunitiesPage() {
+    const html = `
+        <div class="browse-communities">
+            <h2>Browse Communities</h2>
+            <div class="communities-grid">
+                ${communities.map(community => `
+                    <div class="community-card">
+                        <h3>${escapeHtml(community.displayName)}</h3>
+                        <p>${escapeHtml(community.description || 'No description')}</p>
+                        <div class="community-stats">
+                            <span>${community.members?.length || 0} members</span>
+                        </div>
+                        <button class="btn" onclick="navigateToCommunity('${community.name}')">
+                            View Community
+                        </button>
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+    `;
+    updateFeedContent(html);
+}
+
+function renderSettingsPage() {
+    if (!currentUser) {
+        const html = `
+            <div class="settings-page">
+                <h2>Settings</h2>
+                <p>Please log in to access settings.</p>
+                <button class="btn" onclick="openAuthModal('signin')">Sign In</button>
+            </div>
+        `;
+        updateFeedContent(html);
+        return;
+    }
+    
+    const html = `
+        <div class="settings-page">
+            <h2>Settings</h2>
+            <div class="settings-section">
+                <h3>Account Settings</h3>
+                <p>Username: @${escapeHtml(currentUser.username)}</p>
+                <button class="btn" onclick="logout()">Log Out</button>
+            </div>
+        </div>
+    `;
+    updateFeedContent(html);
+}
+
+// Setup event listeners
 function setupEventListeners() {
     // Auth form
     const authForm = document.getElementById('authForm');
@@ -337,7 +501,7 @@ function setupEventListeners() {
     
     // Create room form (chat)
     const createRoomForm = document.getElementById('createRoomForm');
-    if (createRoomForm && typeof handleCreateRoom === 'function') {
+    if (createRoomForm) {
         createRoomForm.addEventListener('submit', handleCreateRoom);
     }
     
@@ -380,10 +544,8 @@ function setupEventListeners() {
     document.addEventListener('visibilitychange', () => {
         if (currentPage === 'chat' && typeof currentChatRoom !== 'undefined' && currentChatRoom) {
             if (document.hidden) {
-                // Page is hidden, reduce chat refresh frequency or stop
                 console.log('Page hidden, chat may reduce activity');
             } else {
-                // Page is visible, ensure chat is refreshing
                 console.log('Page visible, ensuring chat is active');
                 if (typeof chatRefreshInterval !== 'undefined' && !chatRefreshInterval && currentChatRoom && typeof startChatRefresh === 'function') {
                     startChatRefresh(currentChatRoom.id);
@@ -400,7 +562,7 @@ function setupEventListeners() {
     });
 }
 
-// Enhanced user loading with safe chat initialization
+// Data loading functions
 async function loadUser() {
     try {
         const userData = await blobAPI.get('current_user');
@@ -426,7 +588,79 @@ async function loadUser() {
     }
 }
 
-// Clean up chat state (helper function)
+async function loadCommunities() {
+    try {
+        const communityKeys = await blobAPI.list('community_');
+        const communityPromises = communityKeys.map(async (key) => {
+            try {
+                return await blobAPI.get(key);
+            } catch (error) {
+                console.error(`Error loading community ${key}:`, error);
+                return null;
+            }
+        });
+        
+        const loadedCommunities = await Promise.all(communityPromises);
+        communities = loadedCommunities
+            .filter(Boolean)
+            .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+        // Update community dropdown in compose modal
+        if (typeof updateCommunityDropdown === 'function') {
+            updateCommunityDropdown();
+        }
+        
+    } catch (error) {
+        console.error('Error loading communities:', error);
+        communities = [];
+    }
+}
+
+async function loadPosts() {
+    try {
+        if (!isLoading) {
+            isLoading = true;
+            updateFeedContent('<div class="loading">Loading...</div>');
+        }
+        
+        const postKeys = await blobAPI.list('post_');
+        const postPromises = postKeys.map(async (key) => {
+            try {
+                return await blobAPI.get(key);
+            } catch (error) {
+                console.error(`Error loading post ${key}:`, error);
+                return null;
+            }
+        });
+        
+        const loadedPosts = await Promise.all(postPromises);
+        posts = loadedPosts
+            .filter(Boolean)
+            .filter(post => !post.isPrivate || (currentUser && post.author === currentUser.username))
+            .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+        
+    } catch (error) {
+        console.error('Error loading posts:', error);
+        posts = [];
+    } finally {
+        isLoading = false;
+    }
+}
+
+// Helper function to get followed community posts
+function getFollowedCommunityPosts() {
+    if (!currentUser || !followedCommunities || followedCommunities.size === 0) {
+        return [];
+    }
+    
+    return posts.filter(post => 
+        !post.isPrivate && 
+        post.communityName && 
+        followedCommunities.has(post.communityName)
+    );
+}
+
+// Cleanup chat state (helper function)
 function cleanupChat() {
     if (typeof stopChatRefresh === 'function') {
         stopChatRefresh();
@@ -495,3 +729,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         await loadAdminStats();
     }
 });
+
+// Utility function to update feed content
+function updateFeedContent(html) {
+    const feedElement = document.getElementById('feedContent') || document.getElementById('feed');
+    if (feedElement) {
+        feedElement.innerHTML = html;
+    }
+}
