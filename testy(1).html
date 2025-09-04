@@ -136,7 +136,9 @@
             const loginView = document.getElementById('loginView');
             const feedsView = document.getElementById('feedsView');
             const loginForm = document.getElementById('loginForm');
+            const instanceUrlInput = document.getElementById('instanceUrl');
             const usernameInput = document.getElementById('username');
+            const passwordInput = document.getElementById('password');
             const loginButton = document.getElementById('loginButton');
             const loadingMessage = document.getElementById('loadingMessage');
             const resultMessage = document.getElementById('resultMessage');
@@ -164,33 +166,47 @@
 
             modalCloseButton.addEventListener('click', hideModal);
 
-            // Mock data to simulate API responses locally.
-            const mockApi = {
-                'all': [
-                    { author: 'user1', content: 'A post from the federated feed.', date: '2025-09-04T12:00:00Z' },
-                    { author: 'user2', content: 'Another post from a different instance.', date: '2025-09-04T11:55:00Z' },
-                    { author: 'user3', content: 'Checking out the latest federated news.', date: '2025-09-04T11:50:00Z' },
-                    { author: 'user4', content: 'Just joined the fediverse, it\'s great!', date: '2025-09-04T11:45:00Z' },
-                ],
-                'subscribed': [
-                    { author: 'friend1', content: 'My latest project update.', date: '2025-09-04T10:30:00Z' },
-                    { author: 'friend2', content: 'Having a great time with this new tool.', date: '2025-09-04T10:25:00Z' },
-                    { author: 'friend3', content: 'Thinking about new ideas.', date: '2025-09-04T10:20:00Z' },
-                ],
-                'local': [
-                    { author: 'localUser1', content: 'Local instance news!', date: '2025-09-04T09:00:00Z' },
-                    { author: 'localUser2', content: 'Looking for a new collaborator.', date: '2025-09-04T08:55:00Z' },
-                    { author: 'localUser3', content: 'Who\'s online right now?', date: '2025-09-04T08:50:00Z' },
-                ]
+            // These are placeholders for your actual API endpoints. You MUST replace them
+            // with the correct paths from your Piefed instance's documentation.
+            const API_ENDPOINTS = {
+               'all': '/api/v1/feed/all',
+               'subscribed': '/api/v1/feed/subscribed',
+               'local': '/api/v1/feed/local'
             };
 
+            let instanceUrl = '';
+            let authToken = ''; // This would be the auth token you get after a successful login.
+
             const fetchFeed = async (feedType) => {
-                // Simulate an API call with a delay
-                return new Promise(resolve => {
-                    setTimeout(() => {
-                        resolve(mockApi[feedType]);
-                    }, 1000);
-                });
+                // Ensure there is an instance URL and a valid auth token before fetching.
+                if (!instanceUrl || !authToken) {
+                    showModal('Authentication Error', 'You must log in first to fetch feeds.');
+                    return [];
+                }
+
+                const endpoint = `${instanceUrl}${API_ENDPOINTS[feedType]}`;
+
+                try {
+                    const response = await fetch(endpoint, {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': `Bearer ${authToken}`,
+                            'Content-Type': 'application/json'
+                        }
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`API returned status code ${response.status}`);
+                    }
+
+                    const data = await response.json();
+                    return data;
+
+                } catch (error) {
+                    showModal('Network Error', `Failed to fetch feed data from ${endpoint}. Error: ${error.message}`);
+                    console.error('Fetch Error:', error);
+                    return null;
+                }
             };
 
             const renderFeed = (feedData) => {
@@ -199,6 +215,7 @@
                     feedContent.innerHTML = `<p class="text-center text-gray-500">No posts to display in this feed.</p>`;
                     return;
                 }
+                
                 feedData.forEach(post => {
                     const postElement = document.createElement('div');
                     postElement.className = 'feed-post p-4';
@@ -223,26 +240,20 @@
                 document.getElementById(tabId).classList.add('active');
                 feedContent.innerHTML = `<p class="text-center text-gray-500">Loading feed...</p>`;
 
-                try {
-                    const data = await fetchFeed(feedType);
+                const data = await fetchFeed(feedType);
+                if (data) {
                     renderFeed(data);
-                } catch (error) {
-                    showModal('API Error', 'Failed to fetch feed data.');
-                    console.error('API Error:', error);
+                } else {
                     feedContent.innerHTML = `<p class="text-center text-red-500">Failed to load feed data.</p>`;
                 }
             };
 
-            // Initial feed rendering on load
-            handleTabClick('allFeedTab', 'all');
-            allFeedTab.addEventListener('click', () => handleTabClick('allFeedTab', 'all'));
-            subscribedFeedTab.addEventListener('click', () => handleTabClick('subscribedFeedTab', 'subscribed'));
-            localFeedTab.addEventListener('click', () => handleTabClick('localFeedTab', 'local'));
-
             loginForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
 
+                instanceUrl = instanceUrlInput.value.trim();
                 const username = usernameInput.value.trim();
+                const password = passwordInput.value.trim();
                 
                 // Clear previous messages
                 resultMessage.classList.add('hidden');
@@ -253,49 +264,54 @@
                 loginButton.disabled = true;
 
                 try {
-                    // Simulate a network request delay
-                    await new Promise(resolve => setTimeout(resolve, 2000));
+                    // This is a placeholder for your actual login API call.
+                    // You'll need to send the username and password to your Piefed instance's login endpoint.
+                    // The API response should return an auth token on success.
+                    // EXAMPLE: const loginEndpoint = `${instanceUrl}/api/v1/auth/login`;
+                    const loginEndpoint = `${instanceUrl}/api/auth/login`; // Placeholder endpoint
+                    const response = await fetch(loginEndpoint, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ username, password })
+                    });
                     
-                    // Simulate a successful login
-                    const mockResponse = {
-                        success: true,
-                        user: {
-                            username: username,
-                            displayName: username
-                        }
-                    };
+                    if (!response.ok) {
+                         throw new Error(`Login failed with status ${response.status}`);
+                    }
 
-                    if (mockResponse.success) {
+                    const data = await response.json();
+                    // Assuming the API returns a token upon successful login
+                    authToken = data.token; // You must replace 'data.token' with the actual field from your API response.
+                    
+                    if (authToken) {
                         resultMessage.classList.remove('hidden');
                         resultMessage.innerHTML = `
                             <p class="text-lg font-semibold text-green-600">Connection Successful!</p>
-                            <p class="mt-2 text-gray-600">Logged in as: <span class="font-bold text-gray-800">${mockResponse.user.displayName}</span></p>
+                            <p class="mt-2 text-gray-600">Logged in as: <span class="font-bold text-gray-800">${username}</span></p>
                         `;
 
                         // Hide login view and show feeds view
                         setTimeout(() => {
                             loginView.classList.add('hidden');
                             feedsView.classList.remove('hidden');
-                            feedsHeader.textContent = `Welcome, ${mockResponse.user.displayName}!`;
-                            // Load the initial feed after login
+                            feedsHeader.textContent = `Welcome, ${username}!`;
+                            // Load the initial feed after a successful login
                             handleTabClick('allFeedTab', 'all');
                         }, 1000);
                         
                     } else {
-                        resultMessage.classList.remove('hidden');
-                        resultMessage.innerHTML = `
-                            <p class="text-lg font-semibold text-red-600">Login Failed</p>
-                            <p class="mt-2 text-gray-600">Could not connect to the specified instance. Please check your credentials and the URL.</p>
-                        `;
+                         throw new Error('No authentication token received.');
                     }
 
                 } catch (error) {
-                    showModal('Connection Error', `An error occurred while trying to connect. Please check the console for more details.`);
-                    console.error('Error during login simulation:', error);
+                    showModal('Login Failed', `Could not connect to the specified instance. Please check your credentials and URL. Error: ${error.message}`);
+                    console.error('Error during login:', error);
                     resultMessage.classList.remove('hidden');
                     resultMessage.innerHTML = `
-                        <p class="text-lg font-semibold text-red-600">Connection Error</p>
-                        <p class="mt-2 text-gray-600">An unexpected error occurred. Please try again later.</p>
+                        <p class="text-lg font-semibold text-red-600">Login Error</p>
+                        <p class="mt-2 text-gray-600">Please check your instance URL and credentials.</p>
                     `;
                 } finally {
                     // Hide loading state
@@ -303,7 +319,13 @@
                     loginButton.disabled = false;
                 }
             });
+
+            // Set up event listeners for tabs
+            allFeedTab.addEventListener('click', () => handleTabClick('allFeedTab', 'all'));
+            subscribedFeedTab.addEventListener('click', () => handleTabClick('subscribedFeedTab', 'subscribed'));
+            localFeedTab.addEventListener('click', () => handleTabClick('localFeedTab', 'local'));
         });
     </script>
 </body>
 </html>
+
