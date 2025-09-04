@@ -1037,6 +1037,7 @@
                 if (data.message) {
                     chatMessages.push(data.message);
                     renderMessages();
+                    // Force scroll to bottom when user sends a message
                     scrollToBottom();
                 }
 
