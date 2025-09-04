@@ -1,192 +1,52 @@
-// api.js - Frontend API and storage operations (NO IMPORT STATEMENTS)
+// api.js - API functions for communication with backend
 
-// ============================================
-// TOKEN MANAGEMENT SYSTEM
-// ============================================
+const API_BASE = '/.netlify/functions/api';
+const CHAT_API_BASE = '/.netlify/functions/chat-api';
 
-// Store the session token in a variable
-let currentSessionToken = null;
-
-// Get auth token function
-async function getAuthToken() {
-    // First, check if we have a token in memory
-    if (currentSessionToken) {
-        return currentSessionToken;
-    }
-    
-    // Try to get from localStorage
-    const storedToken = localStorage.getItem('sessionToken');
-    if (storedToken) {
-        currentSessionToken = storedToken;
-        return storedToken;
-    }
-    
-    // If no token found, user needs to authenticate
-    console.warn('No authentication token found');
-    return null;
-}
-
-// Set auth token function
-function setAuthToken(token) {
-    currentSessionToken = token;
-    // Store in localStorage for persistence
-    localStorage.setItem('sessionToken', token);
-    console.log('Token stored in localStorage');
-}
-
-// Clear auth token function
-function clearAuthToken() {
-    currentSessionToken = null;
-    localStorage.removeItem('sessionToken');
-    console.log('Token cleared from localStorage');
-}
-
-// ============================================
-// NETLIFY BLOBS API IMPLEMENTATION
-// ============================================
-
-const blobAPI = {
-    async get(key) {
-        try {
-            const response = await fetch(`/.netlify/functions/blobs?key=${encodeURIComponent(key)}`, {
-                method: 'GET',
-                headers: { 'Content-Type': 'application/json' }
-            });
-            
-            if (!response.ok) {
-                if (response.status === 404) return null;
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-            }
-            
-            const result = await response.json();
-            return result.data;
-        } catch (error) {
-            console.error('Error getting blob:', error);
-            return null;
-        }
-    },
-    
-    async set(key, value) {
-        try {
-            const response = await fetch('/.netlify/functions/blobs', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ key, value })
-            });
-            
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-            }
-            
-            return await response.json();
-        } catch (error) {
-            console.error('Error setting blob:', error);
-            throw error;
-        }
-    },
-    
-    async list(prefix = '') {
-        try {
-            const response = await fetch(`/.netlify/functions/blobs?list=true&prefix=${encodeURIComponent(prefix)}`, {
-                method: 'GET',
-                headers: { 'Content-Type': 'application/json' }
-            });
-            
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-            }
-            
-            const result = await response.json();
-            return result.keys || [];
-        } catch (error) {
-            console.error('Error listing blobs:', error);
-            return [];
-        }
-    },
-    
-    async delete(key) {
-        try {
-            const response = await fetch('/.netlify/functions/blobs', {
-                method: 'DELETE',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ key })
-            });
-            
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-            }
-            
-            return await response.json();
-        } catch (error) {
-            console.error('Error deleting blob:', error);
-            throw error;
-        }
-    }
-};
-
-// ============================================
-// AUTHENTICATION FUNCTIONS
-// ============================================
-
-async function handleAuth(e) {
-    e.preventDefault();
-    
-    const form = e.target;
-    const mode = form.dataset.mode;
-    const username = document.getElementById('username').value.trim();
-    const password = document.getElementById('password').value;
-    const bio = document.getElementById('bio')?.value || '';
-    const submitBtn = document.getElementById('authSubmitBtn');
-    
+// Authentication functions
+async function login(username, password) {
     try {
-        submitBtn.disabled = true;
-        submitBtn.textContent = mode === 'signup' ? 'Creating account...' : 'Signing in...';
-        
-        const endpoint = mode === 'signup' ? 
-            '/.netlify/functions/api/auth/register' : 
-            '/.netlify/functions/api/auth/login';
-        
-        const body = mode === 'signup' ? 
-            { username, password, bio } : 
-            { username, password };
-        
-        const response = await fetch(endpoint, {
+        const response = await fetch(`${API_BASE}/auth/login`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body)
+            body: JSON.stringify({ username, password })
         });
         
         const data = await response.json();
         
-        if (!response.ok) {
-            throw new Error(data.error || 'Authentication failed');
+        if (response.ok && data.success) {
+            storeSession(data.session);
+            currentUser = data.user;
+            return { success: true, user: data.user };
         }
         
-        // Store the token if login was successful
-        if (data.token) {
-            setAuthToken(data.token);
-        }
-        
-        // Store user data
-        currentUser = { username: data.user.username, profile: data.user };
-        await blobAPI.set('current_user', currentUser);
-        
-        // Close modal and update UI
-        closeModal('authModal');
-        updateUI();
-        showSuccessMessage(mode === 'signup' ? 'Account created successfully!' : 'Welcome back!');
-        
-        // Reload data
-        await loadCommunities();
-        await loadPosts();
-        updateUI();
-        
+        return { success: false, error: data.error || 'Login failed' };
     } catch (error) {
-        console.error('Auth error:', error);
-        showError('authError', error.message);
-    } finally {
-        submitBtn.disabled = false;
-        submitBtn.textContent = mode === 'signup' ? 'Sign Up' : 'Sign In';
+        console.error('Login error:', error);
+        return { success: false, error: 'Network error' };
+    }
+}
+
+async function register(username, password, bio = '') {
+    try {
+        const response = await fetch(`${API_BASE}/auth/register`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password, bio })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+            storeSession(data.session);
+            currentUser = data.user;
+            return { success: true, user: data.user };
+        }
+        
+        return { success: false, error: data.error || 'Registration failed' };
+    } catch (error) {
+        console.error('Registration error:', error);
+        return { success: false, error: 'Network error' };
     }
 }
 
@@ -194,7 +54,7 @@ async function logout() {
     try {
         const token = await getAuthToken();
         if (token) {
-            await fetch('/.netlify/functions/api/auth/logout', {
+            await fetch(`${API_BASE}/auth/logout`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -202,648 +62,442 @@ async function logout() {
                 }
             });
         }
-        
-        clearAuthToken();
-        currentUser = null;
-        followedCommunities = new Set();
-        await blobAPI.delete('current_user');
-        
-        navigateToFeed();
-        updateUI();
-        showSuccessMessage('Logged out successfully!');
     } catch (error) {
         console.error('Logout error:', error);
-        // Clear local state even if API call fails
-        clearAuthToken();
+    } finally {
+        clearSession();
         currentUser = null;
-        followedCommunities = new Set();
-        navigateToFeed();
         updateUI();
     }
 }
 
-async function handleInlineLogin(e) {
-    e.preventDefault();
-    
-    const username = document.getElementById('inlineUsername').value.trim();
-    const password = document.getElementById('inlinePassword').value;
-    const errorDiv = document.getElementById('inlineLoginError');
-    const submitBtn = document.getElementById('inlineLoginBtn');
-
-    errorDiv.innerHTML = '';
-    
-    if (username.length < 3) {
-        showInlineError('Username must be at least 3 characters long');
-        return;
-    }
-    
-    if (password.length < 6) {
-        showInlineError('Password must be at least 6 characters long');
-        return;
-    }
-
+async function checkSession() {
     try {
-        submitBtn.disabled = true;
-        submitBtn.textContent = 'Signing in...';
-
-        const response = await fetch('/.netlify/functions/api/auth/login', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username, password })
+        const session = storage.get('session');
+        if (!session || !session.token) return null;
+        
+        const response = await fetch(`${API_BASE}/auth/verify`, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${session.token}`
+            }
         });
+        
+        if (response.ok) {
+            const data = await response.json();
+            if (data.valid) {
+                currentUser = data.user;
+                return data.user;
+            }
+        }
+        
+        clearSession();
+        return null;
+    } catch (error) {
+        console.error('Session check error:', error);
+        clearSession();
+        return null;
+    }
+}
 
+// Post functions
+async function loadPosts() {
+    try {
+        const response = await fetch(`${API_BASE}/posts`, {
+            method: 'GET',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            posts = data.posts || [];
+            return posts;
+        }
+        
+        return [];
+    } catch (error) {
+        console.error('Error loading posts:', error);
+        return [];
+    }
+}
+
+async function createPost(postData) {
+    try {
+        const token = await getAuthToken();
+        if (!token) {
+            return { success: false, error: 'Not authenticated' };
+        }
+        
+        const response = await fetch(`${API_BASE}/posts`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(postData)
+        });
+        
         const data = await response.json();
         
-        if (!response.ok) {
-            showInlineError(data.error || 'Invalid username or password');
-            return;
+        if (response.ok && data.success) {
+            posts.unshift(data.post);
+            return { success: true, post: data.post };
         }
         
-        // Store the session token
-        if (data.token) {
-            setAuthToken(data.token);
-            console.log('Session token stored from inline login');
-        }
-        
-        // Store user data
-        currentUser = { 
-            username: data.user.username, 
-            profile: data.user 
-        };
-        await blobAPI.set('current_user', currentUser);
-        
-        // Load user's followed communities after login
-        if (typeof loadFollowedCommunities === 'function') {
-            await loadFollowedCommunities();
-        }
-        
-        // Initialize chat system after successful login
-        if (typeof initializeChat === 'function') {
-            await initializeChat();
-        }
-        
-        // Clear the form
-        document.getElementById('inlineLoginFormElement').reset();
-        
-        // Close menu and update UI
-        toggleMenu();
-        updateUI();
-        showSuccessMessage('Welcome back!');
-        
-        // Reload data
-        await loadCommunities();
-        await loadPosts();
-        updateUI();
-        
+        return { success: false, error: data.error || 'Failed to create post' };
     } catch (error) {
-        console.error('Inline login error:', error);
-        showInlineError('Something went wrong. Please try again.');
-    } finally {
-        submitBtn.disabled = false;
-        submitBtn.textContent = 'Sign In';
+        console.error('Error creating post:', error);
+        return { success: false, error: 'Network error' };
     }
 }
 
-function showInlineError(message) {
-    const errorDiv = document.getElementById('inlineLoginError');
-    if (errorDiv) {
-        errorDiv.style.display = 'block';
-        errorDiv.innerHTML = `<div class="inline-error-message">${escapeHtml(message)}</div>`;
+async function deletePost(postId) {
+    try {
+        const token = await getAuthToken();
+        if (!token) {
+            return { success: false, error: 'Not authenticated' };
+        }
+        
+        const response = await fetch(`${API_BASE}/posts/${postId}`, {
+            method: 'DELETE',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+            posts = posts.filter(p => p.id !== postId);
+            return { success: true };
+        }
+        
+        return { success: false, error: data.error || 'Failed to delete post' };
+    } catch (error) {
+        console.error('Error deleting post:', error);
+        return { success: false, error: 'Network error' };
     }
 }
 
-// ============================================
-// POST AND COMMUNITY FUNCTIONS
-// ============================================
+async function toggleLike(postId) {
+    try {
+        const token = await getAuthToken();
+        if (!token) {
+            return { success: false, error: 'Not authenticated' };
+        }
+        
+        const response = await fetch(`${API_BASE}/posts/${postId}/like`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+            return { success: true, liked: data.liked };
+        }
+        
+        return { success: false, error: data.error || 'Failed to toggle like' };
+    } catch (error) {
+        console.error('Error toggling like:', error);
+        return { success: false, error: 'Network error' };
+    }
+}
 
-async function handleCreatePost(e) {
-    e.preventDefault();
+// Community functions
+async function loadCommunities() {
+    try {
+        const response = await fetch(`${API_BASE}/communities`, {
+            method: 'GET',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            communities = data.communities || [];
+            return communities;
+        }
+        
+        return [];
+    } catch (error) {
+        console.error('Error loading communities:', error);
+        return [];
+    }
+}
+
+async function createCommunity(communityData) {
+    try {
+        const token = await getAuthToken();
+        if (!token) {
+            return { success: false, error: 'Not authenticated' };
+        }
+        
+        const response = await fetch(`${API_BASE}/communities`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(communityData)
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+            communities.push(data.community);
+            return { success: true, community: data.community };
+        }
+        
+        return { success: false, error: data.error || 'Failed to create community' };
+    } catch (error) {
+        console.error('Error creating community:', error);
+        return { success: false, error: 'Network error' };
+    }
+}
+
+async function toggleFollowStatus(communityName, shouldFollow) {
+    try {
+        const token = await getAuthToken();
+        if (!token) {
+            return { success: false, error: 'Not authenticated' };
+        }
+        
+        const endpoint = shouldFollow ? 'follow' : 'unfollow';
+        const response = await fetch(`${API_BASE}/communities/${communityName}/${endpoint}`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+            if (shouldFollow) {
+                if (!currentUser.profile.followedCommunities) {
+                    currentUser.profile.followedCommunities = [];
+                }
+                currentUser.profile.followedCommunities.push(communityName);
+            } else {
+                currentUser.profile.followedCommunities = 
+                    currentUser.profile.followedCommunities.filter(c => c !== communityName);
+            }
+            return { success: true };
+        }
+        
+        return { success: false, error: data.error || 'Failed to update follow status' };
+    } catch (error) {
+        console.error('Error toggling follow status:', error);
+        return { success: false, error: 'Network error' };
+    }
+}
+
+async function checkIfFollowing(communityName) {
+    return currentUser?.profile?.followedCommunities?.includes(communityName) || false;
+}
+
+// Media detection
+async function detectMedia(url) {
+    try {
+        const response = await fetch(`${API_BASE}/media/detect`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url })
+        });
+        
+        if (response.ok) {
+            return await response.json();
+        }
+        
+        return null;
+    } catch (error) {
+        console.error('Error detecting media:', error);
+        return null;
+    }
+}
+
+// Profile functions
+async function updateProfile(profileData) {
+    try {
+        const token = await getAuthToken();
+        if (!token) {
+            return { success: false, error: 'Not authenticated' };
+        }
+        
+        const response = await fetch(`${API_BASE}/profile`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(profileData)
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+            currentUser.profile = { ...currentUser.profile, ...profileData };
+            return { success: true };
+        }
+        
+        return { success: false, error: data.error || 'Failed to update profile' };
+    } catch (error) {
+        console.error('Error updating profile:', error);
+        return { success: false, error: 'Network error' };
+    }
+}
+
+// Search functions
+async function searchPosts(query) {
+    try {
+        const response = await fetch(`${API_BASE}/search/posts?q=${encodeURIComponent(query)}`, {
+            method: 'GET',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            return data.posts || [];
+        }
+        
+        return [];
+    } catch (error) {
+        console.error('Error searching posts:', error);
+        return [];
+    }
+}
+
+// Form handlers
+async function handleAuth(event) {
+    event.preventDefault();
+    
+    const form = event.target;
+    const mode = form.dataset.mode;
+    const username = document.getElementById('username').value.trim();
+    const password = document.getElementById('password').value;
+    const bio = document.getElementById('bio')?.value || '';
+    
+    // Validate inputs
+    const usernameValidation = validateUsername(username);
+    if (!usernameValidation.valid) {
+        showError('authError', usernameValidation.error);
+        return;
+    }
+    
+    const passwordValidation = validatePassword(password);
+    if (!passwordValidation.valid) {
+        showError('authError', passwordValidation.error);
+        return;
+    }
+    
+    try {
+        const result = mode === 'signup' ? 
+            await register(username, password, bio) : 
+            await login(username, password);
+        
+        if (result.success) {
+            closeModal('authModal');
+            showSuccessMessage(mode === 'signup' ? 'Welcome to The Shed!' : 'Welcome back!');
+            updateUI();
+        } else {
+            showError('authError', result.error);
+        }
+    } catch (error) {
+        showError('authError', 'An error occurred. Please try again.');
+    }
+}
+
+async function handleCreatePost(event) {
+    event.preventDefault();
+    
+    if (!currentUser) {
+        openAuthModal('signin');
+        return;
+    }
     
     const title = document.getElementById('postTitle').value.trim();
-    const content = document.getElementById('postContent').value.trim();
-    const url = document.getElementById('postUrl')?.value.trim() || '';
-    const communityName = document.getElementById('postCommunity').value;
-    const isPrivate = document.getElementById('postPrivate').checked;
-    const submitBtn = e.target.querySelector('button[type="submit"]');
+    const content = document.getElementById('postContent')?.value || '';
+    const url = document.getElementById('postUrl')?.value || '';
+    const community = document.getElementById('postCommunity').value;
     
     if (!title) {
         showError('composeError', 'Title is required');
         return;
     }
     
+    const postData = {
+        title,
+        content: currentPostType === 'text' ? content : '',
+        type: currentPostType,
+        mediaUrl: currentPostType !== 'text' ? url : '',
+        community: community || null,
+        author: currentUser.username,
+        timestamp: new Date().toISOString(),
+        id: generateId()
+    };
+    
     try {
-        submitBtn.disabled = true;
-        submitBtn.textContent = 'Posting...';
+        const result = await createPost(postData);
         
-        const post = {
-            id: `post_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-            title,
-            content: currentPostType === 'text' ? content : '',
-            url: currentPostType === 'link' ? url : '',
-            type: currentPostType,
-            author: currentUser.username,
-            communityName,
-            isPrivate,
-            timestamp: new Date().toISOString(),
-            likes: [],
-            replies: []
-        };
-        
-        await blobAPI.set(post.id, post);
-        posts.unshift(post);
-        
-        closeModal('composeModal');
-        document.getElementById('composeForm').reset();
-        updateUI();
-        showSuccessMessage('Post created successfully!');
-        
+        if (result.success) {
+            closeModal('composeModal');
+            showSuccessMessage('Post created successfully!');
+            document.getElementById('composeForm').reset();
+            updateUI();
+        } else {
+            showError('composeError', result.error);
+        }
     } catch (error) {
-        console.error('Error creating post:', error);
-        showError('composeError', 'Failed to create post. Please try again.');
-    } finally {
-        submitBtn.disabled = false;
-        submitBtn.textContent = 'Post';
+        showError('composeError', 'Failed to create post');
     }
 }
 
-async function handleCreateCommunity(e) {
-    e.preventDefault();
+async function handleCreateCommunity(event) {
+    event.preventDefault();
     
     if (!currentUser) {
-        showError('createCommunityError', 'Please sign in to create a community');
+        openAuthModal('signin');
         return;
     }
     
     const name = document.getElementById('communityName').value.trim().toLowerCase();
     const displayName = document.getElementById('communityDisplayName').value.trim();
     const description = document.getElementById('communityDescription').value.trim();
-    const submitBtn = document.getElementById('createCommunitySubmitBtn');
     
-    // Validation
-    if (!/^[a-z0-9_]{3,25}$/.test(name)) {
-        showError('createCommunityError', 'Community name must be 3-25 characters, lowercase, alphanumeric and underscores only');
-        return;
-    }
-
-    if (!displayName || displayName.length > 50) {
-        showError('createCommunityError', 'Display name is required and must be 50 characters or less');
-        return;
-    }
-
-    if (description.length > 500) {
-        showError('createCommunityError', 'Description must be 500 characters or less');
-        return;
-    }
-
-    // Check if community already exists
-    const existingCommunity = await blobAPI.get(`community_${name}`);
-    if (existingCommunity) {
-        showError('createCommunityError', 'Community name already exists');
+    if (!name || !displayName || !description) {
+        showError('createCommunityError', 'All fields are required');
         return;
     }
     
-    try {
-        submitBtn.disabled = true;
-        submitBtn.textContent = 'Creating...';
-        
-        const community = {
-            name,
-            displayName,
-            description,
-            createdBy: currentUser.username,
-            createdAt: new Date().toISOString(),
-            isPrivate: false,
-            moderators: [currentUser.username],
-            members: [currentUser.username],
-            rules: []
-        };
-        
-        await blobAPI.set(`community_${name}`, community);
-        communities.unshift(community);
-        
-        closeModal('createCommunityModal');
-        document.getElementById('createCommunityForm').reset();
-        
-        if (typeof updateCommunityDropdown === 'function') {
-            updateCommunityDropdown();
-        }
-        
-        showSuccessMessage(`Community "${displayName}" created successfully!`);
-        
-    } catch (error) {
-        console.error('Error creating community:', error);
-        showError('createCommunityError', 'Failed to create community. Please try again.');
-    } finally {
-        submitBtn.disabled = false;
-        submitBtn.textContent = 'Create Community';
-    }
-}
-
-async function deletePost(postId) {
-    if (!confirm('Are you sure you want to delete this post?')) {
+    if (!/^[a-z0-9_]+$/.test(name)) {
+        showError('createCommunityError', 'Community name can only contain lowercase letters, numbers, and underscores');
         return;
     }
     
-    try {
-        await blobAPI.delete(postId);
-        posts = posts.filter(p => p.id !== postId);
-        updateUI();
-        showSuccessMessage('Post deleted successfully!');
-    } catch (error) {
-        console.error('Error deleting post:', error);
-        showSuccessMessage('Failed to delete post. Please try again.');
-    }
-}
-
-// ============================================
-// REPLY FUNCTIONS
-// ============================================
-
-async function submitReply(postId) {
-    if (!currentUser) {
-        openAuthModal('signin');
-        return;
-    }
-
-    const replyInput = document.getElementById(`reply-input-${postId}`);
-    const content = replyInput.value.trim();
+    const communityData = {
+        name,
+        displayName,
+        description,
+        creator: currentUser.username,
+        members: [currentUser.username],
+        posts: [],
+        createdAt: new Date().toISOString()
+    };
     
-    if (!content) {
-        showSuccessMessage('Please write a reply before submitting.');
-        return;
-    }
-
-    if (content.length > 2000) {
-        showSuccessMessage('Reply must be 2000 characters or less.');
-        return;
-    }
-
     try {
-        const post = posts.find(p => p.id === postId);
-        if (!post) {
-            showSuccessMessage('Post not found.');
-            return;
-        }
-
-        const reply = {
-            id: `reply_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-            author: currentUser.username,
-            content: content,
-            timestamp: new Date().toISOString(),
-            postId: postId
-        };
-
-        if (!post.replies) {
-            post.replies = [];
-        }
-        post.replies.push(reply);
-
-        await blobAPI.set(postId, post);
-
-        const postIndex = posts.findIndex(p => p.id === postId);
-        if (postIndex !== -1) {
-            posts[postIndex] = post;
-        }
-
-        replyInput.value = '';
-
-        const repliesList = document.getElementById(`replies-list-${postId}`);
-        if (repliesList && typeof renderReplies === 'function') {
-            repliesList.innerHTML = renderReplies(post.replies);
-        }
-
-        if (typeof updateReplyCount === 'function') {
-            updateReplyCount(postId, post.replies.length);
-        }
-
-        showSuccessMessage('Reply added successfully!');
-
-    } catch (error) {
-        console.error('Error submitting reply:', error);
-        showSuccessMessage('Failed to submit reply. Please try again.');
-    }
-}
-
-async function deleteReply(postId, replyId) {
-    if (!currentUser) {
-        showSuccessMessage('Please sign in to delete replies.');
-        return;
-    }
-
-    if (!confirm('Are you sure you want to delete this reply?')) {
-        return;
-    }
-
-    try {
-        const post = posts.find(p => p.id === postId);
-        if (!post || !post.replies) {
-            showSuccessMessage('Post or reply not found.');
-            return;
-        }
-
-        const replyIndex = post.replies.findIndex(r => r.id === replyId);
-        if (replyIndex === -1) {
-            showSuccessMessage('Reply not found.');
-            return;
-        }
-
-        const reply = post.replies[replyIndex];
+        const result = await createCommunity(communityData);
         
-        if (reply.author !== currentUser.username && !currentUser.profile?.isAdmin) {
-            showSuccessMessage('You can only delete your own replies.');
-            return;
-        }
-
-        post.replies.splice(replyIndex, 1);
-        await blobAPI.set(postId, post);
-
-        const postIndex = posts.findIndex(p => p.id === postId);
-        if (postIndex !== -1) {
-            posts[postIndex] = post;
-        }
-
-        const repliesList = document.getElementById(`replies-list-${postId}`);
-        if (repliesList && typeof renderReplies === 'function') {
-            repliesList.innerHTML = renderReplies(post.replies);
-        }
-
-        if (typeof updateReplyCount === 'function') {
-            updateReplyCount(postId, post.replies.length);
-        }
-
-        showSuccessMessage('Reply deleted successfully!');
-
-    } catch (error) {
-        console.error('Error deleting reply:', error);
-        showSuccessMessage('Failed to delete reply. Please try again.');
-    }
-}
-
-// ============================================
-// LIKE FUNCTIONS
-// ============================================
-
-async function toggleLike(postId) {
-    if (!currentUser) {
-        openAuthModal('signin');
-        return;
-    }
-
-    try {
-        const post = posts.find(p => p.id === postId);
-        if (!post) return;
-
-        if (!post.likes) {
-            post.likes = [];
-        }
-
-        const likeIndex = post.likes.indexOf(currentUser.username);
-        if (likeIndex > -1) {
-            post.likes.splice(likeIndex, 1);
+        if (result.success) {
+            closeModal('createCommunityModal');
+            showSuccessMessage('Community created successfully!');
+            document.getElementById('createCommunityForm').reset();
+            updateUI();
         } else {
-            post.likes.push(currentUser.username);
+            showError('createCommunityError', result.error);
         }
-
-        await blobAPI.set(postId, post);
-
-        const postElement = document.querySelector(`[data-post-id="${postId}"]`);
-        if (postElement) {
-            const likeButton = postElement.querySelector('.action-btn');
-            if (likeButton) {
-                likeButton.classList.toggle('liked');
-                const likeCount = likeButton.querySelector('span:last-child');
-                if (likeCount) {
-                    likeCount.textContent = post.likes.length;
-                }
-                const likeIcon = likeButton.querySelector('span:first-child');
-                if (likeIcon) {
-                    likeIcon.textContent = post.likes.includes(currentUser.username) ? '❤️' : '🤍';
-                }
-            }
-        }
-
     } catch (error) {
-        console.error('Error toggling like:', error);
-        showSuccessMessage('Failed to update like. Please try again.');
+        showError('createCommunityError', 'Failed to create community');
     }
 }
-
-// ============================================
-// FOLLOW FUNCTIONS
-// ============================================
-
-let followedCommunities = new Set();
-
-async function loadFollowedCommunities() {
-    if (!currentUser) {
-        followedCommunities = new Set();
-        return;
-    }
-
-    try {
-        const userFollows = await blobAPI.get(`user_follows_${currentUser.username}`);
-        followedCommunities = new Set(userFollows?.communities || []);
-        console.log('Loaded followed communities:', Array.from(followedCommunities));
-    } catch (error) {
-        console.error('Error loading followed communities:', error);
-        followedCommunities = new Set();
-    }
-}
-
-async function saveFollowedCommunities() {
-    if (!currentUser) return;
-
-    try {
-        const followData = {
-            username: currentUser.username,
-            communities: Array.from(followedCommunities),
-            lastUpdated: new Date().toISOString()
-        };
-        await blobAPI.set(`user_follows_${currentUser.username}`, followData);
-        console.log('Saved followed communities:', followData);
-    } catch (error) {
-        console.error('Error saving followed communities:', error);
-    }
-}
-
-async function checkIfFollowing(communityName) {
-    if (!currentUser) return false;
-    
-    if (followedCommunities.size === 0) {
-        await loadFollowedCommunities();
-    }
-    
-    const isFollowing = followedCommunities.has(communityName);
-    console.log(`User ${currentUser.username} is ${isFollowing ? '' : 'NOT '}following ${communityName}`);
-    return isFollowing;
-}
-
-async function toggleFollowStatus(communityName, shouldFollow) {
-    if (!currentUser) {
-        return { success: false, error: 'Not logged in' };
-    }
-
-    try {
-        if (shouldFollow) {
-            followedCommunities.add(communityName);
-        } else {
-            followedCommunities.delete(communityName);
-        }
-
-        await saveFollowedCommunities();
-        
-        return { success: true };
-    } catch (error) {
-        console.error('Error toggling follow status:', error);
-        return { success: false, error: error.message };
-    }
-}
-
-// ============================================
-// CHAT API
-// ============================================
-
-const chatAPI = {
-    async getUserRooms() {
-        try {
-            const token = await getAuthToken();
-            if (!token) {
-                throw new Error('Not authenticated');
-            }
-
-            const response = await fetch('/.netlify/functions/chat-api/rooms', {
-                headers: { 
-                    'Authorization': `Bearer ${token}`
-                }
-            });
-            
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-            }
-            
-            return await response.json();
-        } catch (error) {
-            console.error('Error getting user rooms:', error);
-            throw error;
-        }
-    },
-    
-    async getPublicRooms() {
-        try {
-            const response = await fetch('/.netlify/functions/chat-api/rooms/public');
-            
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-            }
-            
-            return await response.json();
-        } catch (error) {
-            console.error('Error getting public rooms:', error);
-            throw error;
-        }
-    },
-    
-    async joinRoom(roomId) {
-        try {
-            const token = await getAuthToken();
-            if (!token) {
-                throw new Error('Not authenticated');
-            }
-
-            const response = await fetch(`/.netlify/functions/chat-api/rooms/${roomId}/join`, {
-                method: 'POST',
-                headers: { 
-                    'Authorization': `Bearer ${token}`
-                }
-            });
-            
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-            }
-            
-            return await response.json();
-        } catch (error) {
-            console.error('Error joining room:', error);
-            throw error;
-        }
-    },
-    
-    async leaveRoom(roomId) {
-        try {
-            const token = await getAuthToken();
-            if (!token) {
-                throw new Error('Not authenticated');
-            }
-
-            const response = await fetch(`/.netlify/functions/chat-api/rooms/${roomId}/leave`, {
-                method: 'POST',
-                headers: { 
-                    'Authorization': `Bearer ${token}`
-                }
-            });
-            
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-            }
-            
-            return await response.json();
-        } catch (error) {
-            console.error('Error leaving room:', error);
-            throw error;
-        }
-    },
-    
-    async getRoomMessages(roomId, limit = 50, before = null) {
-        try {
-            const token = await getAuthToken();
-            if (!token) {
-                throw new Error('Not authenticated');
-            }
-
-            const params = new URLSearchParams({ limit: limit.toString() });
-            if (before) params.append('before', before);
-            
-            const response = await fetch(`/.netlify/functions/chat-api/rooms/${roomId}/messages?${params}`, {
-                headers: { 
-                    'Authorization': `Bearer ${token}`
-                }
-            });
-            
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-            }
-            
-            return await response.json();
-        } catch (error) {
-            console.error('Error getting messages:', error);
-            throw error;
-        }
-    },
-    
-    async sendMessage(roomId, content) {
-        try {
-            const token = await getAuthToken();
-            if (!token) {
-                throw new Error('Not authenticated');
-            }
-
-            const response = await fetch(`/.netlify/functions/chat-api/rooms/${roomId}/messages`, {
-                method: 'POST',
-                headers: { 
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({ content })
-            });
-            
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-            }
-            
-            return await response.json();
-        } catch (error) {
-            console.error('Error sending message:', error);
-            throw error;
-        }
-    }
-};
