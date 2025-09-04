@@ -40,7 +40,7 @@
         }
     </style>
 </head>
-<body class="flex items-center justify-center min-h-screen p-4">
+<body class="flex flex-col items-center p-4 min-h-screen bg-gray-900">
 
     <!-- Login View -->
     <div id="loginView" class="container mx-auto login-card">
@@ -119,9 +119,14 @@
                 <h1 id="feedsHeader" class="text-3xl font-bold text-gray-100">Welcome!</h1>
                 <p class="text-gray-400">Explore your feeds below.</p>
             </div>
-            <button id="logoutButton" class="py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition ease-in-out duration-150">
-                Log Out
-            </button>
+            <div class="flex space-x-2">
+                <button id="profileButton" class="py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition ease-in-out duration-150">
+                    Profile
+                </button>
+                <button id="logoutButton" class="py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition ease-in-out duration-150">
+                    Log Out
+                </button>
+            </div>
         </div>
 
         <!-- Tabs -->
@@ -137,10 +142,54 @@
         </div>
     </div>
 
+    <!-- Profile View -->
+    <div id="profileView" class="w-full feed-container mx-auto hidden">
+        <div class="flex items-center justify-between mb-8">
+            <div class="flex items-center space-x-2">
+                <button id="backToFeedsButton" class="py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-gray-600 hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition ease-in-out duration-150">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd" />
+                    </svg>
+                </button>
+                <h1 class="text-3xl font-bold text-gray-100">User Profile</h1>
+            </div>
+            <button id="profileLogoutButton" class="py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition ease-in-out duration-150">
+                Log Out
+            </button>
+        </div>
+
+        <div class="bg-gray-800 rounded-xl overflow-hidden shadow-lg mb-6">
+            <div id="profileBanner" class="w-full h-32 bg-gray-700 object-cover bg-center bg-cover" style="background-image: url('https://placehold.co/1200x300/2c2c2c/e0e0e0?text=Profile+Banner');"></div>
+            <div class="flex items-center p-6 -mt-16">
+                <img id="profileAvatar" class="w-24 h-24 rounded-full border-4 border-gray-800 object-cover" src="https://placehold.co/96x96/4b5563/ffffff?text=U" alt="Profile Picture">
+                <div class="ml-4 flex-1">
+                    <h2 id="profileUsername" class="text-2xl font-bold text-white"></h2>
+                    <p id="profileBio" class="text-gray-400 mt-1"></p>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-xl font-semibold text-gray-100">Content</h3>
+            <div class="relative inline-block text-left">
+                <select id="contentDropdown" class="inline-flex justify-center w-full rounded-md border border-gray-600 shadow-sm px-4 py-2 bg-gray-700 text-sm font-medium text-gray-300 hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                    <option value="posts">Posts</option>
+                    <option value="comments">Comments</option>
+                </select>
+            </div>
+        </div>
+
+        <div id="profileContent" class="space-y-4">
+            <!-- User posts/comments will be dynamically injected here -->
+        </div>
+    </div>
+
+
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             const loginView = document.getElementById('loginView');
             const feedsView = document.getElementById('feedsView');
+            const profileView = document.getElementById('profileView');
             const loginForm = document.getElementById('loginForm');
             const instanceUrlInput = document.getElementById('instanceUrl');
             const usernameInput = document.getElementById('username');
@@ -154,6 +203,15 @@
             const subscribedFeedTab = document.getElementById('subscribedFeedTab');
             const localFeedTab = document.getElementById('localFeedTab');
             const logoutButton = document.getElementById('logoutButton');
+            const profileButton = document.getElementById('profileButton');
+            const backToFeedsButton = document.getElementById('backToFeedsButton');
+            const profileLogoutButton = document.getElementById('profileLogoutButton');
+            const profileUsername = document.getElementById('profileUsername');
+            const profileBio = document.getElementById('profileBio');
+            const profileAvatar = document.getElementById('profileAvatar');
+            const profileBanner = document.getElementById('profileBanner');
+            const contentDropdown = document.getElementById('contentDropdown');
+            const profileContent = document.getElementById('profileContent');
 
             // Modal elements
             const modal = document.getElementById('custom-modal');
@@ -176,20 +234,33 @@
             const API_ENDPOINTS = {
                'all': '/api/alpha/feed/list',
                'subscribed': '/api/alpha/feed/list',
-               'local': '/api/alpha/feed/list'
+               'local': '/api/alpha/feed/list',
+               'userProfile': '/api/alpha/user/profile', // Placeholder for profile API
+               'userPosts': '/api/alpha/user/posts', // Placeholder for user posts API
+               'userComments': '/api/alpha/user/comments' // Placeholder for user comments API
             };
 
             let instanceUrl = '';
             let authToken = '';
+            let currentUsername = '';
 
-            const saveSession = (url, token) => {
+            const saveSession = (url, token, username) => {
                 localStorage.setItem('piefed-instance-url', url);
                 localStorage.setItem('piefed-auth-token', token);
+                localStorage.setItem('piefed-username', username);
             };
 
             const clearSession = () => {
                 localStorage.removeItem('piefed-instance-url');
                 localStorage.removeItem('piefed-auth-token');
+                localStorage.removeItem('piefed-username');
+            };
+
+            const setView = (view) => {
+                loginView.classList.add('hidden');
+                feedsView.classList.add('hidden');
+                profileView.classList.add('hidden');
+                document.getElementById(view).classList.remove('hidden');
             };
 
             const fetchFeed = async (feedType) => {
@@ -242,11 +313,11 @@
                 }
             };
 
-            const renderFeed = (feedData) => {
+            const renderFeed = (feedData, container) => {
                 console.log('Rendering posts:', feedData); // Log the data being rendered
-                feedContent.innerHTML = '';
+                container.innerHTML = '';
                 if (!feedData || feedData.length === 0) {
-                    feedContent.innerHTML = `<p class="text-center text-gray-500 mt-6">No posts to display in this feed.</p>`;
+                    container.innerHTML = `<p class="text-center text-gray-500 mt-6">No posts to display in this feed.</p>`;
                     return;
                 }
                 
@@ -295,8 +366,64 @@
                             </div>
                         </div>
                     `;
-                    feedContent.appendChild(postElement);
+                    container.appendChild(postElement);
                 });
+            };
+
+            const fetchProfileData = async () => {
+                if (!instanceUrl || !authToken) {
+                    showModal('Authentication Error', 'You must be logged in to view your profile.');
+                    return null;
+                }
+
+                try {
+                    const response = await fetch(`${instanceUrl}${API_ENDPOINTS.userProfile}`, {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': `Bearer ${authToken}`,
+                            'Content-Type': 'application/json'
+                        }
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`Profile fetch failed with status ${response.status}`);
+                    }
+                    const data = await response.json();
+                    return data.profile; // Assuming the profile data is nested under a 'profile' key
+                } catch (error) {
+                    showModal('Profile Error', `Failed to fetch profile data. Error: ${error.message}`);
+                    console.error('Profile fetch error:', error);
+                    return null;
+                }
+            };
+
+            const fetchUserContent = async (contentType) => {
+                if (!instanceUrl || !authToken) {
+                    showModal('Authentication Error', 'You must be logged in to view your content.');
+                    return null;
+                }
+
+                const endpoint = contentType === 'posts' ? API_ENDPOINTS.userPosts : API_ENDPOINTS.userComments;
+
+                try {
+                    const response = await fetch(`${instanceUrl}${endpoint}`, {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': `Bearer ${authToken}`,
+                            'Content-Type': 'application/json'
+                        }
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`Content fetch failed with status ${response.status}`);
+                    }
+                    const data = await response.json();
+                    return data.content || data.posts || data.comments; // Assuming different key names
+                } catch (error) {
+                    showModal('Content Error', `Failed to fetch user ${contentType}. Error: ${error.message}`);
+                    console.error('User content fetch error:', error);
+                    return null;
+                }
             };
 
             const handleTabClick = async (tabId, feedType) => {
@@ -308,29 +435,60 @@
 
                 const data = await fetchFeed(feedType);
                 if (data) {
-                    renderFeed(data);
+                    renderFeed(data, feedContent);
                 } else {
                     feedContent.innerHTML = `<p class="text-center text-red-500 mt-6">Failed to load feed data. Please check the console for more details.</p>`;
                 }
             };
 
             const showFeedsView = (username) => {
-                loginView.classList.add('hidden');
-                feedsView.classList.remove('hidden');
                 feedsHeader.textContent = `Welcome, ${username}!`;
                 handleTabClick('allFeedTab', 'all');
+                setView('feedsView');
+            };
+
+            const showProfileView = async () => {
+                setView('profileView');
+                profileUsername.textContent = 'Loading...';
+                profileBio.textContent = '';
+                profileContent.innerHTML = `<p class="text-center text-gray-500 mt-6">Loading profile data...</p>`;
+                
+                // Fetch and display profile data
+                const profileData = await fetchProfileData();
+                if (profileData) {
+                    profileUsername.textContent = profileData.username || 'N/A';
+                    profileBio.textContent = profileData.bio || 'No bio provided.';
+                    if (profileData.avatar) {
+                        profileAvatar.src = profileData.avatar;
+                    }
+                    if (profileData.banner) {
+                        profileBanner.style.backgroundImage = `url('${profileData.banner}')`;
+                    }
+                    // Fetch and display default content (posts)
+                    const userPosts = await fetchUserContent('posts');
+                    if (userPosts) {
+                        renderFeed(userPosts, profileContent);
+                    } else {
+                        profileContent.innerHTML = `<p class="text-center text-red-500 mt-6">Failed to load user posts.</p>`;
+                    }
+                } else {
+                    profileUsername.textContent = 'Failed to load profile';
+                    profileContent.innerHTML = `<p class="text-center text-red-500 mt-6">Failed to load profile data.</p>`;
+                }
             };
 
             const checkSession = () => {
                 const storedUrl = localStorage.getItem('piefed-instance-url');
                 const storedToken = localStorage.getItem('piefed-auth-token');
+                const storedUsername = localStorage.getItem('piefed-username');
                 
-                if (storedUrl && storedToken) {
+                if (storedUrl && storedToken && storedUsername) {
                     instanceUrl = storedUrl;
                     authToken = storedToken;
-                    // We need a username to display, so we'll fetch it from the API or a stored value
-                    // For now, let's just use a placeholder to show the user is logged in
-                    showFeedsView('Piefed User');
+                    currentUsername = storedUsername;
+                    showFeedsView(currentUsername);
+                } else {
+                    setView('loginView');
                 }
             };
 
@@ -365,7 +523,8 @@
                     authToken = data.jwt;
 
                     if (authToken) {
-                        saveSession(instanceUrl, authToken);
+                        currentUsername = username;
+                        saveSession(instanceUrl, authToken, currentUsername);
                         resultMessage.classList.remove('hidden');
                         resultMessage.innerHTML = `
                             <p class="text-lg font-semibold text-green-400">Connection Successful!</p>
@@ -394,15 +553,25 @@
                 }
             });
 
-            logoutButton.addEventListener('click', () => {
+            const handleLogout = () => {
                 clearSession();
-                feedsView.classList.add('hidden');
-                loginView.classList.remove('hidden');
-            });
+                setView('loginView');
+            };
 
-            allFeedTab.addEventListener('click', () => handleTabClick('allFeedTab', 'all'));
-            subscribedFeedTab.addEventListener('click', () => handleTabClick('subscribedFeedTab', 'subscribed'));
-            localFeedTab.addEventListener('click', () => handleTabClick('localFeedTab', 'local'));
+            logoutButton.addEventListener('click', handleLogout);
+            profileLogoutButton.addEventListener('click', handleLogout);
+            
+            profileButton.addEventListener('click', showProfileView);
+            backToFeedsButton.addEventListener('click', () => showFeedsView(currentUsername));
+            contentDropdown.addEventListener('change', async (e) => {
+                profileContent.innerHTML = `<p class="text-center text-gray-500 mt-6">Loading user ${e.target.value}...</p>`;
+                const content = await fetchUserContent(e.target.value);
+                if (content) {
+                    renderFeed(content, profileContent);
+                } else {
+                    profileContent.innerHTML = `<p class="text-center text-red-500 mt-6">Failed to load user ${e.target.value}.</p>`;
+                }
+            });
 
             checkSession();
         });
