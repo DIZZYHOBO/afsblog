@@ -1,16 +1,8 @@
-// chat-rooms.js - Complete Chat Room Management
+// chat-rooms.js - Chat Room Management Functions Only
+// Note: All variables (currentChatRoom, chatMessages, userRooms) are declared in chat.js
+// This file only contains functions to avoid redeclaration errors
 
-// Note: userRooms might be declared in chat.js, so we'll check first
-if (typeof userRooms === 'undefined') {
-    var userRooms = [];
-}
-
-// Other chat-specific variables
-let currentChatRoom = null;
-let chatMessages = [];
-let chatRefreshInterval = null;
-
-// FIXED: Room creation/join flow (FIX 1)
+// Room creation handler - FIX 1: Don't try to join after creating
 async function handleCreateRoom(event) {
     event.preventDefault();
     
@@ -64,7 +56,7 @@ async function handleCreateRoom(event) {
         // FIX 1: Don't try to join the room after creating it
         // The backend already adds the creator as a member
         
-        // Update the UI - add room to user's rooms list
+        // Update the UI - add room to user's rooms list if it exists
         if (result.room && typeof userRooms !== 'undefined') {
             if (!userRooms.some(r => r.id === result.room.id)) {
                 userRooms.unshift(result.room);
@@ -83,7 +75,7 @@ async function handleCreateRoom(event) {
         }
         
         // Navigate to the new room (just load it, don't join)
-        if (typeof loadChatRoom === 'function' && result.room) {
+        if (result.room) {
             await loadChatRoom(result.room.id);
         }
         
@@ -106,7 +98,7 @@ async function handleCreateRoom(event) {
 async function loadChatRoom(roomId) {
     try {
         // Find the room in user's rooms
-        if (typeof userRooms !== 'undefined') {
+        if (typeof userRooms !== 'undefined' && typeof currentChatRoom !== 'undefined') {
             currentChatRoom = userRooms.find(r => r.id === roomId);
         }
         
@@ -161,14 +153,14 @@ async function loadChatRoom(roomId) {
         }
         
         // Show the chat messages area
-        const chatMessages = document.getElementById('chatMessages');
+        const chatMessagesEl = document.getElementById('chatMessages');
         const chatInput = document.getElementById('chatInput');
-        if (chatMessages) chatMessages.style.display = 'block';
+        if (chatMessagesEl) chatMessagesEl.style.display = 'block';
         if (chatInput) chatInput.style.display = 'block';
         
         // Start auto-refresh if not already running
         if (typeof startChatRefresh === 'function') {
-            startChatRefresh();
+            startChatRefresh(roomId);
         }
         
         // Update page to show chat room view
@@ -179,102 +171,6 @@ async function loadChatRoom(roomId) {
     } catch (error) {
         console.error('Error loading chat room:', error);
         showSuccessMessage('Failed to load chat room');
-    }
-}
-
-// Join a chat room (for rooms we're not members of yet)
-async function joinChatRoom(roomId) {
-    try {
-        const token = await getAuthToken();
-        if (!token) {
-            showSuccessMessage('Please log in to join rooms');
-            return;
-        }
-        
-        console.log('Joining room:', roomId);
-        
-        const response = await fetch(`/.netlify/functions/chat-api/rooms/${roomId}/join`, {
-            method: 'POST',
-            headers: { 
-                'Authorization': `Bearer ${token}`
-            }
-        });
-        
-        const result = await response.json();
-        
-        // FIX 1: Handle both new joins and already-member cases
-        if (!response.ok && !result.alreadyMember) {
-            throw new Error(result.error || 'Failed to join room');
-        }
-        
-        if (result.room) {
-            currentChatRoom = result.room;
-            
-            // Add to user rooms if not already there
-            if (typeof userRooms !== 'undefined' && !userRooms.some(r => r.id === result.room.id)) {
-                userRooms.unshift(result.room);
-            }
-            
-            if (result.alreadyMember) {
-                console.log('Already a member of this room');
-            } else {
-                showSuccessMessage('Successfully joined room!');
-            }
-            
-            // Now load the room
-            await loadChatRoom(roomId);
-        }
-        
-    } catch (error) {
-        console.error('Error joining room:', error);
-        showSuccessMessage(error.message || 'Failed to join room');
-    }
-}
-
-// Leave a chat room
-async function leaveChatRoom() {
-    if (!currentChatRoom) return;
-    
-    try {
-        const token = await getAuthToken();
-        if (!token) {
-            showSuccessMessage('Please log in');
-            return;
-        }
-        
-        const response = await fetch(`/.netlify/functions/chat-api/rooms/${currentChatRoom.id}/leave`, {
-            method: 'POST',
-            headers: { 
-                'Authorization': `Bearer ${token}`
-            }
-        });
-        
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || 'Failed to leave room');
-        }
-        
-        // Remove from user rooms
-        if (typeof userRooms !== 'undefined') {
-            userRooms = userRooms.filter(r => r.id !== currentChatRoom.id);
-        }
-        
-        showSuccessMessage('Left room successfully');
-        
-        // Clear current room and go back to room list
-        currentChatRoom = null;
-        if (typeof stopChatRefresh === 'function') {
-            stopChatRefresh();
-        }
-        
-        // Refresh room list
-        if (typeof renderChatRoomList === 'function') {
-            renderChatRoomList();
-        }
-        
-    } catch (error) {
-        console.error('Error leaving room:', error);
-        showSuccessMessage(error.message || 'Failed to leave room');
     }
 }
 
@@ -306,7 +202,7 @@ async function leaveRoom(roomId) {
             throw new Error(error.error || 'Failed to leave room');
         }
         
-        // Remove from user rooms
+        // Remove from user rooms if defined
         if (typeof userRooms !== 'undefined') {
             userRooms = userRooms.filter(r => r.id !== roomId);
         }
@@ -314,7 +210,7 @@ async function leaveRoom(roomId) {
         showSuccessMessage('Left room successfully');
         
         // If this was the current room, clear it
-        if (currentChatRoom && currentChatRoom.id === roomId) {
+        if (typeof currentChatRoom !== 'undefined' && currentChatRoom && currentChatRoom.id === roomId) {
             currentChatRoom = null;
             if (typeof stopChatRefresh === 'function') {
                 stopChatRefresh();
@@ -332,193 +228,203 @@ async function leaveRoom(roomId) {
     }
 }
 
-// Load user's rooms
-async function loadUserRooms() {
-    try {
-        const token = await getAuthToken();
-        if (!token) {
-            console.log('No auth token, skipping room load');
+// Delete a room (owner only) - if not defined in chat.js
+if (typeof deleteRoom === 'undefined') {
+    async function deleteRoom(roomId) {
+        if (!confirm('Are you sure you want to delete this room? This action cannot be undone.')) {
             return;
         }
         
-        const response = await fetch('/.netlify/functions/chat-api/rooms', {
-            headers: { 
-                'Authorization': `Bearer ${token}`
+        try {
+            const token = await getAuthToken();
+            if (!token) {
+                showSuccessMessage('Please log in');
+                return;
             }
-        });
-        
-        if (!response.ok) {
-            throw new Error('Failed to load rooms');
+            
+            const response = await fetch(`/.netlify/functions/chat-api/rooms/${roomId}`, {
+                method: 'DELETE',
+                headers: { 
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+            
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || 'Failed to delete room');
+            }
+            
+            // Remove from user rooms
+            if (typeof userRooms !== 'undefined') {
+                userRooms = userRooms.filter(r => r.id !== roomId);
+            }
+            
+            showSuccessMessage('Room deleted successfully');
+            
+            // If this was the current room, clear it
+            if (typeof currentChatRoom !== 'undefined' && currentChatRoom && currentChatRoom.id === roomId) {
+                currentChatRoom = null;
+                if (typeof stopChatRefresh === 'function') {
+                    stopChatRefresh();
+                }
+            }
+            
+            // Go back to room list
+            if (typeof renderChatRoomList === 'function') {
+                renderChatRoomList();
+            }
+            
+        } catch (error) {
+            console.error('Error deleting room:', error);
+            showSuccessMessage(error.message || 'Failed to delete room');
         }
-        
-        const data = await response.json();
-        userRooms = data.rooms || [];
-        console.log('Loaded user rooms:', userRooms.length);
-        
-    } catch (error) {
-        console.error('Error loading user rooms:', error);
-        userRooms = [];
     }
 }
 
-// Load messages for a room
-async function loadRoomMessages(roomId) {
-    try {
-        const token = await getAuthToken();
-        if (!token) {
+// Handle chat input keypress
+function handleChatInput(event) {
+    // Enter to send, Shift+Enter for new line
+    if (event.key === 'Enter' && !event.shiftKey) {
+        event.preventDefault();
+        if (typeof sendChatMessageFromInput === 'function') {
+            sendChatMessageFromInput();
+        }
+    }
+}
+
+// Render chat page (main entry point if not defined in chat.js)
+if (typeof renderChatPage === 'undefined') {
+    function renderChatPage() {
+        if (!currentUser) {
+            const html = `
+                <div class="feature-placeholder">
+                    <h3>💬 Chat Rooms</h3>
+                    <p>Please sign in to access chat rooms.</p>
+                    <button class="btn" onclick="openAuthModal('signin')">Sign In</button>
+                </div>
+            `;
+            updateFeedContent(html);
             return;
         }
         
-        const response = await fetch(`/.netlify/functions/chat-api/rooms/${roomId}/messages?limit=50`, {
-            headers: { 
-                'Authorization': `Bearer ${token}`
+        // If we have a current room, show it; otherwise show room list
+        if (typeof currentChatRoom !== 'undefined' && currentChatRoom) {
+            if (typeof renderChatRoom === 'function') {
+                renderChatRoom();
             }
-        });
-        
-        if (!response.ok) {
-            throw new Error('Failed to load messages');
-        }
-        
-        const data = await response.json();
-        chatMessages = data.messages || [];
-        
-        // Update the UI with messages
-        if (typeof updateChatMessages === 'function') {
-            updateChatMessages();
-        }
-        
-    } catch (error) {
-        console.error('Error loading messages:', error);
-        chatMessages = [];
-    }
-}
-
-// Send a chat message
-async function sendChatMessage(content) {
-    if (!currentChatRoom || !content.trim()) return;
-    
-    try {
-        const token = await getAuthToken();
-        if (!token) {
-            showSuccessMessage('Please log in to send messages');
-            return;
-        }
-        
-        const response = await fetch(`/.netlify/functions/chat-api/rooms/${currentChatRoom.id}/messages`, {
-            method: 'POST',
-            headers: { 
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify({ content: content.trim() })
-        });
-        
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || 'Failed to send message');
-        }
-        
-        const data = await response.json();
-        
-        // Add message to local array
-        chatMessages.push(data.message);
-        
-        // Update UI
-        if (typeof updateChatMessages === 'function') {
-            updateChatMessages();
-        }
-        
-        // Clear input
-        const input = document.getElementById('chatMessageInput');
-        if (input) {
-            input.value = '';
-            if (typeof autoResizeChatInput === 'function') {
-                autoResizeChatInput(input);
+        } else {
+            if (typeof renderChatRoomList === 'function') {
+                renderChatRoomList();
             }
         }
+    }
+}
+
+// Open room members modal if not defined
+if (typeof openRoomMembersModal === 'undefined') {
+    function openRoomMembersModal(roomId) {
+        if (!currentChatRoom) return;
         
-        // Scroll to bottom
-        if (typeof scrollChatToBottom === 'function') {
-            scrollChatToBottom();
-        }
+        const members = currentChatRoom.members || [];
+        const isOwner = currentChatRoom.owner === currentUser.username;
         
-    } catch (error) {
-        console.error('Error sending message:', error);
-        showSuccessMessage(error.message || 'Failed to send message');
-    }
-}
-
-// Start chat refresh interval
-function startChatRefresh() {
-    stopChatRefresh(); // Clear any existing interval
-    
-    if (!currentChatRoom) return;
-    
-    chatRefreshInterval = setInterval(async () => {
-        if (currentChatRoom) {
-            await loadRoomMessages(currentChatRoom.id);
-        }
-    }, 3000); // Refresh every 3 seconds
-}
-
-// Stop chat refresh interval
-function stopChatRefresh() {
-    if (chatRefreshInterval) {
-        clearInterval(chatRefreshInterval);
-        chatRefreshInterval = null;
-    }
-}
-
-// Process chat commands
-function processChatCommand(content) {
-    if (!content.startsWith('/')) return false;
-    
-    const parts = content.split(' ');
-    const command = parts[0].toLowerCase();
-    
-    switch (command) {
-        case '/help':
-            showSuccessMessage('Commands: /help, /members, /leave');
-            return true;
-            
-        case '/members':
-            if (currentChatRoom && currentChatRoom.members) {
-                showSuccessMessage(`Members: ${currentChatRoom.members.join(', ')}`);
-            }
-            return true;
-            
-        case '/leave':
-            leaveChatRoom();
-            return true;
-            
-        default:
-            showSuccessMessage('Unknown command. Type /help for available commands.');
-            return true;
-    }
-}
-
-// Render chat page (main entry point)
-function renderChatPage() {
-    if (!currentUser) {
-        const html = `
-            <div class="feature-placeholder">
-                <h3>💬 Chat Rooms</h3>
-                <p>Please sign in to access chat rooms.</p>
-                <button class="btn" onclick="openAuthModal('signin')">Sign In</button>
+        const membersHtml = members.map(member => `
+            <div class="member-item">
+                <div class="member-avatar">
+                    ${member.charAt(0).toUpperCase()}
+                </div>
+                <div class="member-info">
+                    <span class="member-username">@${escapeHtml(member)}</span>
+                    ${member === currentChatRoom.owner ? '<span class="member-badge">Owner</span>' : ''}
+                </div>
+                ${isOwner && member !== currentUser.username ? `
+                    <button class="member-remove-btn" onclick="removeUserFromRoom('${member}')">
+                        Remove
+                    </button>
+                ` : ''}
+            </div>
+        `).join('');
+        
+        // Create a simple modal
+        const modalHtml = `
+            <div class="modal" id="membersModal" style="display: block;">
+                <div class="modal-content">
+                    <span class="modal-close" onclick="closeModal('membersModal')">&times;</span>
+                    <h2>Room Members (${members.length})</h2>
+                    <div class="members-list">
+                        ${membersHtml}
+                    </div>
+                </div>
             </div>
         `;
-        updateFeedContent(html);
-        return;
+        
+        // Add modal to page
+        const existingModal = document.getElementById('membersModal');
+        if (existingModal) {
+            existingModal.remove();
+        }
+        
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
     }
-    
-    // If we have a current room, show it; otherwise show room list
-    if (currentChatRoom) {
-        if (typeof renderChatRoom === 'function') {
-            renderChatRoom();
+}
+
+// Remove user from room if not defined
+if (typeof removeUserFromRoom === 'undefined') {
+    async function removeUserFromRoom(username) {
+        if (!currentChatRoom || currentChatRoom.owner !== currentUser.username) {
+            showSuccessMessage('Only room owners can remove members');
+            return;
         }
-    } else {
-        if (typeof renderChatRoomList === 'function') {
-            renderChatRoomList();
+        
+        if (!confirm(`Remove @${username} from the room?`)) {
+            return;
         }
+        
+        try {
+            const token = await getAuthToken();
+            if (!token) {
+                showSuccessMessage('Please log in');
+                return;
+            }
+            
+            const response = await fetch(`/.netlify/functions/chat-api/rooms/${currentChatRoom.id}/remove`, {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ username })
+            });
+            
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || 'Failed to remove user');
+            }
+            
+            // Update local room state
+            if (currentChatRoom.members) {
+                currentChatRoom.members = currentChatRoom.members.filter(m => m !== username);
+            }
+            
+            showSuccessMessage(`Removed @${username} from the room`);
+            
+            // Refresh the members modal if it's open
+            const membersModal = document.getElementById('membersModal');
+            if (membersModal) {
+                openRoomMembersModal(currentChatRoom.id);
+            }
+            
+        } catch (error) {
+            console.error('Error removing user:', error);
+            showSuccessMessage(error.message || 'Failed to remove user');
+        }
+    }
+}
+
+// Open room management modal if not defined
+if (typeof openRoomManagementModal === 'undefined') {
+    function openRoomManagementModal(roomId) {
+        // TODO: Implement full room management
+        showSuccessMessage('Room management coming soon!');
     }
 }
