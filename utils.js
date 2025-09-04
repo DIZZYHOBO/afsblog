@@ -1,285 +1,262 @@
-// utils.js - Utility functions and helpers
+// utils.js - Utility functions
 
-// PROTECTED_ADMIN constant - matches the API
-const PROTECTED_ADMIN = "dumbass";
-
-// Utility functions
-function formatTimestamp(timestamp) {
-    const date = new Date(timestamp);
-    const now = new Date();
-    const diff = now - date;
-    
-    if (diff < 60000) return 'now';
-    if (diff < 3600000) return Math.floor(diff / 60000) + 'm';
-    if (diff < 86400000) return Math.floor(diff / 3600000) + 'h';
-    if (diff < 604800000) return Math.floor(diff / 86400000) + 'd';
-    return date.toLocaleDateString();
-}
-
-function formatDate(timestamp) {
-    const date = new Date(timestamp);
-    return date.toLocaleDateString('en-US', { 
-        year: 'numeric', 
-        month: 'short' 
-    });
-}
-
+// HTML escaping to prevent XSS
 function escapeHtml(text) {
+    if (!text) return '';
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
 }
 
-function showError(elementId, message) {
-    document.getElementById(elementId).innerHTML = `<div class="error-message">${escapeHtml(message)}</div>`;
-}
-
-function showSuccessMessage(message) {
-    const successDiv = document.createElement('div');
-    successDiv.className = 'success-message';
-    successDiv.textContent = message;
-    successDiv.style.position = 'fixed';
-    successDiv.style.top = '80px';
-    successDiv.style.right = '20px';
-    successDiv.style.zIndex = '1000';
-    successDiv.style.borderRadius = '8px';
-    successDiv.style.boxShadow = 'var(--overlay-shadow)';
-    document.body.appendChild(successDiv);
+// Format timestamp to relative time
+function formatTimeAgo(timestamp) {
+    if (!timestamp) return '';
     
-    setTimeout(() => {
-        successDiv.remove();
-    }, 4000);
+    const date = new Date(timestamp);
+    const now = new Date();
+    const seconds = Math.floor((now - date) / 1000);
+    
+    if (seconds < 60) return 'just now';
+    if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+    if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+    if (seconds < 604800) return `${Math.floor(seconds / 86400)}d ago`;
+    
+    return date.toLocaleDateString();
 }
 
-// Enhanced detectMediaType function
-function detectMediaType(url) {
-    if (!url) return { type: 'text', embed: false, platform: null };
-
-    // YouTube
-    if (url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)/)) {
-        return { type: 'video', embed: true, platform: 'youtube' };
-    }
-
-    // Dailymotion
-    if (url.match(/(?:dailymotion\.com\/video\/|dai\.ly\/)/)) {
-        return { type: 'video', embed: true, platform: 'dailymotion' };
-    }
-
-    // Suno
-    if (url.match(/suno\.com\/song\//)) {
-        return { type: 'audio', embed: true, platform: 'suno' };
-    }
-
-    // Direct media files
-    if (url.match(/\.(jpg|jpeg|png|gif|webp|svg)(\?.*)?$/i)) {
-        return { type: 'image', embed: true, platform: 'direct' };
-    }
-
-    if (url.match(/\.(mp4|webm|ogg|mov)(\?.*)?$/i)) {
-        return { type: 'video', embed: true, platform: 'direct' };
-    }
-
-    if (url.match(/\.(mp3|wav|ogg|m4a|aac|flac)(\?.*)?$/i)) {
-        return { type: 'audio', embed: true, platform: 'direct' };
-    }
-
-    // General website
-    if (url.match(/^https?:\/\/.+/i)) {
-        return { type: 'website', embed: true, platform: 'web' };
-    }
-
-    return { type: 'link', embed: false, platform: null };
+// Generate unique ID
+function generateId() {
+    return Date.now().toString(36) + Math.random().toString(36).substr(2);
 }
 
-// Enhanced media detection using API
-async function detectMediaTypeAPI(url) {
+// Debounce function for search/input
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
+
+// Validate URL
+function isValidUrl(string) {
     try {
-        const response = await fetch('/.netlify/functions/api/media/detect', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ url })
-        });
+        new URL(string);
+        return true;
+    } catch (_) {
+        return false;
+    }
+}
+
+// Get auth token from localStorage
+async function getAuthToken() {
+    try {
+        const session = localStorage.getItem('session');
+        if (!session) return null;
         
-        if (response.ok) {
-            const result = await response.json();
-            return result;
-        } else {
-            throw new Error('API detection failed');
-        }
+        const sessionData = JSON.parse(session);
+        return sessionData.token || null;
     } catch (error) {
-        console.error('Media detection API error:', error);
-        // Fallback to local detection
-        return detectMediaType(url);
+        console.error('Error getting auth token:', error);
+        return null;
     }
 }
 
-// Markdown toolbar functionality
-let currentTextarea = null;
-
-function insertMarkdown(prefix, suffix, placeholder) {
-    const textarea = document.getElementById('postContent');
-    if (!textarea) return;
-    
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const selectedText = textarea.value.substring(start, end);
-    const replacement = selectedText || placeholder;
-    
-    const newText = textarea.value.substring(0, start) + 
-                   prefix + replacement + suffix + 
-                   textarea.value.substring(end);
-    
-    textarea.value = newText;
-    
-    // Set cursor position
-    const newCursorPos = start + prefix.length + replacement.length;
-    textarea.focus();
-    textarea.setSelectionRange(newCursorPos, newCursorPos);
-    
-    // Trigger input event for any listeners
-    textarea.dispatchEvent(new Event('input'));
-}
-
-function insertImage() {
-    // Reset the form
-    document.getElementById('imageInsertForm').reset();
-    currentTextarea = document.getElementById('postContent');
-    openModal('imageInsertModal');
-}
-
-function handleImageInsert(e) {
-    e.preventDefault();
-    
-    const url = document.getElementById('imageUrl').value.trim();
-    const alt = document.getElementById('imageAltText').value.trim() || 'Image';
-    const title = document.getElementById('imageTitle').value.trim();
-    
-    if (!url) {
-        showSuccessMessage('Please enter an image URL');
-        return;
-    }
-    
-    // Validate URL format
+// Store session
+function storeSession(sessionData) {
     try {
-        new URL(url);
-    } catch {
-        showSuccessMessage('Please enter a valid URL');
-        return;
+        localStorage.setItem('session', JSON.stringify(sessionData));
+    } catch (error) {
+        console.error('Error storing session:', error);
     }
-    
-    let markdown = `![${alt}](${url}`;
-    if (title) {
-        markdown += ` "${title}"`;
-    }
-    markdown += ')';
-    
-    if (currentTextarea) {
-        const start = currentTextarea.selectionStart;
-        const end = currentTextarea.selectionEnd;
-        
-        const newText = currentTextarea.value.substring(0, start) + 
-                       markdown + 
-                       currentTextarea.value.substring(end);
-        
-        currentTextarea.value = newText;
-        currentTextarea.focus();
-        currentTextarea.setSelectionRange(start + markdown.length, start + markdown.length);
-        currentTextarea.dispatchEvent(new Event('input'));
-    }
-    
-    closeModal('imageInsertModal');
-    showSuccessMessage('Image inserted successfully!');
 }
 
-function insertLink() {
-    // Reset the form
-    document.getElementById('linkInsertForm').reset();
-    currentTextarea = document.getElementById('postContent');
-    
-    // Pre-fill with selected text if any
-    const start = currentTextarea.selectionStart;
-    const end = currentTextarea.selectionEnd;
-    const selectedText = currentTextarea.value.substring(start, end);
-    
-    if (selectedText) {
-        document.getElementById('linkText').value = selectedText;
-    }
-    
-    openModal('linkInsertModal');
-}
-
-function handleLinkInsert(e) {
-    e.preventDefault();
-    
-    const url = document.getElementById('linkUrl').value.trim();
-    const text = document.getElementById('linkText').value.trim();
-    
-    if (!url || !text) {
-        showSuccessMessage('Please enter both URL and link text');
-        return;
-    }
-    
-    // Validate URL format
+// Clear session
+function clearSession() {
     try {
-        new URL(url);
-    } catch {
-        showSuccessMessage('Please enter a valid URL');
-        return;
-    }
-    
-    const markdown = `[${text}](${url})`;
-    
-    if (currentTextarea) {
-        const start = currentTextarea.selectionStart;
-        const end = currentTextarea.selectionEnd;
-        
-        const newText = currentTextarea.value.substring(0, start) + 
-                       markdown + 
-                       currentTextarea.value.substring(end);
-        
-        currentTextarea.value = newText;
-        currentTextarea.focus();
-        currentTextarea.setSelectionRange(start + markdown.length, start + markdown.length);
-        currentTextarea.dispatchEvent(new Event('input'));
-    }
-    
-    closeModal('linkInsertModal');
-    showSuccessMessage('Link inserted successfully!');
-}
-
-function previewMarkdown() {
-    const textarea = document.getElementById('postContent');
-    const preview = document.getElementById('markdownPreview');
-    const previewContent = document.getElementById('previewContent');
-    const previewBtn = document.getElementById('previewBtn');
-    
-    if (!textarea.value.trim()) {
-        showSuccessMessage('Write some content to preview');
-        return;
-    }
-    
-    if (preview.style.display === 'none') {
-        // Show preview
-        const html = renderMarkdown(textarea.value);
-        previewContent.innerHTML = html;
-        preview.style.display = 'block';
-        textarea.style.display = 'none';
-        previewBtn.textContent = '✏️';
-        previewBtn.title = 'Edit';
-    } else {
-        // Hide preview
-        hidePreview();
+        localStorage.removeItem('session');
+    } catch (error) {
+        console.error('Error clearing session:', error);
     }
 }
 
-function hidePreview() {
-    const textarea = document.getElementById('postContent');
-    const preview = document.getElementById('markdownPreview');
-    const previewBtn = document.getElementById('previewBtn');
+// Check if user is logged in
+function isLoggedIn() {
+    return currentUser !== null;
+}
+
+// Validate username
+function validateUsername(username) {
+    if (!username) return { valid: false, error: 'Username is required' };
+    if (username.length < 3) return { valid: false, error: 'Username must be at least 3 characters' };
+    if (username.length > 20) return { valid: false, error: 'Username must be less than 20 characters' };
+    if (!/^[a-zA-Z0-9_]+$/.test(username)) {
+        return { valid: false, error: 'Username can only contain letters, numbers, and underscores' };
+    }
+    return { valid: true };
+}
+
+// Validate password
+function validatePassword(password) {
+    if (!password) return { valid: false, error: 'Password is required' };
+    if (password.length < 6) return { valid: false, error: 'Password must be at least 6 characters' };
+    return { valid: true };
+}
+
+// Format number with commas
+function formatNumber(num) {
+    if (!num) return '0';
+    return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+}
+
+// Deep clone object
+function deepClone(obj) {
+    return JSON.parse(JSON.stringify(obj));
+}
+
+// Sort posts by timestamp
+function sortPostsByDate(posts, order = 'desc') {
+    return posts.sort((a, b) => {
+        const dateA = new Date(a.timestamp);
+        const dateB = new Date(b.timestamp);
+        return order === 'desc' ? dateB - dateA : dateA - dateB;
+    });
+}
+
+// Filter posts by community
+function filterPostsByCommunity(posts, communityName) {
+    if (!communityName) return posts;
+    return posts.filter(post => post.community === communityName);
+}
+
+// Search posts
+function searchPosts(posts, query) {
+    if (!query) return posts;
     
-    preview.style.display = 'none';
-    textarea.style.display = 'block';
-    previewBtn.textContent = '👁️';
-    previewBtn.title = 'Preview';
-    textarea.focus();
+    const searchTerm = query.toLowerCase();
+    return posts.filter(post => {
+        const titleMatch = post.title?.toLowerCase().includes(searchTerm);
+        const contentMatch = post.content?.toLowerCase().includes(searchTerm);
+        const authorMatch = post.author?.toLowerCase().includes(searchTerm);
+        return titleMatch || contentMatch || authorMatch;
+    });
+}
+
+// Paginate array
+function paginate(array, pageSize, pageNumber) {
+    const startIndex = (pageNumber - 1) * pageSize;
+    const endIndex = startIndex + pageSize;
+    return {
+        items: array.slice(startIndex, endIndex),
+        totalPages: Math.ceil(array.length / pageSize),
+        currentPage: pageNumber,
+        hasNext: endIndex < array.length,
+        hasPrev: pageNumber > 1
+    };
+}
+
+// Throttle function
+function throttle(func, limit) {
+    let inThrottle;
+    return function(...args) {
+        if (!inThrottle) {
+            func.apply(this, args);
+            inThrottle = true;
+            setTimeout(() => inThrottle = false, limit);
+        }
+    };
+}
+
+// Get file extension
+function getFileExtension(filename) {
+    return filename.slice((filename.lastIndexOf(".") - 1 >>> 0) + 2);
+}
+
+// Check if file is image
+function isImageFile(filename) {
+    const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'];
+    const ext = getFileExtension(filename).toLowerCase();
+    return imageExtensions.includes(ext);
+}
+
+// Check if file is video
+function isVideoFile(filename) {
+    const videoExtensions = ['mp4', 'webm', 'ogg', 'mov', 'avi'];
+    const ext = getFileExtension(filename).toLowerCase();
+    return videoExtensions.includes(ext);
+}
+
+// Local storage wrapper with error handling
+const storage = {
+    get(key) {
+        try {
+            const item = localStorage.getItem(key);
+            return item ? JSON.parse(item) : null;
+        } catch (error) {
+            console.error(`Error reading ${key} from storage:`, error);
+            return null;
+        }
+    },
+    
+    set(key, value) {
+        try {
+            localStorage.setItem(key, JSON.stringify(value));
+            return true;
+        } catch (error) {
+            console.error(`Error writing ${key} to storage:`, error);
+            return false;
+        }
+    },
+    
+    remove(key) {
+        try {
+            localStorage.removeItem(key);
+            return true;
+        } catch (error) {
+            console.error(`Error removing ${key} from storage:`, error);
+            return false;
+        }
+    },
+    
+    clear() {
+        try {
+            localStorage.clear();
+            return true;
+        } catch (error) {
+            console.error('Error clearing storage:', error);
+            return false;
+        }
+    }
+};
+
+// Export for use in other files (if using modules)
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = {
+        escapeHtml,
+        formatTimeAgo,
+        generateId,
+        debounce,
+        throttle,
+        isValidUrl,
+        getAuthToken,
+        storeSession,
+        clearSession,
+        isLoggedIn,
+        validateUsername,
+        validatePassword,
+        formatNumber,
+        deepClone,
+        sortPostsByDate,
+        filterPostsByCommunity,
+        searchPosts,
+        paginate,
+        getFileExtension,
+        isImageFile,
+        isVideoFile,
+        storage
+    };
 }
