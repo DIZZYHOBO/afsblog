@@ -159,9 +159,13 @@
         </div>
 
         <div class="bg-gray-800 rounded-xl overflow-hidden shadow-lg mb-6">
-            <div id="profileBanner" class="w-full h-32 bg-gray-700 object-cover bg-center bg-cover" style="background-image: url('https://placehold.co/1200x300/2c2c2c/e0e0e0?text=Profile+Banner');"></div>
+            <!-- Banner image will be dynamically set here -->
+            <div id="profileBanner" class="w-full h-32 bg-gray-700 object-cover bg-center bg-cover"></div>
             <div class="flex items-center p-6 -mt-16">
-                <img id="profileAvatar" class="w-24 h-24 rounded-full border-4 border-gray-800 object-cover" src="https://placehold.co/96x96/4b5563/ffffff?text=U" alt="Profile Picture">
+                <!-- Avatar image will be dynamically set here -->
+                <div id="profileAvatarContainer" class="w-24 h-24 rounded-full border-4 border-gray-800 bg-gray-600 flex items-center justify-center text-5xl font-bold text-gray-300">
+                    <!-- Initial will be placed here -->
+                </div>
                 <div class="ml-4 flex-1">
                     <h2 id="profileUsername" class="text-2xl font-bold text-white"></h2>
                     <p id="profileBio" class="text-gray-400 mt-1"></p>
@@ -208,7 +212,7 @@
             const profileLogoutButton = document.getElementById('profileLogoutButton');
             const profileUsername = document.getElementById('profileUsername');
             const profileBio = document.getElementById('profileBio');
-            const profileAvatar = document.getElementById('profileAvatar');
+            const profileAvatarContainer = document.getElementById('profileAvatarContainer');
             const profileBanner = document.getElementById('profileBanner');
             const contentDropdown = document.getElementById('contentDropdown');
             const profileContent = document.getElementById('profileContent');
@@ -234,10 +238,7 @@
             const API_ENDPOINTS = {
                'all': '/api/alpha/feed/list',
                'subscribed': '/api/alpha/feed/list',
-               'local': '/api/alpha/feed/list',
-               'userProfile': '/api/alpha/user/profile', // Placeholder for profile API
-               'userPosts': '/api/alpha/user/posts', // Placeholder for user posts API
-               'userComments': '/api/alpha/user/comments' // Placeholder for user comments API
+               'local': '/api/alpha/feed/list'
             };
 
             let instanceUrl = '';
@@ -376,8 +377,11 @@
                     return null;
                 }
 
+                // Using the correct API endpoint from the provided documentation.
+                const profileUrl = `${instanceUrl}/api/alpha/user/${currentUsername}/profile`;
+
                 try {
-                    const response = await fetch(`${instanceUrl}${API_ENDPOINTS.userProfile}`, {
+                    const response = await fetch(profileUrl, {
                         method: 'GET',
                         headers: {
                             'Authorization': `Bearer ${authToken}`,
@@ -389,7 +393,7 @@
                         throw new Error(`Profile fetch failed with status ${response.status}`);
                     }
                     const data = await response.json();
-                    return data.profile; // Assuming the profile data is nested under a 'profile' key
+                    return data; // The profile data is at the root of the JSON object, not nested.
                 } catch (error) {
                     showModal('Profile Error', `Failed to fetch profile data. Error: ${error.message}`);
                     console.error('Profile fetch error:', error);
@@ -403,10 +407,11 @@
                     return null;
                 }
 
-                const endpoint = contentType === 'posts' ? API_ENDPOINTS.userPosts : API_ENDPOINTS.userComments;
-
+                // Using the correct API endpoint from the provided documentation.
+                const contentUrl = `${instanceUrl}/api/alpha/user/${currentUsername}/${contentType}`;
+                
                 try {
-                    const response = await fetch(`${instanceUrl}${endpoint}`, {
+                    const response = await fetch(contentUrl, {
                         method: 'GET',
                         headers: {
                             'Authorization': `Bearer ${authToken}`,
@@ -459,10 +464,15 @@
                     profileUsername.textContent = profileData.username || 'N/A';
                     profileBio.textContent = profileData.bio || 'No bio provided.';
                     if (profileData.avatar) {
-                        profileAvatar.src = profileData.avatar;
+                        profileAvatarContainer.innerHTML = `<img src="${profileData.avatar}" alt="${profileData.username} profile picture" class="w-24 h-24 rounded-full border-4 border-gray-800 object-cover">`;
+                    } else {
+                        const initial = (profileData.username || 'U').charAt(0).toUpperCase();
+                        profileAvatarContainer.innerHTML = `<div class="w-24 h-24 rounded-full border-4 border-gray-800 bg-indigo-600 flex items-center justify-center text-5xl font-bold text-white">${initial}</div>`;
                     }
                     if (profileData.banner) {
                         profileBanner.style.backgroundImage = `url('${profileData.banner}')`;
+                    } else {
+                        profileBanner.style.backgroundImage = 'none'; // Clear any previous banner
                     }
                     // Fetch and display default content (posts)
                     const userPosts = await fetchUserContent('posts');
