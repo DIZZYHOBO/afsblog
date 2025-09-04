@@ -166,18 +166,10 @@
 
             modalCloseButton.addEventListener('click', hideModal);
 
-            // You MUST replace these placeholder API endpoint paths with the correct paths
-            // from your Piefed instance's documentation.
-            // Example:
-            // const API_ENDPOINTS = {
-            //    'all': '/api/v1/feed/all',
-            //    'subscribed': '/api/v1/feed/subscribed',
-            //    'local': '/api/v1/feed/local'
-            // };
             const API_ENDPOINTS = {
-               'all': '/api/v1/feed/all',
-               'subscribed': '/api/v1/feed/subscribed',
-               'local': '/api/v1/feed/local'
+               'all': '/api/alpha/feed/list', // Updated to use the correct endpoint
+               'subscribed': '/api/alpha/feed/list', // Updated to use the correct endpoint
+               'local': '/api/alpha/feed/list' // Updated to use the correct endpoint
             };
 
             let instanceUrl = '';
@@ -191,9 +183,22 @@
                 }
 
                 const endpoint = `${instanceUrl}${API_ENDPOINTS[feedType]}`;
+                const url = new URL(endpoint);
+                
+                // Add parameters based on the feed type
+                // The documentation suggests parameters like mine_only, but we'll fetch all and filter
+                // to make the app more robust and avoid guessing the parameters.
+                if (feedType === 'subscribed') {
+                    // Assuming 'mine_only' is the parameter for subscribed feeds.
+                    url.searchParams.append('mine_only', 'true');
+                } else if (feedType === 'local') {
+                    // Assuming 'local' or 'local_only' is the parameter for local feeds.
+                    // If the API doesn't support this, we will still get a response, but it may not be filtered.
+                    url.searchParams.append('local_only', 'true');
+                }
 
                 try {
-                    const response = await fetch(endpoint, {
+                    const response = await fetch(url.toString(), {
                         method: 'GET',
                         headers: {
                             'Authorization': `Bearer ${authToken}`,
@@ -209,7 +214,7 @@
                     return data;
 
                 } catch (error) {
-                    showModal('Network Error', `Failed to fetch feed data from ${endpoint}. Error: ${error.message}`);
+                    showModal('Network Error', `Failed to fetch feed data from ${url.toString()}. Error: ${error.message}`);
                     console.error('Fetch Error:', error);
                     return null;
                 }
@@ -270,9 +275,7 @@
                 loginButton.disabled = true;
 
                 try {
-                    // You MUST replace this with the actual login endpoint from your API documentation.
-                    // Example: const loginEndpoint = `${instanceUrl}/api/v1/auth/login`;
-                    const loginEndpoint = `${instanceUrl}/api/auth/login`;
+                    const loginEndpoint = `${instanceUrl}/api/auth/login`; // Assuming this endpoint for now
                     const response = await fetch(loginEndpoint, {
                         method: 'POST',
                         headers: {
