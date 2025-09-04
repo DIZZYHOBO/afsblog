@@ -28,61 +28,62 @@
     <!-- Menu Overlay -->
     <div class="menu-overlay" id="menuOverlay" onclick="toggleMenu()"></div>
 
-    <!-- Sliding Menu - FIX 3: ALL REQUIRED IDs ADDED -->
+    <!-- Sliding Menu -->
     <div class="slide-menu" id="slideMenu">
         <div class="menu-header" id="menuHeader">
-            <!-- FIX 3: This is where user info goes -->
             <div id="menuUserInfo"></div>
         </div>
         
-        <!-- Optional menu content container if referenced -->
         <div id="menuContent"></div>
         
-        <!-- Communities section if you have it -->
         <div id="menuCommunities" class="menu-communities"></div>
         
         <nav class="menu-nav">
-            <button class="menu-item active" id="menuFeed" onclick="navigateToFeed()">
+            <button class="menu-item active" id="menuFeed" onclick="navigateToFeed(); toggleMenu();">
                 <span class="menu-item-icon">🏠</span>
                 <span>Feed</span>
             </button>
             
-            <button class="menu-item" id="menuChat" onclick="navigateToChat()">
+            <button class="menu-item" id="menuChat" onclick="navigateToChat(); toggleMenu();" style="display:none;">
                 <span class="menu-item-icon">💬</span>
                 <span>Chat</span>
             </button>
             
-            <button class="menu-item" id="menuProfile" onclick="navigateToProfile()">
+            <button class="menu-item" id="menuProfile" onclick="navigateToProfile(); toggleMenu();" style="display:none;">
                 <span class="menu-item-icon">👤</span>
                 <span>Profile</span>
             </button>
             
-            <button class="menu-item" id="menuMyShed" onclick="navigateToMyShed()">
-                <span class="menu-item-icon">🏚️</span>
+            <button class="menu-item" id="menuMyShed" onclick="navigateToMyShed(); toggleMenu();" style="display:none;">
+                <span class="menu-item-icon">📚</span>
                 <span>My Shed</span>
             </button>
             
-            <button class="menu-item" id="menuCreateCommunity" onclick="openCreateCommunityModal()">
+            <div class="menu-divider"></div>
+            
+            <button class="menu-item" id="menuCreateCommunity" onclick="openModal('createCommunityModal'); toggleMenu();" style="display:none;">
                 <span class="menu-item-icon">➕</span>
                 <span>Create Community</span>
             </button>
             
-            <button class="menu-item" id="menuBrowseCommunities" onclick="navigateToBrowse()">
+            <button class="menu-item" id="menuBrowseCommunities" onclick="navigateToBrowse(); toggleMenu();" style="display:none;">
                 <span class="menu-item-icon">🔍</span>
                 <span>Browse Communities</span>
             </button>
             
-            <button class="menu-item" id="menuAdmin" onclick="navigateToAdmin()" style="display: none;">
+            <div class="menu-divider"></div>
+            
+            <button class="menu-item" id="menuAdmin" onclick="navigateToAdmin(); toggleMenu();" style="display:none;">
                 <span class="menu-item-icon">⚙️</span>
                 <span>Admin Panel</span>
             </button>
             
-            <button class="menu-item" id="menuSettings" onclick="navigateToSettings()">
+            <button class="menu-item" id="menuSettings" onclick="navigateToSettings(); toggleMenu();" style="display:none;">
                 <span class="menu-item-icon">⚙️</span>
                 <span>Settings</span>
             </button>
             
-            <button class="menu-item" id="menuLogout" onclick="handleLogout()" style="display: none;">
+            <button class="menu-item" id="menuLogout" onclick="handleLogout();" style="display:none;">
                 <span class="menu-item-icon">🚪</span>
                 <span>Logout</span>
             </button>
@@ -94,18 +95,6 @@
 
     <!-- Main Container -->
     <div class="container">
-        <!-- Header -->
-        <header class="header">
-            <div class="header-content">
-                <h1 class="header-title" onclick="navigateToFeed()">The Shed</h1>
-                <div class="header-actions">
-                    <button class="btn" id="composeBtn" onclick="openComposeModal()">
-                        + New Post
-                    </button>
-                </div>
-            </div>
-        </header>
-
         <!-- Main Content Area -->
         <main id="feed" class="feed-content">
             <!-- Dynamic content will be loaded here -->
@@ -132,16 +121,42 @@
                     <label for="password">Password</label>
                     <input type="password" id="password" required minlength="6">
                 </div>
-                <div class="form-group" id="bioGroup">
-                    <label for="bio">Bio (Optional)</label>
-                    <textarea id="bio" maxlength="500" placeholder="Tell us about yourself..."></textarea>
+                <div class="form-group" id="bioGroup" style="display:none;">
+                    <label for="bio">Bio (optional)</label>
+                    <textarea id="bio" rows="3" placeholder="Tell us about yourself..."></textarea>
                 </div>
                 <button type="submit" class="btn" id="authSubmitBtn">Sign In</button>
             </form>
             <div class="auth-toggle">
                 <span id="authToggleText">Don't have an account?</span>
-                <button type="button" class="btn btn-secondary" id="authToggleBtn" onclick="toggleAuthMode()">Sign Up</button>
+                <button type="button" id="authToggleBtn" class="auth-toggle-btn" onclick="toggleAuthMode()">Sign Up</button>
             </div>
+        </div>
+    </div>
+
+    <!-- Create Community Modal -->
+    <div id="createCommunityModal" class="modal">
+        <div class="modal-content">
+            <span class="modal-close" onclick="closeModal('createCommunityModal')">&times;</span>
+            <h2>Create Community</h2>
+            <form id="createCommunityForm">
+                <div class="form-group">
+                    <label for="communityName">Community Name</label>
+                    <input type="text" id="communityName" required minlength="3" maxlength="20" 
+                           pattern="[a-z0-9_]+" title="Lowercase letters, numbers, and underscores only">
+                    <small>Lowercase letters, numbers, and underscores only</small>
+                </div>
+                <div class="form-group">
+                    <label for="communityDisplayName">Display Name</label>
+                    <input type="text" id="communityDisplayName" required minlength="3" maxlength="30">
+                </div>
+                <div class="form-group">
+                    <label for="communityDescription">Description</label>
+                    <textarea id="communityDescription" rows="3" required></textarea>
+                </div>
+                <div id="createCommunityError"></div>
+                <button type="submit" class="btn">Create Community</button>
+            </form>
         </div>
     </div>
 
@@ -150,83 +165,65 @@
         <div class="modal-content">
             <span class="modal-close" onclick="closeModal('composeModal')">&times;</span>
             <h2>Create Post</h2>
+            
+            <!-- Post Type Selector -->
             <div class="post-type-selector">
-                <button onclick="setPostType('text')" class="post-type-btn active">Text Post</button>
-                <button onclick="setPostType('link')" class="post-type-btn">Link/Media</button>
+                <button type="button" class="post-type-btn active" data-type="text" onclick="setPostType('text')">
+                    📝 Text
+                </button>
+                <button type="button" class="post-type-btn" data-type="media" onclick="setPostType('media')">
+                    🎬 Media
+                </button>
+                <button type="button" class="post-type-btn" data-type="link" onclick="setPostType('link')">
+                    🔗 Link
+                </button>
             </div>
+            
             <form id="composeForm">
-                <div class="form-group">
-                    <label for="postTitle">Title</label>
-                    <input type="text" id="postTitle" required maxlength="200">
-                </div>
                 <div class="form-group">
                     <label for="postCommunity">Community</label>
                     <select id="postCommunity">
                         <option value="">General Feed</option>
                     </select>
                 </div>
-                <div id="textPostFields">
-                    <div class="form-group">
-                        <label for="postContent">Content (Markdown supported)</label>
-                        <textarea id="postContent" rows="10" maxlength="10000"></textarea>
-                    </div>
-                </div>
-                <div id="linkPostFields" style="display: none;">
-                    <div class="form-group">
-                        <label for="postUrl">URL</label>
-                        <input type="url" id="postUrl" placeholder="https://example.com">
-                    </div>
-                    <div id="mediaPreview"></div>
-                </div>
+                
                 <div class="form-group">
-                    <label class="checkbox-label">
-                        <input type="checkbox" id="postPrivate">
-                        <span>Private Post (only you can see)</span>
-                    </label>
+                    <label for="postTitle">Title</label>
+                    <input type="text" id="postTitle" required maxlength="100" placeholder="Give your post a title...">
                 </div>
+                
+                <!-- Text content (for text posts) -->
+                <div class="form-group" id="textContentGroup">
+                    <label for="postContent">Content</label>
+                    <textarea id="postContent" rows="6" placeholder="Share your thoughts... (Markdown supported)"></textarea>
+                </div>
+                
+                <!-- URL input (for media/link posts) -->
+                <div class="form-group" id="urlContentGroup" style="display: none;">
+                    <label for="postUrl">URL</label>
+                    <input type="url" id="postUrl" placeholder="https://example.com">
+                    <div id="mediaPreview" class="media-preview"></div>
+                </div>
+                
                 <div id="composeError"></div>
                 <button type="submit" class="btn">Post</button>
             </form>
         </div>
     </div>
 
-    <!-- Create Community Modal -->
-    <div id="createCommunityModal" class="modal">
-        <div class="modal-content">
-            <span class="modal-close" onclick="closeModal('createCommunityModal')">&times;</span>
-            <h2>Create New Community</h2>
-            <form id="createCommunityForm">
-                <div class="form-group">
-                    <label for="communityName">Community URL (lowercase, no spaces)</label>
-                    <input type="text" id="communityName" required pattern="[a-z0-9_]{3,25}" maxlength="25" placeholder="example_community">
-                </div>
-                <div class="form-group">
-                    <label for="communityDisplayName">Display Name</label>
-                    <input type="text" id="communityDisplayName" required maxlength="50" placeholder="Example Community">
-                </div>
-                <div class="form-group">
-                    <label for="communityDescription">Description</label>
-                    <textarea id="communityDescription" maxlength="500" placeholder="What's this community about?"></textarea>
-                </div>
-                <div id="createCommunityError"></div>
-                <button type="submit" class="btn" id="createCommunitySubmitBtn">Create Community</button>
-            </form>
-        </div>
-    </div>
-
-    <!-- Create Room Modal -->
+    <!-- Create Room Modal (for chat) -->
     <div id="createRoomModal" class="modal">
         <div class="modal-content">
             <span class="modal-close" onclick="closeModal('createRoomModal')">&times;</span>
-            <h2>Create New Chat Room</h2>
-            <form id="createRoomForm" onsubmit="handleCreateRoom(event); return false;">
+            <h2>Create Chat Room</h2>
+            <form id="createRoomForm">
                 <div class="form-group">
-                    <label for="roomName">Room Name *</label>
-                    <input type="text" id="roomName" required maxlength="50" placeholder="Enter room name">
+                    <label for="roomName">Room Name</label>
+                    <input type="text" id="roomName" required maxlength="50">
                 </div>
                 <div class="form-group">
-                    <label for="roomDescription">Description</label>
-                    <textarea id="roomDescription" maxlength="200" placeholder="What's this room about?" rows="3"></textarea>
+                    <label for="roomDescription">Description (optional)</label>
+                    <textarea id="roomDescription" rows="3"></textarea>
                 </div>
                 <div class="form-group">
                     <label class="checkbox-label">
@@ -243,7 +240,7 @@
     <!-- Success Message -->
     <div id="successMessage" class="success-message"></div>
 
-    <!-- Load JavaScript files -->
+    <!-- Load JavaScript files in correct order -->
     <script src="utils.js"></script>
     <script src="api.js"></script>
     <script src="app.js"></script>
