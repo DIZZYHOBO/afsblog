@@ -1,4 +1,4 @@
-// admin.js - Admin functionality
+// admin.js - Admin functionality - UPDATED: Private post access removed
 
 // Admin stats loading
 async function loadAdminStats() {
@@ -31,6 +31,10 @@ async function loadAdminStats() {
         
         const pendingUserKeys = await blobAPI.list('pending_user_');
         const postKeys = await blobAPI.list('post_');
+        
+        // UPDATED: Only count PUBLIC posts for admin stats
+        const publicPostCount = posts.filter(post => !post.isPrivate).length;
+        
         const communityKeys = await blobAPI.list('community_');
 
         // Update the old admin panel stats if they exist
@@ -41,7 +45,7 @@ async function loadAdminStats() {
         
         if (totalUsersEl) totalUsersEl.textContent = finalUsers.length;
         if (pendingUsersEl) pendingUsersEl.textContent = pendingUserKeys.length;
-        if (totalPostsEl) totalPostsEl.textContent = postKeys.length;
+        if (totalPostsEl) totalPostsEl.textContent = publicPostCount; // Only public posts
         if (totalCommunitiesEl) totalCommunitiesEl.textContent = communityKeys.length;
         
         // Update the new admin page stats if they exist
@@ -52,10 +56,10 @@ async function loadAdminStats() {
         
         if (adminTotalUsersEl) adminTotalUsersEl.textContent = finalUsers.length;
         if (adminPendingUsersEl) adminPendingUsersEl.textContent = pendingUserKeys.length;
-        if (adminTotalPostsEl) adminTotalPostsEl.textContent = postKeys.length;
+        if (adminTotalPostsEl) adminTotalPostsEl.textContent = publicPostCount; // Only public posts
         if (adminTotalCommunitiesEl) adminTotalCommunitiesEl.textContent = communityKeys.length;
         
-        console.log(`Admin stats: ${finalUsers.length} users, ${pendingUserKeys.length} pending, ${postKeys.length} posts, ${communityKeys.length} communities`);
+        console.log(`Admin stats: ${finalUsers.length} users, ${pendingUserKeys.length} pending, ${publicPostCount} public posts, ${communityKeys.length} communities`);
         
     } catch (error) {
         console.error('Error loading admin stats:', error);
@@ -275,15 +279,15 @@ async function demoteFromAdmin(username) {
 }
 
 async function deleteUser(username) {
-    if (!confirm(`Delete user @${username}? This will also delete all their posts and remove them from communities. This action cannot be undone.`)) return;
+    if (!confirm(`Delete user @${username}? This will also delete all their PUBLIC posts and remove them from communities. This action cannot be undone. Note: Private posts are not accessible to admins and cannot be deleted through the admin panel.`)) return;
     
     try {
         // Delete user
         await blobAPI.delete(`user_${username}`);
         
-        // Delete user's posts
-        const userPosts = posts.filter(p => p.author === username);
-        for (const post of userPosts) {
+        // Delete user's PUBLIC posts only (private posts are not admin business)
+        const userPublicPosts = posts.filter(p => p.author === username && !p.isPrivate);
+        for (const post of userPublicPosts) {
             await blobAPI.delete(post.id);
         }
         
@@ -302,7 +306,7 @@ async function deleteUser(username) {
             // Ignore if doesn't exist
         }
 
-        showSuccessMessage(`User @${username} deleted successfully.`);
+        showSuccessMessage(`User @${username} deleted successfully. ${userPublicPosts.length} public posts were removed. Private posts remain private and were not affected.`);
         
         // Refresh data and admin page
         await loadPosts();
@@ -316,19 +320,19 @@ async function deleteUser(username) {
 }
 
 async function deleteCommunity(communityName) {
-    if (!confirm(`Delete community c/${communityName}? This will also delete all posts in this community. This action cannot be undone.`)) return;
+    if (!confirm(`Delete community c/${communityName}? This will also delete all PUBLIC posts in this community. This action cannot be undone. Note: Private posts are not accessible to admins and cannot be deleted through the admin panel.`)) return;
     
     try {
         // Delete community
         await blobAPI.delete(`community_${communityName}`);
         
-        // Delete community posts
-        const communityPosts = posts.filter(p => p.communityName === communityName);
-        for (const post of communityPosts) {
+        // Delete community's PUBLIC posts only
+        const communityPublicPosts = posts.filter(p => p.communityName === communityName && !p.isPrivate);
+        for (const post of communityPublicPosts) {
             await blobAPI.delete(post.id);
         }
 
-        showSuccessMessage(`Community c/${communityName} deleted successfully.`);
+        showSuccessMessage(`Community c/${communityName} deleted successfully. ${communityPublicPosts.length} public posts were removed. Private posts remain private and were not affected.`);
         
         // Refresh data and admin page
         await loadPosts();
@@ -360,33 +364,44 @@ function switchAdminTab(tabName) {
     document.getElementById(`admin${tabName.charAt(0).toUpperCase() + tabName.slice(1)}Content`).classList.add('active');
 }
 
-// Post filtering for admin
+// UPDATED: Post filtering for admin - only public posts, no private option
 function filterAdminPosts(filter) {
     let filteredPosts;
     
+    // Only work with PUBLIC posts - private posts are not admin business
+    const publicPosts = posts.filter(p => !p.isPrivate);
+    
     switch (filter) {
-        case 'public':
-            filteredPosts = posts.filter(p => !p.isPrivate);
+        case 'community':
+            filteredPosts = publicPosts.filter(p => p.communityName);
             break;
-        case 'private':
-            filteredPosts = posts.filter(p => p.isPrivate);
+        case 'general':
+            filteredPosts = publicPosts.filter(p => !p.communityName);
             break;
         default:
-            filteredPosts = posts;
+            filteredPosts = publicPosts;
     }
     
     const postsList = document.getElementById('adminPostsList');
     if (postsList) {
-        postsList.innerHTML = renderPostList(filteredPosts.slice(0, 20), 'No posts found') +
+        postsList.innerHTML = renderPostList(filteredPosts.slice(0, 20), 'No public posts found') +
             (filteredPosts.length > 20 ? `<div class="admin-load-more"><button class="btn btn-secondary" onclick="loadMoreAdminPosts()">Load More Posts</button></div>` : '');
     }
     
     // Update filter button states
     document.querySelectorAll('.admin-filters .btn').forEach(btn => {
-        btn.classList.remove('btn-secondary');
+        btn.classList.remove('btn-primary');
         btn.classList.add('btn-secondary');
     });
-    event.target.classList.remove('btn-secondary');
+    
+    // Find and highlight active button
+    const activeButton = Array.from(document.querySelectorAll('.admin-filters .btn')).find(btn => 
+        btn.onclick.toString().includes(`'${filter}'`)
+    );
+    if (activeButton) {
+        activeButton.classList.remove('btn-secondary');
+        activeButton.classList.add('btn-primary');
+    }
 }
 
 // Legacy admin functions (keeping for compatibility)
