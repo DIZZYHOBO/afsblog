@@ -1,46 +1,12 @@
-// chat.js - Core chat functionality with proper auth token management
+// chat.js - Core chat functionality
+// NOTE: Token functions are in api.js, not here
 
-// Store the session token in a variable
-let currentSessionToken = null;
-
-// Chat state
+// Chat state variables
 let currentChatRoom = null;
 let userRooms = [];
 let chatMessages = [];
 let chatRefreshInterval = null;
 let lastMessageTimestamp = null;
-
-// Updated getAuthToken function
-async function getAuthToken() {
-    // First, check if we have a token in memory
-    if (currentSessionToken) {
-        return currentSessionToken;
-    }
-    
-    // Try to get from localStorage (if you're storing it there after login)
-    const storedToken = localStorage.getItem('sessionToken');
-    if (storedToken) {
-        currentSessionToken = storedToken;
-        return storedToken;
-    }
-    
-    // If no token found, user needs to authenticate
-    console.warn('No authentication token found');
-    return null;
-}
-
-// Function to set the auth token (call this after successful login)
-function setAuthToken(token) {
-    currentSessionToken = token;
-    // Store in localStorage for persistence
-    localStorage.setItem('sessionToken', token);
-}
-
-// Function to clear the auth token (call this on logout)
-function clearAuthToken() {
-    currentSessionToken = null;
-    localStorage.removeItem('sessionToken');
-}
 
 // Chat API wrapper
 const chatAPI = {
@@ -303,8 +269,10 @@ async function loadUserRooms() {
         console.log(`Loaded ${userRooms.length} user rooms`);
         
         // Update UI if chat is currently visible
-        if (currentPage === 'chat') {
-            renderChatRoomList();
+        if (typeof currentPage !== 'undefined' && currentPage === 'chat') {
+            if (typeof renderChatRoomList === 'function') {
+                renderChatRoomList();
+            }
         }
         
         return userRooms;
@@ -330,14 +298,18 @@ async function joinChatRoom(roomId) {
         startChatRefresh(roomId);
         
         // Update UI
-        renderChatRoom();
+        if (typeof renderChatRoom === 'function') {
+            renderChatRoom();
+        }
         
         console.log(`Successfully joined room: ${currentChatRoom.name}`);
         return currentChatRoom;
         
     } catch (error) {
         console.error('Error joining room:', error);
-        showSuccessMessage('Failed to join room. Please try again.');
+        if (typeof showSuccessMessage === 'function') {
+            showSuccessMessage('Failed to join room. Please try again.');
+        }
         throw error;
     }
 }
@@ -358,20 +330,26 @@ async function leaveChatRoom() {
         lastMessageTimestamp = null;
         
         // Update UI to show room list
-        renderChatRoomList();
+        if (typeof renderChatRoomList === 'function') {
+            renderChatRoomList();
+        }
         
         console.log('Left chat room successfully');
         
     } catch (error) {
         console.error('Error leaving room:', error);
-        showSuccessMessage('Failed to leave room properly, but clearing local state.');
+        if (typeof showSuccessMessage === 'function') {
+            showSuccessMessage('Failed to leave room properly, but clearing local state.');
+        }
         
         // Clear local state anyway
         stopChatRefresh();
         currentChatRoom = null;
         chatMessages = [];
         lastMessageTimestamp = null;
-        renderChatRoomList();
+        if (typeof renderChatRoomList === 'function') {
+            renderChatRoomList();
+        }
     }
 }
 
@@ -393,10 +371,12 @@ async function loadRoomMessages(roomId, append = false) {
             }
             
             // Update UI
-            updateChatMessages();
+            if (typeof updateChatMessages === 'function') {
+                updateChatMessages();
+            }
             
             // Scroll to bottom if this is initial load
-            if (!append) {
+            if (!append && typeof scrollChatToBottom === 'function') {
                 scrollChatToBottom();
             }
         }
@@ -421,14 +401,20 @@ async function sendChatMessage(content) {
         if (response.message) {
             // Add message to local state immediately
             chatMessages.push(response.message);
-            updateChatMessages();
-            scrollChatToBottom();
+            if (typeof updateChatMessages === 'function') {
+                updateChatMessages();
+            }
+            if (typeof scrollChatToBottom === 'function') {
+                scrollChatToBottom();
+            }
             
             // Clear input
             const input = document.getElementById('chatMessageInput');
             if (input) {
                 input.value = '';
-                autoResizeChatInput(input);
+                if (typeof autoResizeChatInput === 'function') {
+                    autoResizeChatInput(input);
+                }
             }
             
             console.log('Message sent successfully');
@@ -436,7 +422,9 @@ async function sendChatMessage(content) {
         
     } catch (error) {
         console.error('Error sending message:', error);
-        showSuccessMessage('Failed to send message. Please try again.');
+        if (typeof showSuccessMessage === 'function') {
+            showSuccessMessage('Failed to send message. Please try again.');
+        }
     }
 }
 
@@ -479,14 +467,16 @@ async function refreshChatMessages(roomId) {
             
             if (newMessages.length > 0) {
                 // Check if we need to scroll
-                const wasAtBottom = isScrolledToBottom();
+                const wasAtBottom = typeof isScrolledToBottom === 'function' ? isScrolledToBottom() : true;
                 
                 // Add new messages
                 chatMessages = [...chatMessages, ...newMessages];
-                updateChatMessages();
+                if (typeof updateChatMessages === 'function') {
+                    updateChatMessages();
+                }
                 
                 // Auto-scroll only if user was already at bottom
-                if (wasAtBottom) {
+                if (wasAtBottom && typeof scrollChatToBottom === 'function') {
                     scrollChatToBottom();
                 }
                 
@@ -518,14 +508,18 @@ async function createChatRoom(name, description = '', isPrivate = false) {
             await joinChatRoom(response.room.id);
             
             console.log('Room created successfully:', response.room.name);
-            showSuccessMessage(`Room "${response.room.name}" created!`);
+            if (typeof showSuccessMessage === 'function') {
+                showSuccessMessage(`Room "${response.room.name}" created!`);
+            }
             
             return response.room;
         }
         
     } catch (error) {
         console.error('Error creating room:', error);
-        showSuccessMessage('Failed to create room. Please try again.');
+        if (typeof showSuccessMessage === 'function') {
+            showSuccessMessage('Failed to create room. Please try again.');
+        }
         throw error;
     }
 }
@@ -539,7 +533,9 @@ async function handleCreateRoom(e) {
     const isPrivate = document.getElementById('roomPrivate').checked;
     
     if (!name) {
-        showError('createRoomError', 'Room name is required');
+        if (typeof showError === 'function') {
+            showError('createRoomError', 'Room name is required');
+        }
         return;
     }
     
@@ -547,14 +543,18 @@ async function handleCreateRoom(e) {
         await createChatRoom(name, description, isPrivate);
         
         // Close modal
-        closeModal('createRoomModal');
+        if (typeof closeModal === 'function') {
+            closeModal('createRoomModal');
+        }
         
         // Reset form
         document.getElementById('createRoomForm').reset();
         document.getElementById('createRoomError').innerHTML = '';
         
     } catch (error) {
-        showError('createRoomError', error.message || 'Failed to create room');
+        if (typeof showError === 'function') {
+            showError('createRoomError', error.message || 'Failed to create room');
+        }
     }
 }
 
@@ -573,7 +573,9 @@ function processChatCommand(input) {
             
         case '/clear':
             chatMessages = [];
-            updateChatMessages();
+            if (typeof updateChatMessages === 'function') {
+                updateChatMessages();
+            }
             showSystemMessage('Chat cleared');
             return true;
             
@@ -615,8 +617,12 @@ function showSystemMessage(message) {
     };
     
     chatMessages.push(systemMsg);
-    updateChatMessages();
-    scrollChatToBottom();
+    if (typeof updateChatMessages === 'function') {
+        updateChatMessages();
+    }
+    if (typeof scrollChatToBottom === 'function') {
+        scrollChatToBottom();
+    }
 }
 
 // Invite user to room
@@ -646,4 +652,25 @@ async function removeUserFromRoom(username) {
     } catch (error) {
         showSystemMessage(`Failed to remove ${username}: ${error.message}`);
     }
+}
+
+// Send message from input (called from UI)
+function sendChatMessageFromInput() {
+    const input = document.getElementById('chatMessageInput');
+    if (!input) return;
+    
+    const content = input.value.trim();
+    if (!content) return;
+    
+    // Check if it's a command
+    if (processChatCommand(content)) {
+        input.value = '';
+        if (typeof autoResizeChatInput === 'function') {
+            autoResizeChatInput(input);
+        }
+        return;
+    }
+    
+    // Send regular message
+    sendChatMessage(content);
 }
