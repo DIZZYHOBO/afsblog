@@ -1,4 +1,4 @@
-// app.js - Main application logic and initialization - Updated to remove c/ prefix
+// app.js - Main application logic and initialization - Updated with chat system
 
 // App state
 let currentUser = null;
@@ -62,7 +62,10 @@ function updateMenuContent() {
     }
         
         // Show/hide menu items based on auth status
+        document.getElementById('menuFeed').style.display = 'flex';
+        document.getElementById('menuChat').style.display = 'flex';
         document.getElementById('menuProfile').style.display = 'flex';
+        document.getElementById('menuMyShed').style.display = 'flex';
         document.getElementById('menuCreateCommunity').style.display = 'flex';
         document.getElementById('menuBrowseCommunities').style.display = 'flex';
         document.getElementById('menuSettings').style.display = 'flex';
@@ -105,7 +108,10 @@ function updateMenuContent() {
         `;
         
         // Hide authenticated menu items
+        document.getElementById('menuFeed').style.display = 'flex'; // Keep feed visible for non-auth users
+        document.getElementById('menuChat').style.display = 'none';
         document.getElementById('menuProfile').style.display = 'none';
+        document.getElementById('menuMyShed').style.display = 'none';
         document.getElementById('menuCreateCommunity').style.display = 'none';
         document.getElementById('menuBrowseCommunities').style.display = 'none';
         document.getElementById('menuAdmin').style.display = 'none';
@@ -170,6 +176,13 @@ function navigateToFeed() {
     toggleMenu();
     currentPage = 'feed';
     updateActiveMenuItem('menuFeed');
+    updateUI();
+}
+
+function navigateToChat() {
+    toggleMenu();
+    currentPage = 'chat';
+    updateActiveMenuItem('menuChat');
     updateUI();
 }
 
@@ -366,12 +379,15 @@ function updateUI() {
 
 function updateComposeButton() {
     const composeBtn = document.getElementById('composeBtn');
-    composeBtn.style.display = currentUser ? 'block' : 'none';
+    // Hide compose button on chat page
+    composeBtn.style.display = (currentUser && currentPage !== 'chat') ? 'block' : 'none';
 }
 
 function renderCurrentPage() {
     if (currentPage === 'feed') {
         renderFeedWithTabs();
+    } else if (currentPage === 'chat') {
+        renderChatPage();
     } else if (currentPage === 'community') {
         renderCommunityPage();
     } else if (currentPage === 'profile') {
@@ -392,6 +408,9 @@ function setupEventListeners() {
     
     // Compose form
     document.getElementById('composeForm').addEventListener('submit', handleCreatePost);
+    
+    // Create room form (chat)
+    document.getElementById('createRoomForm').addEventListener('submit', handleCreateRoom);
     
     // URL input for media preview
     const urlInput = document.getElementById('postUrl');
@@ -425,6 +444,67 @@ function setupEventListeners() {
             toggleMenu();
         }
     });
+    
+    // Page visibility change handling for chat
+    document.addEventListener('visibilitychange', () => {
+        if (currentPage === 'chat' && currentChatRoom) {
+            if (document.hidden) {
+                // Page is hidden, reduce chat refresh frequency or stop
+                console.log('Page hidden, chat may reduce activity');
+            } else {
+                // Page is visible, ensure chat is refreshing
+                console.log('Page visible, ensuring chat is active');
+                if (!chatRefreshInterval && currentChatRoom) {
+                    startChatRefresh(currentChatRoom.id);
+                }
+            }
+        }
+    });
+    
+    // Cleanup chat when leaving the page
+    window.addEventListener('beforeunload', () => {
+        if (currentPage === 'chat') {
+            stopChatRefresh();
+        }
+    });
+}
+
+// Enhanced logout function to clean up chat
+async function logout() {
+    try {
+        // Clean up chat state
+        cleanupChat();
+        
+        currentUser = null;
+        followedCommunities = new Set(); // Clear followed communities
+        
+        // Try to delete current_user key, but don't fail if it doesn't exist
+        try {
+            await blobAPI.delete('current_user');
+        } catch (deleteError) {
+            // Ignore 404 errors - the key might not exist
+            if (!deleteError.message.includes('404')) {
+                console.warn('Failed to delete current_user key:', deleteError);
+            }
+        }
+        
+        // Hide admin panel
+        document.getElementById('adminPanel').style.display = 'none';
+        
+        navigateToFeed();
+        updateUI();
+        showSuccessMessage('Logged out successfully!');
+    } catch (error) {
+        console.error('Logout error:', error);
+        // Even if there's an error, still clear the user state
+        currentUser = null;
+        followedCommunities = new Set();
+        cleanupChat();
+        document.getElementById('adminPanel').style.display = 'none';
+        navigateToFeed();
+        updateUI();
+        showSuccessMessage('Logged out successfully!');
+    }
 }
 
 // Initialize app
@@ -460,6 +540,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     await loadUser();
     await loadCommunities();
     await loadPosts();
+    
+    // Initialize chat system if user is logged in
+    if (currentUser) {
+        await initializeChat();
+    }
+    
     updateUI();
     setupEventListeners();
     
@@ -468,3 +554,25 @@ document.addEventListener('DOMContentLoaded', async () => {
         await loadAdminStats();
     }
 });
+
+// Enhanced user loading with chat initialization
+async function loadUser() {
+    try {
+        const userData = await blobAPI.get('current_user');
+        if (userData) {
+            currentUser = userData;
+            const fullProfile = await blobAPI.get(`user_${userData.username}`);
+            if (fullProfile) {
+                currentUser.profile = fullProfile;
+            }
+            
+            // Load user's followed communities after loading user
+            await loadFollowedCommunities();
+            
+            // Initialize chat system for authenticated user
+            await initializeChat();
+        }
+    } catch (error) {
+        console.error('Error loading user:', error);
+    }
+}
