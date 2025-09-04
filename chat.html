@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chat Servers - Discord Style</title>
+    <title>Chat Servers - Fixed Version</title>
     <style>
         * {
             margin: 0;
@@ -67,60 +67,6 @@
 
         .guild-item.add-server:hover {
             background-color: #2d7d32;
-        }
-
-        .guild-item .server-indicator {
-            position: absolute;
-            left: -4px;
-            top: 50%;
-            transform: translateY(-50%);
-            width: 4px;
-            background-color: #ffffff;
-            border-radius: 0 2px 2px 0;
-            opacity: 0;
-            transition: all 0.15s ease;
-        }
-
-        .guild-item.active .server-indicator {
-            opacity: 1;
-            height: 20px;
-        }
-
-        .guild-item:hover .server-indicator {
-            opacity: 1;
-            height: 8px;
-        }
-
-        .guild-context-menu {
-            position: absolute;
-            background-color: #18191c;
-            border-radius: 6px;
-            padding: 6px 0;
-            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.24);
-            z-index: 1000;
-            min-width: 180px;
-            display: none;
-        }
-
-        .guild-context-item {
-            padding: 6px 12px;
-            cursor: pointer;
-            font-size: 14px;
-            color: #dcddde;
-        }
-
-        .guild-context-item:hover {
-            background-color: #5865f2;
-            color: #ffffff;
-        }
-
-        .guild-context-item.danger {
-            color: #f04747;
-        }
-
-        .guild-context-item.danger:hover {
-            background-color: #f04747;
-            color: #ffffff;
         }
 
         /* Channels Sidebar */
@@ -222,43 +168,6 @@
             white-space: nowrap;
         }
 
-        .private-indicator {
-            margin-left: 4px;
-            color: #f38ba8;
-            font-size: 12px;
-        }
-
-        .channel-actions {
-            opacity: 0;
-            transition: opacity 0.15s ease;
-            margin-left: 8px;
-            display: flex;
-            gap: 4px;
-        }
-
-        .channel-item:hover .channel-actions {
-            opacity: 1;
-        }
-
-        .channel-action-btn {
-            width: 16px;
-            height: 16px;
-            cursor: pointer;
-            color: #96989d;
-            font-size: 12px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .channel-action-btn:hover {
-            color: #dcddde;
-        }
-
-        .channel-action-btn.delete:hover {
-            color: #f04747;
-        }
-
         .user-area {
             height: 52px;
             background-color: #232428;
@@ -323,12 +232,6 @@
             align-items: center;
         }
 
-        .chat-description {
-            color: #96989d;
-            font-size: 14px;
-            margin-left: 8px;
-        }
-
         .messages-wrapper {
             flex: 1;
             overflow-y: auto;
@@ -364,10 +267,6 @@
             padding-left: 72px;
             padding-right: 16px;
             border-radius: 0;
-        }
-
-        .message:hover .message-actions {
-            opacity: 1;
         }
 
         .message-avatar {
@@ -417,44 +316,6 @@
             word-wrap: break-word;
         }
 
-        .message-actions {
-            position: absolute;
-            top: -8px;
-            right: 16px;
-            background-color: #36393f;
-            border: 1px solid #1e2124;
-            border-radius: 4px;
-            padding: 2px;
-            opacity: 0;
-            transition: opacity 0.15s ease;
-            display: flex;
-            gap: 2px;
-        }
-
-        .message-action-btn {
-            width: 24px;
-            height: 24px;
-            background: none;
-            border: none;
-            color: #96989d;
-            cursor: pointer;
-            border-radius: 2px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 14px;
-        }
-
-        .message-action-btn:hover {
-            background-color: #4f545c;
-            color: #dcddde;
-        }
-
-        .message-action-btn.delete:hover {
-            background-color: #f04747;
-            color: #ffffff;
-        }
-
         /* Message Input */
         .message-input-wrapper {
             padding: 0 16px 24px 16px;
@@ -482,15 +343,6 @@
 
         .message-input::placeholder {
             color: #72767d;
-        }
-
-        .message-input:disabled {
-            cursor: not-allowed;
-            opacity: 0.6;
-        }
-
-        .message-input:disabled::placeholder {
-            color: #f04747;
         }
 
         /* Modal Styles */
@@ -629,15 +481,6 @@
             background-color: #4f545c;
         }
 
-        .btn-danger {
-            background-color: #f04747;
-            color: #ffffff;
-        }
-
-        .btn-danger:hover {
-            background-color: #d73502;
-        }
-
         .error-message {
             background-color: #f04747;
             color: #ffffff;
@@ -647,16 +490,6 @@
             font-size: 14px;
         }
 
-        .success-message {
-            background-color: #43b581;
-            color: #ffffff;
-            padding: 10px;
-            border-radius: 4px;
-            margin-bottom: 16px;
-            font-size: 14px;
-        }
-
-        /* Loading States */
         .loading {
             text-align: center;
             padding: 40px;
@@ -676,42 +509,6 @@
         @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
-        }
-
-        /* Scrollbar Styling */
-        ::-webkit-scrollbar {
-            width: 14px;
-        }
-
-        ::-webkit-scrollbar-track {
-            background: #2e3136;
-        }
-
-        ::-webkit-scrollbar-thumb {
-            background: #202225;
-            border: 3px solid #2e3136;
-            border-radius: 7px;
-        }
-
-        ::-webkit-scrollbar-thumb:hover {
-            background: #1a1c1f;
-        }
-
-        /* Responsive Design */
-        @media (max-width: 768px) {
-            .guilds-wrapper {
-                width: 60px;
-            }
-            
-            .channels-wrapper {
-                width: 200px;
-            }
-            
-            .guild-item {
-                width: 40px;
-                height: 40px;
-                font-size: 10px;
-            }
         }
 
         /* Auth Required Message */
@@ -744,42 +541,6 @@
             padding: 12px 24px;
             height: auto;
         }
-
-        /* Context Menu */
-        .context-menu {
-            position: absolute;
-            background-color: #18191c;
-            border-radius: 6px;
-            padding: 6px 0;
-            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.24);
-            z-index: 1000;
-            min-width: 160px;
-            display: none;
-        }
-
-        .context-item {
-            padding: 6px 12px;
-            cursor: pointer;
-            font-size: 14px;
-            color: #dcddde;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .context-item:hover {
-            background-color: #5865f2;
-            color: #ffffff;
-        }
-
-        .context-item.danger {
-            color: #f04747;
-        }
-
-        .context-item.danger:hover {
-            background-color: #f04747;
-            color: #ffffff;
-        }
     </style>
 </head>
 <body>
@@ -806,7 +567,7 @@
         <!-- Channels List (middle sidebar) -->
         <div class="channels-wrapper">
             <div class="server-header" id="serverHeader">
-                <span id="serverName">Select a Server</span>
+                <span id="currentServerName">Select a Server</span>
                 <span>⌄</span>
             </div>
             
@@ -838,7 +599,6 @@
                 <div class="chat-title">
                     <span class="channel-prefix">#</span>
                     <span id="chatRoomName">Select a channel</span>
-                    <span class="chat-description" id="chatRoomDescription"></span>
                 </div>
             </div>
 
@@ -857,9 +617,7 @@
                         placeholder="Type a message..."
                         rows="1"
                         onkeydown="handleMessageKeydown(event)"
-                        oninput="autoResizeInput(this)"
-                        onclick="moveCursorToStart(this)"
-                        onfocus="moveCursorToStart(this)">
+                        oninput="autoResizeInput(this)">
                     </textarea>
                 </div>
             </div>
@@ -874,119 +632,43 @@
                 <div class="modal-subtitle">Your server is where you and your friends hang out.</div>
             </div>
             
-            <form onsubmit="handleCreateServer(event)">
-                <div id="createServerError"></div>
-                
-                <div class="form-group">
-                    <label class="form-label" for="serverName">Server Name</label>
-                    <input 
-                        type="text" 
-                        id="serverName" 
-                        class="form-input" 
-                        placeholder="My Awesome Server"
-                        required
-                        maxlength="50"
-                    />
-                </div>
-                
-                <div class="form-group">
-                    <label class="form-label" for="serverDescription">Server Description (optional)</label>
-                    <textarea 
-                        id="serverDescription" 
-                        class="form-textarea" 
-                        placeholder="What's your server about?"
-                        maxlength="200"
-                    ></textarea>
-                </div>
-                
-                <div class="form-group">
-                    <div class="checkbox-wrapper">
-                        <input type="checkbox" id="serverIsPrivate" class="checkbox" />
-                        <label class="checkbox-label" for="serverIsPrivate">Private Server</label>
-                    </div>
-                    <small style="color: #96989d; margin-top: 4px; display: block;">
-                        Private servers can only be joined by invitation.
-                    </small>
-                </div>
-                
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" onclick="closeCreateServerModal()">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Create Server</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <!-- Create Room Modal -->
-    <div id="createRoomModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <div class="modal-title">Create a Channel</div>
-                <div class="modal-subtitle" id="createRoomSubtitle">Create a new text channel.</div>
+            <div id="createServerError"></div>
+            
+            <div class="form-group">
+                <label class="form-label" for="serverNameInput">Server Name</label>
+                <input 
+                    type="text" 
+                    id="serverNameInput"
+                    class="form-input" 
+                    placeholder="My Awesome Server"
+                    maxlength="50"
+                />
             </div>
             
-            <form onsubmit="handleCreateRoom(event)">
-                <div id="createRoomError"></div>
-                
-                <div class="form-group">
-                    <label class="form-label" for="roomName">Channel Name</label>
-                    <input 
-                        type="text" 
-                        id="roomName" 
-                        class="form-input" 
-                        placeholder="general"
-                        required
-                        maxlength="50"
-                    />
+            <div class="form-group">
+                <label class="form-label" for="serverDescInput">Server Description (optional)</label>
+                <textarea 
+                    id="serverDescInput"
+                    class="form-textarea" 
+                    placeholder="What's your server about?"
+                    maxlength="200"
+                ></textarea>
+            </div>
+            
+            <div class="form-group">
+                <div class="checkbox-wrapper">
+                    <input type="checkbox" id="serverPrivateInput" class="checkbox" />
+                    <label class="checkbox-label" for="serverPrivateInput">Private Server</label>
                 </div>
-                
-                <div class="form-group">
-                    <label class="form-label" for="roomDescription">Channel Topic (optional)</label>
-                    <textarea 
-                        id="roomDescription" 
-                        class="form-textarea" 
-                        placeholder="What's this channel about?"
-                        maxlength="200"
-                    ></textarea>
-                </div>
-                
-                <div class="form-group">
-                    <div class="checkbox-wrapper">
-                        <input type="checkbox" id="isPrivate" class="checkbox" />
-                        <label class="checkbox-label" for="isPrivate">Private Channel</label>
-                    </div>
-                    <small style="color: #96989d; margin-top: 4px; display: block;">
-                        Private channels can only be seen by invited members.
-                    </small>
-                </div>
-                
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" onclick="closeCreateRoomModal()">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Create Channel</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <!-- Context Menus -->
-    <div id="serverContextMenu" class="context-menu">
-        <div class="context-item" onclick="editServer()">
-            <span>⚙️</span> Server Settings
-        </div>
-        <div class="context-item" onclick="inviteToServer()">
-            <span>📨</span> Invite People
-        </div>
-        <div class="context-item danger" onclick="deleteServer()">
-            <span>🗑️</span> Delete Server
-        </div>
-    </div>
-
-    <div id="roomContextMenu" class="context-menu">
-        <div class="context-item" onclick="editRoom()">
-            <span>⚙️</span> Edit Channel
-        </div>
-        <div class="context-item danger" onclick="deleteRoom()">
-            <span>🗑️</span> Delete Channel
+                <small style="color: #96989d; margin-top: 4px; display: block;">
+                    Private servers can only be joined by invitation.
+                </small>
+            </div>
+            
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeCreateServerModal()">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="createServerSubmit()">Create Server</button>
+            </div>
         </div>
     </div>
 
@@ -999,17 +681,6 @@
         let serverRooms = [];
         let chatMessages = [];
         let refreshInterval = null;
-        
-        // Rate limiting
-        let lastMessageTime = 0;
-        let messageCount = 0;
-        let rateLimitResetTime = 0;
-        const RATE_LIMIT_MESSAGES = 5;
-        const RATE_LIMIT_WINDOW = 10000;
-        const MESSAGE_COOLDOWN = 1000;
-
-        // Context menu state
-        let contextMenuTarget = null;
 
         // Initialize the app
         async function initApp() {
@@ -1154,9 +825,7 @@
                 return `
                     <div class="guild-item ${currentServer && currentServer.id === server.id ? 'active' : ''}" 
                          onclick="selectServer('${server.id}')"
-                         oncontextmenu="showServerContextMenu(event, '${server.id}')"
                          title="${escapeHtml(server.name)}">
-                        <div class="server-indicator"></div>
                         ${serverInitials}
                     </div>
                 `;
@@ -1171,7 +840,7 @@
 
                 // Update UI
                 renderServersList();
-                document.getElementById('serverName').textContent = currentServer.name;
+                document.getElementById('currentServerName').textContent = currentServer.name;
                 
                 // Load server rooms
                 await loadServerRooms(serverId);
@@ -1179,7 +848,6 @@
                 // Clear current room selection
                 currentRoom = null;
                 document.getElementById('chatRoomName').textContent = 'Select a channel';
-                document.getElementById('chatRoomDescription').textContent = '';
                 document.getElementById('messageInputWrapper').style.display = 'none';
                 showWelcomeMessage();
 
@@ -1234,14 +902,9 @@
 
             roomsList.innerHTML = serverRooms.map(room => `
                 <div class="channel-item ${currentRoom && currentRoom.id === room.id ? 'active' : ''}" 
-                     onclick="joinRoom('${room.id}')"
-                     oncontextmenu="showRoomContextMenu(event, '${room.id}')">
+                     onclick="joinRoom('${room.id}')">
                     <span class="channel-prefix">#</span>
                     <span class="channel-name">${escapeHtml(room.name)}</span>
-                    ${room.isPrivate ? '<span class="private-indicator">🔒</span>' : ''}
-                    <div class="channel-actions">
-                        ${room.owner === currentUser.username ? `<div class="channel-action-btn delete" onclick="deleteRoomConfirm('${room.id}', event)">🗑️</div>` : ''}
-                    </div>
                 </div>
             `).join('');
         }
@@ -1255,8 +918,6 @@
                 // Update UI
                 renderRoomsList();
                 document.getElementById('chatRoomName').textContent = currentRoom.name;
-                document.getElementById('chatRoomDescription').textContent = 
-                    currentRoom.description ? ` — ${currentRoom.description}` : '';
                 document.getElementById('messageInputWrapper').style.display = 'block';
 
                 // Load messages
@@ -1268,12 +929,11 @@
 
             } catch (error) {
                 console.error('Error joining room:', error);
-                showError('Failed to join channel');
             }
         }
 
         // Load messages for a room
-        async function loadRoomMessages(roomId, append = false) {
+        async function loadRoomMessages(roomId) {
             try {
                 const token = getAuthToken();
                 const response = await fetch(`/.netlify/functions/chat-api/rooms/${roomId}/messages?limit=50`, {
@@ -1289,22 +949,12 @@
                 }
 
                 const data = await response.json();
-                
-                if (append) {
-                    chatMessages = [...(data.messages || []), ...chatMessages];
-                } else {
-                    chatMessages = data.messages || [];
-                }
-
+                chatMessages = data.messages || [];
                 renderMessages();
-                
-                if (!append) {
-                    scrollToBottom();
-                }
+                scrollToBottom();
 
             } catch (error) {
                 console.error('Error loading messages:', error);
-                showErrorMessage('Failed to load messages');
             }
         }
 
@@ -1314,7 +964,6 @@
 
             try {
                 const token = getAuthToken();
-                
                 const response = await fetch(`/.netlify/functions/chat-api/rooms/${roomId}/messages?limit=50`, {
                     method: 'GET',
                     headers: {
@@ -1370,8 +1019,6 @@
                 const timestamp = new Date(message.createdAt);
                 const timeStr = timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
                 const authorInitial = message.author ? message.author.charAt(0).toUpperCase() : '?';
-                const canDelete = message.author === currentUser.username || 
-                                 (currentRoom && currentRoom.owner === currentUser.username);
                 
                 return `
                     <div class="message">
@@ -1383,13 +1030,6 @@
                             </div>
                             <div class="message-text">${escapeHtml(message.content)}</div>
                         </div>
-                        ${canDelete ? `
-                            <div class="message-actions">
-                                <button class="message-action-btn delete" onclick="deleteMessage('${message.id}')" title="Delete message">
-                                    🗑️
-                                </button>
-                            </div>
-                        ` : ''}
                     </div>
                 `;
             }).join('');
@@ -1406,67 +1046,9 @@
             `;
         }
 
-        // Delete message
-        async function deleteMessage(messageId) {
-            if (!currentRoom || !confirm('Delete this message?')) return;
-
-            try {
-                const token = getAuthToken();
-                const response = await fetch(`/.netlify/functions/chat-api/rooms/${currentRoom.id}/messages/${messageId}`, {
-                    method: 'DELETE',
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
-                    }
-                });
-
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}`);
-                }
-
-                // Remove message from local state
-                chatMessages = chatMessages.filter(msg => msg.id !== messageId);
-                renderMessages();
-
-            } catch (error) {
-                console.error('Error deleting message:', error);
-                showError('Failed to delete message');
-            }
-        }
-
-        // Rate limiting check
-        function isRateLimited() {
-            const now = Date.now();
-            
-            if (now >= rateLimitResetTime) {
-                messageCount = 0;
-                rateLimitResetTime = now + RATE_LIMIT_WINDOW;
-            }
-            
-            if (now - lastMessageTime < MESSAGE_COOLDOWN) {
-                return { limited: true, reason: 'Please wait a moment before sending another message' };
-            }
-            
-            if (messageCount >= RATE_LIMIT_MESSAGES) {
-                const remainingTime = Math.ceil((rateLimitResetTime - now) / 1000);
-                return { 
-                    limited: true, 
-                    reason: `Rate limited. Please wait ${remainingTime} seconds before sending more messages.` 
-                };
-            }
-            
-            return { limited: false };
-        }
-
         // Send a chat message
         async function sendMessage(content) {
             if (!content.trim() || !currentRoom) return;
-
-            const rateLimitCheck = isRateLimited();
-            if (rateLimitCheck.limited) {
-                showRateLimitError(rateLimitCheck.reason);
-                return;
-            }
 
             try {
                 const token = getAuthToken();
@@ -1485,10 +1067,6 @@
 
                 const data = await response.json();
                 
-                const now = Date.now();
-                lastMessageTime = now;
-                messageCount++;
-                
                 if (data.message) {
                     chatMessages.push(data.message);
                     renderMessages();
@@ -1500,7 +1078,6 @@
 
             } catch (error) {
                 console.error('Error sending message:', error);
-                showError('Failed to send message');
             }
         }
 
@@ -1510,11 +1087,6 @@
                 event.preventDefault();
                 const content = event.target.value;
                 if (content.trim()) {
-                    const rateLimitCheck = isRateLimited();
-                    if (rateLimitCheck.limited) {
-                        showRateLimitError(rateLimitCheck.reason);
-                        return;
-                    }
                     sendMessage(content);
                 }
             }
@@ -1525,56 +1097,58 @@
             textarea.style.height = Math.min(textarea.scrollHeight, 200) + 'px';
         }
 
-        function moveCursorToStart(input) {
-            setTimeout(() => {
-                if (input.value === '' || input.selectionStart === input.selectionEnd) {
-                    input.setSelectionRange(0, 0);
-                }
-            }, 0);
-        }
-
         // Create server modal functions
         function openCreateServerModal() {
+            console.log('Opening create server modal...');
             document.getElementById('createServerModal').style.display = 'block';
         }
 
         function closeCreateServerModal() {
             document.getElementById('createServerModal').style.display = 'none';
             document.getElementById('createServerError').innerHTML = '';
-            document.querySelector('#createServerModal form').reset();
+            // Clear form fields
+            document.getElementById('serverNameInput').value = '';
+            document.getElementById('serverDescInput').value = '';
+            document.getElementById('serverPrivateInput').checked = false;
         }
 
-        async function handleCreateServer(event) {
-            event.preventDefault();
+        // FIXED SERVER CREATION FUNCTION
+        async function createServerSubmit() {
+            console.log('=== CREATE SERVER BUTTON CLICKED ===');
             
-            console.log('Create server form submitted');
+            // Get values directly from elements
+            const nameEl = document.getElementById('serverNameInput');
+            const descEl = document.getElementById('serverDescInput');
+            const privateEl = document.getElementById('serverPrivateInput');
             
-            // Debug: check if elements exist
-            const nameElement = document.getElementById('createServerName');
-            const descElement = document.getElementById('createServerDescription');
-            const privateElement = document.getElementById('createServerIsPrivate');
+            console.log('Form elements found:');
+            console.log('Name element:', nameEl);
+            console.log('Desc element:', descEl);
+            console.log('Private element:', privateEl);
             
-            console.log('Name element:', nameElement);
-            console.log('Desc element:', descElement);
-            console.log('Private element:', privateElement);
-            
-            if (!nameElement) {
-                showCreateServerError('Form elements not found. Please refresh the page.');
+            if (!nameEl) {
+                console.error('Could not find name input element!');
+                showCreateServerError('Form error - please refresh the page');
                 return;
             }
             
-            const name = nameElement.value.trim();
-            const description = descElement.value.trim();
-            const isPrivate = privateElement.checked;
+            const name = nameEl.value.trim();
+            const description = descEl.value.trim();
+            const isPrivate = privateEl.checked;
             
-            console.log('Form values:', { name, description, isPrivate });
+            console.log('=== FORM VALUES ===');
+            console.log('Name:', name);
+            console.log('Description:', description);
+            console.log('Is Private:', isPrivate);
             
             if (!name) {
+                console.log('ERROR: No server name provided');
                 showCreateServerError('Please enter a server name');
                 return;
             }
 
             try {
+                console.log('Sending server creation request...');
                 const token = getAuthToken();
                 const response = await fetch('/.netlify/functions/chat-api/servers', {
                     method: 'POST',
@@ -1589,12 +1163,16 @@
                     })
                 });
 
+                console.log('Response status:', response.status);
+                
                 if (!response.ok) {
                     const error = await response.json();
+                    console.error('Server creation failed:', error);
                     throw new Error(error.error || `HTTP ${response.status}`);
                 }
 
                 const data = await response.json();
+                console.log('Server created successfully:', data);
                 
                 if (data.server) {
                     userServers.unshift(data.server);
@@ -1603,7 +1181,7 @@
                 }
 
                 closeCreateServerModal();
-                showSuccess(`Server "${name}" created successfully!`);
+                console.log(`✅ Server "${name}" created successfully!`);
 
             } catch (error) {
                 console.error('Error creating server:', error);
@@ -1611,185 +1189,8 @@
             }
         }
 
-        // Create room modal functions
         function openCreateRoomModal() {
-            if (!currentServer) {
-                showError('Please select a server first');
-                return;
-            }
-            
-            document.getElementById('createRoomSubtitle').textContent = `Create a new text channel in ${currentServer.name}.`;
-            document.getElementById('createRoomModal').style.display = 'block';
-        }
-
-        function closeCreateRoomModal() {
-            document.getElementById('createRoomModal').style.display = 'none';
-            document.getElementById('createRoomError').innerHTML = '';
-            document.querySelector('#createRoomModal form').reset();
-        }
-
-        async function handleCreateRoom(event) {
-            event.preventDefault();
-            
-            if (!currentServer) {
-                showCreateRoomError('Please select a server first');
-                return;
-            }
-            
-            const name = document.getElementById('roomName').value.trim();
-            const description = document.getElementById('roomDescription').value.trim();
-            const isPrivate = document.getElementById('isPrivate').checked;
-            
-            if (!name) {
-                showCreateRoomError('Please enter a channel name');
-                return;
-            }
-
-            try {
-                const token = getAuthToken();
-                const response = await fetch(`/.netlify/functions/chat-api/servers/${currentServer.id}/rooms`, {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        name,
-                        description,
-                        isPrivate
-                    })
-                });
-
-                if (!response.ok) {
-                    const error = await response.json();
-                    throw new Error(error.error || `HTTP ${response.status}`);
-                }
-
-                const data = await response.json();
-                
-                if (data.room) {
-                    serverRooms.unshift(data.room);
-                    renderRoomsList();
-                    await joinRoom(data.room.id);
-                }
-
-                closeCreateRoomModal();
-                showSuccess(`Channel "${name}" created successfully!`);
-
-            } catch (error) {
-                console.error('Error creating room:', error);
-                showCreateRoomError(error.message || 'Failed to create channel');
-            }
-        }
-
-        // Context menu functions
-        function showServerContextMenu(event, serverId) {
-            event.preventDefault();
-            event.stopPropagation();
-            
-            contextMenuTarget = serverId;
-            const menu = document.getElementById('serverContextMenu');
-            menu.style.display = 'block';
-            menu.style.left = event.pageX + 'px';
-            menu.style.top = event.pageY + 'px';
-        }
-
-        function showRoomContextMenu(event, roomId) {
-            event.preventDefault();
-            event.stopPropagation();
-            
-            const room = serverRooms.find(r => r.id === roomId);
-            if (!room || room.owner !== currentUser.username) return;
-            
-            contextMenuTarget = roomId;
-            const menu = document.getElementById('roomContextMenu');
-            menu.style.display = 'block';
-            menu.style.left = event.pageX + 'px';
-            menu.style.top = event.pageY + 'px';
-        }
-
-        async function deleteServer() {
-            if (!contextMenuTarget || !confirm('Delete this server? This action cannot be undone.')) return;
-
-            try {
-                const token = getAuthToken();
-                const response = await fetch(`/.netlify/functions/chat-api/servers/${contextMenuTarget}`, {
-                    method: 'DELETE',
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
-                    }
-                });
-
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}`);
-                }
-
-                // Remove server from local state
-                userServers = userServers.filter(server => server.id !== contextMenuTarget);
-                
-                // If this was the current server, clear selection
-                if (currentServer && currentServer.id === contextMenuTarget) {
-                    currentServer = null;
-                    currentRoom = null;
-                    serverRooms = [];
-                    document.getElementById('serverName').textContent = 'Select a Server';
-                    document.getElementById('roomsList').innerHTML = '<div class="welcome-message"><p>Select a server to see channels</p></div>';
-                    showWelcomeMessage();
-                    document.getElementById('messageInputWrapper').style.display = 'none';
-                }
-                
-                renderServersList();
-                showSuccess('Server deleted successfully');
-
-            } catch (error) {
-                console.error('Error deleting server:', error);
-                showError('Failed to delete server');
-            }
-        }
-
-        async function deleteRoom() {
-            if (!contextMenuTarget || !confirm('Delete this channel? This action cannot be undone.')) return;
-
-            try {
-                const token = getAuthToken();
-                const response = await fetch(`/.netlify/functions/chat-api/rooms/${contextMenuTarget}`, {
-                    method: 'DELETE',
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
-                    }
-                });
-
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}`);
-                }
-
-                // Remove room from local state
-                serverRooms = serverRooms.filter(room => room.id !== contextMenuTarget);
-                
-                // If this was the current room, clear selection
-                if (currentRoom && currentRoom.id === contextMenuTarget) {
-                    currentRoom = null;
-                    document.getElementById('chatRoomName').textContent = 'Select a channel';
-                    document.getElementById('chatRoomDescription').textContent = '';
-                    showWelcomeMessage();
-                    document.getElementById('messageInputWrapper').style.display = 'none';
-                }
-                
-                renderRoomsList();
-                showSuccess('Channel deleted successfully');
-
-            } catch (error) {
-                console.error('Error deleting room:', error);
-                showError('Failed to delete channel');
-            }
-        }
-
-        function deleteRoomConfirm(roomId, event) {
-            event.stopPropagation();
-            contextMenuTarget = roomId;
-            deleteRoom();
+            console.log('Create room modal - not implemented yet');
         }
 
         // Utility functions
@@ -1814,79 +1215,17 @@
             return messagesWrapper.scrollHeight - messagesWrapper.scrollTop <= messagesWrapper.clientHeight + threshold;
         }
 
-        function showError(message) {
-            console.error(message);
-        }
-
-        function showSuccess(message) {
-            console.log(message);
-        }
-        
-        function showRateLimitError(message) {
-            const messageInput = document.getElementById('messageInput');
-            const originalPlaceholder = messageInput.placeholder;
-            
-            messageInput.placeholder = message;
-            messageInput.style.borderColor = '#f04747';
-            messageInput.disabled = true;
-            
-            setTimeout(() => {
-                messageInput.placeholder = originalPlaceholder;
-                messageInput.style.borderColor = '';
-                messageInput.disabled = false;
-                messageInput.focus();
-            }, 2000);
-        }
-
         function showCreateServerError(message) {
             document.getElementById('createServerError').innerHTML = `
                 <div class="error-message">${escapeHtml(message)}</div>
             `;
         }
 
-        function showCreateRoomError(message) {
-            document.getElementById('createRoomError').innerHTML = `
-                <div class="error-message">${escapeHtml(message)}</div>
-            `;
-        }
-
-        function showErrorMessage(message) {
-            document.getElementById('messagesWrapper').innerHTML = `
-                <div style="text-align: center; padding: 40px; color: #f04747;">
-                    ${escapeHtml(message)}
-                </div>
-            `;
-        }
-
-        // Stub functions for context menu items
-        function editServer() {
-            console.log('Edit server - not implemented');
-        }
-
-        function inviteToServer() {
-            console.log('Invite to server - not implemented');
-        }
-
-        function editRoom() {
-            console.log('Edit room - not implemented');
-        }
-
-        // Close context menus when clicking elsewhere
-        document.addEventListener('click', function() {
-            document.getElementById('serverContextMenu').style.display = 'none';
-            document.getElementById('roomContextMenu').style.display = 'none';
-        });
-
         // Close modal when clicking outside
         window.onclick = function(event) {
             const serverModal = document.getElementById('createServerModal');
-            const roomModal = document.getElementById('createRoomModal');
-            
             if (event.target === serverModal) {
                 closeCreateServerModal();
-            }
-            if (event.target === roomModal) {
-                closeCreateRoomModal();
             }
         }
 
