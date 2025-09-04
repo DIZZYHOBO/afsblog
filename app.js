@@ -1,6 +1,6 @@
-// app.js - Complete Main Application Logic with All Functions
+// app.js - Complete Main Application Logic with All Functions and Fixes
 
-// Global state
+// Global state variables
 let currentUser = null;
 let currentPage = 'feed';
 let currentCommunityView = null;
@@ -110,7 +110,7 @@ function updateFeedTabsVisibility() {
     }
 }
 
-// Menu functions - FIXED WITH NULL CHECKS
+// Menu functions with null checks (FIX 2)
 function toggleMenu() {
     const menu = document.getElementById('slideMenu');
     const menuToggle = document.getElementById('menuToggle');
@@ -133,7 +133,7 @@ function toggleMenu() {
     }
 }
 
-// FIXED WITH COMPREHENSIVE NULL CHECKS
+// Update menu for user with comprehensive null checks (FIX 2)
 function updateMenuForUser() {
     const menuUserInfo = document.getElementById('menuUserInfo');
     const menuLogout = document.getElementById('menuLogout');
@@ -549,10 +549,9 @@ function setupEventListeners() {
     });
 }
 
-// Data loading functions - FIXED to check if blobAPI exists
+// Data loading functions with blobAPI checks
 async function loadUser() {
     try {
-        // Check if blobAPI exists, if not wait for it
         if (typeof blobAPI === 'undefined') {
             console.log('Waiting for blobAPI to be initialized...');
             return;
@@ -581,7 +580,6 @@ async function loadUser() {
 
 async function loadCommunities() {
     try {
-        // Check if blobAPI exists
         if (typeof blobAPI === 'undefined') {
             console.log('Waiting for blobAPI to be initialized...');
             return;
@@ -614,7 +612,6 @@ async function loadCommunities() {
 
 async function loadPosts() {
     try {
-        // Check if blobAPI exists
         if (typeof blobAPI === 'undefined') {
             console.log('Waiting for blobAPI to be initialized...');
             return;
@@ -677,15 +674,16 @@ function cleanupChat() {
 
 // Utility function to update feed content - FIXED
 function updateFeedContent(html) {
-    const feedElement = document.getElementById('feedContent');
+    let feedElement = document.getElementById('feedContent');
+    
+    if (!feedElement) {
+        feedElement = document.getElementById('feed');
+    }
+    
     if (feedElement) {
         feedElement.innerHTML = html;
     } else {
-        // Fallback to old ID if it exists
-        const oldFeed = document.getElementById('feed');
-        if (oldFeed) {
-            oldFeed.innerHTML = html;
-        }
+        console.error('Feed element not found - neither feedContent nor feed IDs exist');
     }
 }
 
