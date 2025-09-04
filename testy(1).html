@@ -224,7 +224,8 @@
                     
                     console.log('Raw API data:', data); // Log the raw data here
 
-                    const feedData = data.posts || [];
+                    // Changed from data.posts to data.feeds
+                    const feedData = data.feeds || [];
                     
                     if (Array.isArray(feedData)) {
                       console.log('Successfully fetched feed data:', feedData);
@@ -249,32 +250,34 @@
                     return;
                 }
                 
-                // Sort posts by date in descending order (newest first)
-                feedData.sort((a, b) => new Date(b.date) - new Date(a.date));
+                // Sort posts by published date in descending order (newest first)
+                feedData.sort((a, b) => new Date(b.published) - new Date(a.published));
 
                 feedData.forEach(post => {
+                    // Using the new data structure from the API response
+                    const communityName = post.name || 'Unknown Community';
+                    const postTitle = post.title || 'No Title';
+                    const publishedDate = post.published ? new Date(post.published).toLocaleString() : 'Unknown Date';
+                    const iconUrl = post.icon;
+                    
                     const postElement = document.createElement('div');
                     postElement.className = 'feed-card mb-4 p-6 rounded-xl space-y-4';
                     
-                    // Fallback for author name
-                    const authorName = typeof post.author === 'string' ? post.author : post.author?.username || 'Unknown Author';
-                    
-                    // Simple initials for avatar
-                    const authorInitial = authorName.charAt(0).toUpperCase();
+                    // Simple initials for avatar fallback if no icon
+                    const communityInitial = communityName.charAt(0).toUpperCase();
+                    const avatarContent = iconUrl ? `<img src="${iconUrl}" alt="${communityName} icon" class="w-10 h-10 rounded-full object-cover">` : `<div class="flex items-center justify-center w-10 h-10 rounded-full bg-indigo-600 text-white font-bold text-lg">${communityInitial}</div>`;
 
                     postElement.innerHTML = `
                         <div class="flex items-center space-x-4">
-                            <div class="flex items-center justify-center w-10 h-10 rounded-full bg-indigo-600 text-white font-bold text-lg">
-                                ${authorInitial}
-                            </div>
+                            ${avatarContent}
                             <div>
-                                <h3 class="font-semibold text-gray-100">${authorName}</h3>
+                                <h3 class="font-semibold text-gray-100">${communityName}</h3>
                                 <p class="text-xs text-gray-400">
-                                    <span class="mr-2">&bull; ${new Date(post.date).toLocaleString()}</span>
+                                    <span class="mr-2">&bull; ${publishedDate}</span>
                                 </p>
                             </div>
                         </div>
-                        <p class="text-gray-300 whitespace-pre-wrap">${post.content}</p>
+                        <p class="text-gray-300 whitespace-pre-wrap">${postTitle}</p>
                         
                         <!-- Actions Section -->
                         <div class="flex items-center space-x-6 text-gray-400">
