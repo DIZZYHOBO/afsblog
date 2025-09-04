@@ -15,7 +15,6 @@ let createCommunityModal = null;
 let authModal = null;
 let communityDropdownOpen = false;
 let inlineLoginFormOpen = false;
-let followedCommunities = new Set(); // Moved from api.js since it's already declared there
 
 // Navigation functions
 function navigateToFeed() {
