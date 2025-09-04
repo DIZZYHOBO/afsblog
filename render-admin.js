@@ -229,4 +229,65 @@ function renderCommunitiesPanel(allCommunities) {
                     <div class="admin-community-card">
                         <div class="admin-community-info">
                             <div class="admin-community-avatar">
-                                ${community.displayName.
+                                ${community.displayName.charAt(0).toUpperCase()}
+                            </div>
+                            <div class="admin-community-details">
+                                <h4>${escapeHtml(community.displayName)}</h4>
+                                <p class="admin-community-handle">c/${escapeHtml(community.name)}</p>
+                                ${community.description ? `<p class="admin-community-description">${escapeHtml(community.description)}</p>` : ''}
+                                <div class="admin-community-meta">
+                                    <span>📅 Created ${formatDate(community.createdAt)}</span>
+                                    <span>👤 By @${escapeHtml(community.createdBy)}</span>
+                                    <span>📝 ${communityPosts.length} posts</span>
+                                    <span>👥 ${community.members ? community.members.length : 0} members</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="admin-community-actions">
+                            <button class="btn btn-secondary" onclick="navigateToCommunity('${community.name}')" style="margin-right: 8px;">
+                                View
+                            </button>
+                            <button class="btn btn-danger" onclick="deleteCommunity('${community.name}')">
+                                🗑️ Delete
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('')}
+        </div>
+    `;
+}
+
+// Render posts panel
+function renderPostsPanel(allPosts) {
+    const publicPosts = allPosts.filter(post => !post.isPrivate);
+    const privatePosts = allPosts.filter(post => post.isPrivate);
+    
+    return `
+        <div class="admin-section-header">
+            <h3>Posts Management</h3>
+            <p>View and manage all posts on the platform</p>
+            <div class="admin-filters">
+                <button class="btn btn-secondary" onclick="filterAdminPosts('all')" id="filterAllPosts">
+                    All Posts (${allPosts.length})
+                </button>
+                <button class="btn btn-secondary" onclick="filterAdminPosts('public')" id="filterPublicPosts">
+                    Public (${publicPosts.length})
+                </button>
+                <button class="btn btn-secondary" onclick="filterAdminPosts('private')" id="filterPrivatePosts">
+                    Private (${privatePosts.length})
+                </button>
+            </div>
+        </div>
+        <div id="adminPostsList">
+            ${renderPostList(allPosts.slice(0, 20), 'No posts found')}
+            ${allPosts.length > 20 ? `
+                <div class="admin-load-more">
+                    <button class="btn btn-secondary" onclick="loadMoreAdminPosts()">
+                        Load More Posts
+                    </button>
+                </div>
+            ` : ''}
+        </div>
+    `;
+}
