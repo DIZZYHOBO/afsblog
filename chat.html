@@ -812,6 +812,65 @@
         let chatMessages = [];
         let refreshInterval = null;
 
+        // Add localStorage monitor to see when tokens are set/cleared
+        function setupLocalStorageMonitor() {
+            console.log('🔍 Setting up localStorage monitor...');
+            
+            // Store the original localStorage methods
+            const originalSetItem = localStorage.setItem;
+            const originalRemoveItem = localStorage.removeItem;
+            const originalClear = localStorage.clear;
+            
+            // Override setItem to monitor when tokens are stored
+            localStorage.setItem = function(key, value) {
+                console.log(`📝 localStorage.setItem("${key}", "${value?.substring(0, 50)}${value?.length > 50 ? '...' : ''}")`);
+                
+                if (key === 'sessionToken') {
+                    console.log('🎉 SESSION TOKEN WAS STORED!');
+                    console.log('Token value:', value?.substring(0, 30) + '...');
+                    
+                    // Show notification in chat
+                    if (document.getElementById('sessionStatus')) {
+                        const statusDiv = document.getElementById('sessionStatus');
+                        statusDiv.style.display = 'block';
+                        statusDiv.style.backgroundColor = '#43b581';
+                        statusDiv.style.color = '#ffffff';
+                        statusDiv.innerHTML = '🎉 Session token detected! Click "Check Session" to login.';
+                        
+                        // Auto-hide after 5 seconds
+                        setTimeout(() => {
+                            statusDiv.style.display = 'none';
+                        }, 5000);
+                    }
+                }
+                
+                // Call the original method
+                return originalSetItem.apply(this, arguments);
+            };
+            
+            // Override removeItem to monitor when tokens are removed
+            localStorage.removeItem = function(key) {
+                console.log(`🗑️ localStorage.removeItem("${key}")`);
+                
+                if (key === 'sessionToken') {
+                    console.log('❌ SESSION TOKEN WAS REMOVED!');
+                }
+                
+                // Call the original method
+                return originalRemoveItem.apply(this, arguments);
+            };
+            
+            // Override clear to monitor when everything is cleared
+            localStorage.clear = function() {
+                console.log('🧹 localStorage.clear() - All storage cleared');
+                
+                // Call the original method
+                return originalClear.apply(this, arguments);
+            };
+            
+            console.log('✅ localStorage monitor is active');
+        }
+
         // Initialize the app with better error handling and retry
         async function initApp() {
             try {
