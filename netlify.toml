@@ -7,13 +7,9 @@
 [functions]
   # Directory containing Netlify Functions
   directory = "netlify/functions"
-  # Use esbuild bundler for better ES module support
-  node_bundler = "esbuild"
 
-# Enable Netlify Blobs and set Node version
+# Enable Netlify Blobs
 [build.environment]
-  # Force Node.js 18+ which has better ES module support
-  NODE_VERSION = "18"
   # Netlify Blobs is automatically available in functions
 
 # Headers for security and CORS

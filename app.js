@@ -1,196 +1,95 @@
-// app.js - Complete Main Application Logic with All Functions and Fixes
+// app.js - Main application logic and initialization - Updated to remove c/ prefix
 
-// Global state variables
+// App state
 let currentUser = null;
 let currentPage = 'feed';
-let currentCommunityView = null;
-let currentCommunity = null;
-let posts = [];
 let communities = [];
+let posts = [];
+let currentCommunity = null;
 let isLoading = false;
+let adminData = null;
 let currentPostType = 'text';
-let currentFeedTab = 'general';
-let menuOpen = false;
-let composeModal = null;
-let createCommunityModal = null;
-let authModal = null;
-let communityDropdownOpen = false;
 let inlineLoginFormOpen = false;
+let currentFeedTab = 'general'; // Track current feed tab - only 'general' and 'followed' now
 
-// Navigation functions
-function navigateToFeed() {
-    currentPage = 'feed';
-    currentCommunityView = null;
-    currentCommunity = null;
-    updateUI();
-}
-
-function navigateToCommunity(communityName) {
-    currentPage = 'community';
-    currentCommunityView = communityName;
-    currentCommunity = communityName;
-    updateUI();
-}
-
-function navigateToProfile() {
-    currentPage = 'profile';
-    currentCommunityView = null;
-    currentCommunity = null;
-    updateUI();
-}
-
-function navigateToMyShed() {
-    currentPage = 'myshed';
-    currentCommunityView = null;
-    currentCommunity = null;
-    updateUI();
-}
-
-function navigateToAdmin() {
-    if (!currentUser || !currentUser.profile?.isAdmin) {
-        showSuccessMessage('Admin access required');
-        return;
-    }
-    currentPage = 'admin';
-    currentCommunityView = null;
-    currentCommunity = null;
-    updateUI();
-}
-
-function navigateToChat() {
-    currentPage = 'chat';
-    currentCommunityView = null;
-    currentCommunity = null;
-    updateUI();
-}
-
-function navigateToBrowse() {
-    currentPage = 'browse';
-    currentCommunityView = null;
-    currentCommunity = null;
-    updateUI();
-}
-
-function navigateToSettings() {
-    currentPage = 'settings';
-    currentCommunityView = null;
-    currentCommunity = null;
-    updateUI();
-}
-
-// Feed tab switching
-function switchFeedTab(tabName) {
-    currentFeedTab = tabName;
-    updateFeedTabsVisibility();
-    renderFeedWithTabs();
-}
-
-function updateFeedTabsVisibility() {
-    const feedTabs = document.getElementById('feedTabs');
-    if (!feedTabs) return;
-    
-    if (currentPage === 'feed' && currentUser) {
-        feedTabs.style.display = 'flex';
-        
-        document.querySelectorAll('.feed-tab').forEach(tab => {
-            tab.classList.remove('active');
-        });
-        
-        const generalTab = document.getElementById('generalTab');
-        const followedTab = document.getElementById('followedTab');
-        
-        if (currentFeedTab === 'general' && generalTab) {
-            generalTab.classList.add('active');
-        } else if (currentFeedTab === 'followed' && followedTab) {
-            followedTab.classList.add('active');
-        }
-    } else {
-        feedTabs.style.display = 'none';
-    }
-}
-
-// Menu functions with null checks
+// Menu functions
 function toggleMenu() {
     const menu = document.getElementById('slideMenu');
-    const menuToggle = document.getElementById('menuToggle');
     const overlay = document.getElementById('menuOverlay');
+    const isOpen = menu.classList.contains('open');
     
-    if (!menu || !menuToggle) {
-        console.error('Menu elements not found');
-        return;
-    }
-    
-    if (menu.classList.contains('open')) {
+    if (isOpen) {
         menu.classList.remove('open');
-        menuToggle.innerHTML = '☰';
-        if (overlay) overlay.style.display = 'none';
-        inlineLoginFormOpen = false;
-        communityDropdownOpen = false;
+        overlay.classList.remove('active');
     } else {
         menu.classList.add('open');
-        menuToggle.innerHTML = '✕';
-        if (overlay) overlay.style.display = 'block';
-        updateMenuForUser();
-        updateCommunitiesInMenu();
+        overlay.classList.add('active');
+        updateMenuContent();
     }
 }
 
-// Update menu for user with comprehensive null checks
-function updateMenuForUser() {
-    const menuUserInfo = document.getElementById('menuUserInfo');
+function updateMenuContent() {
+    const menuHeader = document.getElementById('menuHeader');
     const menuLogout = document.getElementById('menuLogout');
-    const menuAdmin = document.getElementById('menuAdmin');
-    
-    if (!menuUserInfo) {
-        console.error('Menu user info element not found');
-        return;
-    }
     
     if (currentUser) {
-        menuUserInfo.innerHTML = `
-            <div class="menu-user-details">
-                <div class="menu-username">@${escapeHtml(currentUser.username)}</div>
-                ${currentUser.profile?.isAdmin ? '<div class="menu-user-badge">Admin</div>' : ''}
+    // Update menu avatar to use profile picture
+    if (currentUser.profile?.profilePicture) {
+        menuHeader.innerHTML = `
+            <div class="menu-user-info">
+                <img src="${currentUser.profile.profilePicture}" 
+                     alt="Profile" 
+                     class="profile-avatar"
+                     style="border-radius: 50%; object-fit: cover;"
+                     onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                <div class="profile-avatar" style="display: none;">${currentUser.username.charAt(0).toUpperCase()}</div>
+                <div class="menu-user-details">
+                    <h4>@${escapeHtml(currentUser.username)}</h4>
+                    <p>${currentUser.profile?.isAdmin ? 'Administrator' : 'Member'}</p>
+                </div>
             </div>
         `;
+    } else {
+        menuHeader.innerHTML = `
+            <div class="menu-user-info">
+                <div class="profile-avatar">${currentUser.username.charAt(0).toUpperCase()}</div>
+                <div class="menu-user-details">
+                    <h4>@${escapeHtml(currentUser.username)}</h4>
+                    <p>${currentUser.profile?.isAdmin ? 'Administrator' : 'Member'}</p>
+                </div>
+            </div>
+        `;
+    }
         
-        // Show logged-in user menu items
-        const menuFeed = document.getElementById('menuFeed');
-        const menuChat = document.getElementById('menuChat');
-        const menuProfile = document.getElementById('menuProfile');
-        const menuMyShed = document.getElementById('menuMyShed');
-        const menuCreateCommunity = document.getElementById('menuCreateCommunity');
-        const menuBrowseCommunities = document.getElementById('menuBrowseCommunities');
-        const menuSettings = document.getElementById('menuSettings');
+        // Show/hide menu items based on auth status
+        document.getElementById('menuProfile').style.display = 'flex';
+        document.getElementById('menuCreateCommunity').style.display = 'flex';
+        document.getElementById('menuBrowseCommunities').style.display = 'flex';
+        document.getElementById('menuSettings').style.display = 'flex';
         
-        if (menuFeed) menuFeed.style.display = 'flex';
-        if (menuChat) menuChat.style.display = 'flex';
-        if (menuProfile) menuProfile.style.display = 'flex';
-        if (menuMyShed) menuMyShed.style.display = 'flex';
-        if (menuCreateCommunity) menuCreateCommunity.style.display = 'flex';
-        if (menuBrowseCommunities) menuBrowseCommunities.style.display = 'flex';
-        
-        if (currentUser.profile?.isAdmin && menuAdmin) {
+        // Show admin menu item only for admins
+        const menuAdmin = document.getElementById('menuAdmin');
+        if (currentUser.profile?.isAdmin) {
             menuAdmin.style.display = 'flex';
-        } else if (menuAdmin) {
+        } else {
             menuAdmin.style.display = 'none';
         }
         
-        if (menuSettings) menuSettings.style.display = 'flex';
-        if (menuLogout) menuLogout.style.display = 'flex';
+        menuLogout.style.display = 'flex';
         
+        // Update communities dropdown
+        updateCommunitiesInMenu();
     } else {
-        // Show login form for non-logged-in users
-        menuUserInfo.innerHTML = `
-            <div class="menu-login-prompt">
-                <button class="menu-login-toggle-btn" onclick="toggleInlineLoginForm()">
-                    Sign In
-                </button>
-                <div id="inlineLoginForm" class="inline-login-form">
-                    <form id="inlineLoginFormElement" onsubmit="handleInlineLogin(event); return false;">
+        menuHeader.innerHTML = `
+            <div class="login-prompt">
+                <div class="login-prompt-title">Click here to log in</div>
+                <button class="login-toggle-btn" onclick="toggleInlineLoginForm()">Login</button>
+                <div class="inline-login-form" id="inlineLoginForm">
+                    <div id="inlineLoginError"></div>
+                    <form id="inlineLoginFormElement" onsubmit="handleInlineLogin(event)">
                         <div class="inline-form-group">
                             <label for="inlineUsername">Username</label>
-                            <input type="text" id="inlineUsername" required minlength="3">
+                            <input type="text" id="inlineUsername" required minlength="3" maxlength="20">
                         </div>
                         <div class="inline-form-group">
                             <label for="inlinePassword">Password</label>
@@ -201,39 +100,22 @@ function updateMenuForUser() {
                             <button type="button" class="inline-btn-secondary" onclick="openAuthModal('signup'); toggleMenu();">Sign Up</button>
                         </div>
                     </form>
-                    <div id="inlineLoginError" style="display: none;"></div>
                 </div>
             </div>
         `;
         
-        // Hide logged-in user menu items
-        const menuFeed = document.getElementById('menuFeed');
-        const menuChat = document.getElementById('menuChat');
-        const menuProfile = document.getElementById('menuProfile');
-        const menuMyShed = document.getElementById('menuMyShed');
-        const menuCreateCommunity = document.getElementById('menuCreateCommunity');
-        const menuBrowseCommunities = document.getElementById('menuBrowseCommunities');
-        const menuSettings = document.getElementById('menuSettings');
-        
-        if (menuFeed) menuFeed.style.display = 'flex';
-        if (menuChat) menuChat.style.display = 'none';
-        if (menuProfile) menuProfile.style.display = 'none';
-        if (menuMyShed) menuMyShed.style.display = 'none';
-        if (menuCreateCommunity) menuCreateCommunity.style.display = 'none';
-        if (menuBrowseCommunities) menuBrowseCommunities.style.display = 'none';
-        if (menuAdmin) menuAdmin.style.display = 'none';
-        if (menuSettings) menuSettings.style.display = 'none';
-        if (menuLogout) menuLogout.style.display = 'none';
+        // Hide authenticated menu items
+        document.getElementById('menuProfile').style.display = 'none';
+        document.getElementById('menuCreateCommunity').style.display = 'none';
+        document.getElementById('menuBrowseCommunities').style.display = 'none';
+        document.getElementById('menuAdmin').style.display = 'none';
+        document.getElementById('menuSettings').style.display = 'none';
+        menuLogout.style.display = 'none';
     }
 }
 
 function toggleInlineLoginForm() {
     const form = document.getElementById('inlineLoginForm');
-    if (!form) {
-        console.error('Inline login form not found');
-        return;
-    }
-    
     const isOpen = form.classList.contains('open');
     
     if (isOpen) {
@@ -242,384 +124,276 @@ function toggleInlineLoginForm() {
     } else {
         form.classList.add('open');
         inlineLoginFormOpen = true;
+        // Focus on username field
         setTimeout(() => {
-            const usernameField = document.getElementById('inlineUsername');
-            if (usernameField) usernameField.focus();
+            document.getElementById('inlineUsername').focus();
         }, 300);
     }
 }
 
-async function handleInlineLogin(event) {
-    event.preventDefault();
-    
-    const username = document.getElementById('inlineUsername').value.trim();
-    const password = document.getElementById('inlinePassword').value;
-    const errorDiv = document.getElementById('inlineLoginError');
-    const loginBtn = document.getElementById('inlineLoginBtn');
-    
-    if (!username || !password) {
-        if (errorDiv) {
-            errorDiv.textContent = 'Please enter both username and password';
-            errorDiv.style.display = 'block';
-        }
-        return;
-    }
-    
-    try {
-        if (loginBtn) loginBtn.disabled = true;
-        
-        const result = await login(username, password);
-        
-        if (result.success) {
-            currentUser = result.user;
-            toggleMenu();
-            showSuccessMessage('Welcome back!');
-            updateUI();
-        } else {
-            if (errorDiv) {
-                errorDiv.textContent = result.error || 'Login failed';
-                errorDiv.style.display = 'block';
-            }
-        }
-    } catch (error) {
-        if (errorDiv) {
-            errorDiv.textContent = 'Login failed. Please try again.';
-            errorDiv.style.display = 'block';
-        }
-    } finally {
-        if (loginBtn) loginBtn.disabled = false;
-    }
-}
-
 function handleLogout() {
-    if (typeof logout === 'function') {
-        logout();
-    }
+    logout();
     toggleMenu();
 }
 
 function updateCommunitiesInMenu() {
-    const menuCommunities = document.getElementById('menuCommunities');
-    if (!menuCommunities) return;
-    
-    if (!currentUser) {
-        menuCommunities.innerHTML = '';
-        return;
-    }
+    const dropdown = document.getElementById('communitiesDropdown');
     
     if (communities.length === 0) {
-        menuCommunities.innerHTML = `
-            <div class="menu-no-communities">
-                No communities yet
-            </div>
-        `;
-        return;
-    }
-    
-    const communitiesHtml = communities.slice(0, 10).map(community => `
-        <div class="menu-community-item" onclick="navigateToCommunity('${community.name}'); toggleMenu();">
-            <span class="menu-community-name">${escapeHtml(community.displayName)}</span>
-            <span class="menu-community-members">${community.members?.length || 1} members</span>
-        </div>
-    `).join('');
-    
-    menuCommunities.innerHTML = communitiesHtml;
-    
-    if (communities.length > 10) {
-        menuCommunities.innerHTML += `
-            <div class="menu-more-communities">
-                +${communities.length - 10} more communities
-            </div>
-        `;
+        dropdown.innerHTML = '<div class="community-item">No communities yet</div>';
+    } else {
+        // UPDATED: Removed "c/" prefix from menu items
+        dropdown.innerHTML = communities.map(community => `
+            <a href="#" class="community-item" onclick="navigateToCommunity('${community.name}'); return false;">
+                ${escapeHtml(community.displayName)}
+            </a>
+        `).join('');
     }
 }
 
 function toggleCommunitiesDropdown() {
     const dropdown = document.getElementById('communitiesDropdown');
-    if (!dropdown) return;
+    const toggle = document.getElementById('communitiesToggle');
+    const isOpen = dropdown.classList.contains('open');
     
-    communityDropdownOpen = !communityDropdownOpen;
-    dropdown.style.display = communityDropdownOpen ? 'block' : 'none';
+    if (isOpen) {
+        dropdown.classList.remove('open');
+        toggle.textContent = '▼';
+    } else {
+        dropdown.classList.add('open');
+        toggle.textContent = '▲';
+    }
 }
 
-// Community management functions
-async function handleFollowCommunity(communityName, followBtn) {
+// Navigation functions
+function navigateToFeed() {
+    toggleMenu();
+    currentPage = 'feed';
+    updateActiveMenuItem('menuFeed');
+    updateUI();
+}
+
+function navigateToProfile() {
+    toggleMenu();
+    currentPage = 'profile';
+    updateActiveMenuItem('menuProfile');
+    updateUI();
+}
+
+// NEW: Updated navigateToMyShed to show private posts instead of separate page
+function navigateToMyShed() {
+    toggleMenu();
+    currentPage = 'myshed';
+    updateActiveMenuItem('menuMyShed');
+    updateUI();
+}
+
+// Add missing navigation functions
+function navigateToAdmin() {
+    toggleMenu();
+    currentPage = 'admin';
+    updateActiveMenuItem('menuAdmin');
+    updateUI();
+}
+
+function navigateToSettings() {
+    toggleMenu();
+    // For now, just show a placeholder
+    showSuccessMessage('Settings page coming soon!');
+}
+
+function navigateToCommunity(communityName) {
+    console.log('navigateToCommunity called with:', communityName);
+    
+    // Find the community
+    const community = communities.find(c => c.name === communityName);
+    if (!community) {
+        console.error('Community not found:', communityName);
+        showSuccessMessage('Community not found');
+        return;
+    }
+    
+    console.log('Found community, navigating to:', community.displayName);
+    
+    // Close menu if open
+    if (document.getElementById('slideMenu').classList.contains('open')) {
+        toggleMenu();
+    }
+    
+    // Set page state
+    currentPage = 'community';
+    currentCommunity = communityName;
+    
+    // Update active menu item - clear all active states for community navigation
+    document.querySelectorAll('.menu-item').forEach(item => {
+        item.classList.remove('active');
+    });
+    
+    // Update UI
+    updateUI();
+}
+
+// FIXED: Add the missing openCreate function
+function openCreate() {
+    openCreateCommunity();
+}
+
+function openCreateCommunity() {
+    toggleMenu();
     if (!currentUser) {
         openAuthModal('signin');
         return;
     }
+    openModal('createCommunityModal');
+}
 
+function updateActiveMenuItem(activeId) {
+    document.querySelectorAll('.menu-item').forEach(item => {
+        item.classList.remove('active');
+    });
+    document.getElementById(activeId).classList.add('active');
+}
+
+// Feed Tab Functions - Updated to only handle 'general' and 'followed'
+function switchFeedTab(tabName) {
+    // Only allow 'general' and 'followed' tabs now
+    if (tabName !== 'general' && tabName !== 'followed') {
+        console.warn('Invalid tab name:', tabName);
+        return;
+    }
+    
+    currentFeedTab = tabName;
+    
+    // Update tab visual states
+    document.querySelectorAll('.feed-tab').forEach(tab => {
+        tab.classList.remove('active');
+    });
+    document.getElementById(`${tabName}Tab`).classList.add('active');
+    
+    // Re-render the current page with new tab
+    renderCurrentPage();
+}
+
+function updateFeedTabsVisibility() {
+    const feedTabs = document.getElementById('feedTabs');
+    // Show tabs only on feed page when user is logged in
+    if (currentPage === 'feed' && currentUser) {
+        feedTabs.style.display = 'flex';
+        
+        // Enable followed tab for logged in users
+        const followedTab = document.getElementById('followedTab');
+        followedTab.disabled = false;
+    } else {
+        // Hide tabs for all other pages including My Shed (since My Shed is now its own page)
+        feedTabs.style.display = 'none';
+    }
+}
+
+// FIXED: Improved toggleCommunityFollow function with real follow/unfollow logic
+async function toggleCommunityFollow(communityName) {
+    console.log('toggleCommunityFollow called for:', communityName);
+    console.log('Current user:', currentUser);
+    
+    if (!currentUser) {
+        console.log('Not authenticated, opening auth modal');
+        openAuthModal('signin');
+        return;
+    }
+
+    const followBtn = document.getElementById(`followBtn-${communityName}`);
+    console.log('Follow button found:', followBtn);
+    
+    if (!followBtn) {
+        console.error('Follow button not found for community:', communityName);
+        return;
+    }
+    
+    const originalText = followBtn.textContent;
+    const wasFollowing = followBtn.classList.contains('btn-secondary');
+    
     try {
         followBtn.disabled = true;
+        followBtn.textContent = 'Loading...';
         
-        const isCurrentlyFollowing = typeof checkIfFollowing === 'function' ? 
-            await checkIfFollowing(communityName) : false;
-        const shouldFollow = !isCurrentlyFollowing;
+        console.log('Toggling follow status for community:', communityName);
+        console.log('Was following:', wasFollowing, 'Will follow:', !wasFollowing);
         
-        if (typeof toggleFollowStatus === 'function') {
-            const result = await toggleFollowStatus(communityName, shouldFollow);
-            
-            if (result.success) {
-                followBtn.textContent = shouldFollow ? '✓ Following' : 'Follow';
-                followBtn.classList.toggle('following', shouldFollow);
-                
-                showSuccessMessage(shouldFollow ? 
-                    `You are now following ${communityName}` : 
-                    `You have unfollowed ${communityName}`
-                );
+        // Use real follow/unfollow logic
+        const response = await toggleFollowStatus(communityName, !wasFollowing);
+        
+        if (response.success) {
+            // Update button appearance
+            if (response.following) {
+                followBtn.textContent = '✓ Following';
+                followBtn.className = 'btn btn-secondary';
+                followBtn.style.cssText = 'padding: 12px 24px; font-weight: 600; box-shadow: 0 2px 8px rgba(0,0,0,0.15);';
+                showSuccessMessage(`Now following ${communityName}! 🎉`);
+            } else {
+                followBtn.textContent = '+ Follow';
+                followBtn.className = 'btn';
+                followBtn.style.cssText = 'padding: 12px 24px; font-weight: 600; box-shadow: 0 2px 8px rgba(0,0,0,0.15);';
+                showSuccessMessage(`Unfollowed ${communityName}`);
             }
+            
+            console.log(`Follow toggle successful. New member count: ${response.memberCount}`);
+        } else {
+            throw new Error(response.error || 'Unknown error');
         }
+        
     } catch (error) {
         console.error('Error toggling follow status:', error);
-        showSuccessMessage('Failed to update follow status');
+        followBtn.textContent = originalText;
+        
+        // Restore original button class
+        if (wasFollowing) {
+            followBtn.className = 'btn btn-secondary';
+        } else {
+            followBtn.className = 'btn';
+        }
+        followBtn.style.cssText = 'padding: 12px 24px; font-weight: 600; box-shadow: 0 2px 8px rgba(0,0,0,0.15);';
+        
+        showSuccessMessage(error.message || 'Failed to update follow status. Please try again.');
     } finally {
         followBtn.disabled = false;
     }
 }
 
-// Main UI Update Function
 function updateUI() {
+    updateComposeButton();
     updateFeedTabsVisibility();
-    updateMenuForUser();
-    
-    switch (currentPage) {
-        case 'feed':
-            renderFeedWithTabs();
-            break;
-        case 'community':
-            if (typeof renderCommunityPage === 'function') {
-                renderCommunityPage(currentCommunityView);
-            }
-            break;
-        case 'profile':
-            renderProfilePage();
-            break;
-        case 'myshed':
-            renderMyShedPage();
-            break;
-        case 'admin':
-            if (typeof renderAdminPanel === 'function') {
-                renderAdminPanel();
-            }
-            break;
-        case 'chat':
-            if (typeof renderChatInterface === 'function') {
-                renderChatInterface();
-            }
-            break;
-        case 'browse':
-            renderBrowsePage();
-            break;
-        case 'settings':
-            renderSettingsPage();
-            break;
-        default:
-            renderFeedWithTabs();
+    renderCurrentPage();
+}
+
+function updateComposeButton() {
+    const composeBtn = document.getElementById('composeBtn');
+    composeBtn.style.display = currentUser ? 'block' : 'none';
+}
+
+function renderCurrentPage() {
+    if (currentPage === 'feed') {
+        renderFeedWithTabs();
+    } else if (currentPage === 'community') {
+        renderCommunityPage();
+    } else if (currentPage === 'profile') {
+        renderProfilePage();
+    } else if (currentPage === 'myshed') {
+        renderMyShedPage();
+    } else if (currentPage === 'admin') {
+        renderAdminPage();
     }
 }
 
-// Render functions for different pages
-function renderFeedWithTabs() {
-    if (typeof renderFeed === 'function') {
-        if (currentUser && currentFeedTab === 'followed') {
-            renderFollowedFeed();
-        } else {
-            renderFeed();
-        }
-    } else {
-        // Fallback basic feed rendering
-        const feed = document.getElementById('feed');
-        if (feed) {
-            feed.innerHTML = '<div class="no-posts">No posts yet. Be the first to post!</div>';
-        }
-    }
-}
-
-function renderFollowedFeed() {
-    if (!currentUser) {
-        renderFeed();
-        return;
-    }
-    
-    // Filter posts from followed communities
-    const followedPosts = posts.filter(post => {
-        if (!post.community) return false;
-        return currentUser.profile?.followedCommunities?.includes(post.community);
-    });
-    
-    if (typeof renderPostList === 'function') {
-        renderPostList(followedPosts);
-    } else {
-        const feed = document.getElementById('feed');
-        if (feed) {
-            if (followedPosts.length === 0) {
-                feed.innerHTML = '<div class="no-posts">No posts from communities you follow yet.</div>';
-            } else {
-                feed.innerHTML = followedPosts.map(post => renderPost(post)).join('');
-            }
-        }
-    }
-}
-
-function renderBrowsePage() {
-    const html = `
-        <div class="page-header">
-            <h2>Browse Communities</h2>
-            <button class="btn" onclick="openModal('createCommunityModal')">+ Create Community</button>
-        </div>
-        <div class="communities-grid">
-            ${communities.map(community => `
-                <div class="community-card" onclick="navigateToCommunity('${community.name}')">
-                    <h3>${escapeHtml(community.displayName)}</h3>
-                    <p>${escapeHtml(community.description || 'No description')}</p>
-                    <div class="community-stats">
-                        <span>${community.members?.length || 1} members</span>
-                        <span>${community.posts?.length || 0} posts</span>
-                    </div>
-                </div>
-            `).join('')}
-        </div>
-    `;
-    updateFeedContent(html);
-}
-
-function renderProfilePage() {
-    if (!currentUser) {
-        openAuthModal('signin');
-        return;
-    }
-    
-    const html = `
-        <div class="profile-page">
-            <div class="profile-header">
-                <h2>@${escapeHtml(currentUser.username)}</h2>
-                ${currentUser.profile?.bio ? `<p>${escapeHtml(currentUser.profile.bio)}</p>` : ''}
-            </div>
-            <div class="profile-stats">
-                <div class="stat">
-                    <span class="stat-value">${currentUser.profile?.posts?.length || 0}</span>
-                    <span class="stat-label">Posts</span>
-                </div>
-                <div class="stat">
-                    <span class="stat-value">${currentUser.profile?.followedCommunities?.length || 0}</span>
-                    <span class="stat-label">Following</span>
-                </div>
-            </div>
-        </div>
-    `;
-    updateFeedContent(html);
-}
-
-function renderMyShedPage() {
-    if (!currentUser) {
-        openAuthModal('signin');
-        return;
-    }
-    
-    const userPosts = posts.filter(post => post.author === currentUser.username);
-    
-    const html = `
-        <div class="page-header">
-            <h2>My Shed</h2>
-            <button class="btn" onclick="openComposeModal()">+ New Post</button>
-        </div>
-        <div class="posts-list">
-            ${userPosts.length > 0 ? 
-                userPosts.map(post => renderPost(post)).join('') : 
-                '<div class="no-posts">You haven\'t posted anything yet.</div>'
-            }
-        </div>
-    `;
-    updateFeedContent(html);
-}
-
-function renderSettingsPage() {
-    if (!currentUser) {
-        openAuthModal('signin');
-        return;
-    }
-    
-    const html = `
-        <div class="settings-page">
-            <h2>Settings</h2>
-            <div class="settings-section">
-                <h3>Account</h3>
-                <p>Username: @${escapeHtml(currentUser.username)}</p>
-                <button class="btn" onclick="logout()">Log Out</button>
-            </div>
-        </div>
-    `;
-    updateFeedContent(html);
-}
-
-// Helper function to render individual posts
-function renderPost(post) {
-    if (!post) return '';
-    
-    const isLiked = currentUser?.profile?.likedPosts?.includes(post.id);
-    const isAuthor = currentUser?.username === post.author;
-    
-    return `
-        <div class="post" data-id="${post.id}">
-            <div class="post-header">
-                <div class="post-author">
-                    <span class="post-username">@${escapeHtml(post.author)}</span>
-                    ${post.community ? `<span class="post-community">in ${escapeHtml(post.community)}</span>` : ''}
-                    <span class="post-timestamp">${formatTimeAgo(post.timestamp)}</span>
-                </div>
-                ${isAuthor ? `
-                    <button class="post-options" onclick="showPostOptions('${post.id}')">⋯</button>
-                ` : ''}
-            </div>
-            ${post.title ? `<h3 class="post-title">${escapeHtml(post.title)}</h3>` : ''}
-            <div class="post-content">
-                ${post.type === 'media' && post.mediaUrl ? 
-                    renderMediaContent(post.mediaUrl, post.mediaType) : 
-                    `<div class="post-text">${renderMarkdown(post.content || '')}</div>`
-                }
-            </div>
-            <div class="post-actions">
-                <button class="post-action ${isLiked ? 'liked' : ''}" onclick="handleLike('${post.id}')">
-                    ${isLiked ? '❤️' : '🤍'} ${post.likes || 0}
-                </button>
-                <button class="post-action" onclick="showComments('${post.id}')">
-                    💬 ${post.comments?.length || 0}
-                </button>
-                <button class="post-action" onclick="sharePost('${post.id}')">
-                    🔗 Share
-                </button>
-            </div>
-        </div>
-    `;
-}
-
-// Setup event listeners
 function setupEventListeners() {
     // Auth form
-    const authForm = document.getElementById('authForm');
-    if (authForm) {
-        authForm.addEventListener('submit', handleAuth);
-    }
+    document.getElementById('authForm').addEventListener('submit', handleAuth);
     
     // Create community form
-    const createCommunityForm = document.getElementById('createCommunityForm');
-    if (createCommunityForm) {
-        createCommunityForm.addEventListener('submit', handleCreateCommunity);
-    }
+    document.getElementById('createCommunityForm').addEventListener('submit', handleCreateCommunity);
     
     // Compose form
-    const composeForm = document.getElementById('composeForm');
-    if (composeForm) {
-        composeForm.addEventListener('submit', handleCreatePost);
-    }
+    document.getElementById('composeForm').addEventListener('submit', handleCreatePost);
     
-    // Create room form (for chat)
-    const createRoomForm = document.getElementById('createRoomForm');
-    if (createRoomForm) {
-        createRoomForm.addEventListener('submit', handleCreateRoom);
-    }
-    
-    // URL preview for media posts
+    // URL input for media preview
     const urlInput = document.getElementById('postUrl');
     if (urlInput) {
         let previewTimeout;
@@ -629,10 +403,8 @@ function setupEventListeners() {
             
             if (url && url.length > 10) {
                 previewTimeout = setTimeout(() => {
-                    if (typeof previewMedia === 'function') {
-                        previewMedia(url);
-                    }
-                }, 1000);
+                    previewMedia(url);
+                }, 1000); // Debounce for 1 second
             } else {
                 const preview = document.getElementById('mediaPreview');
                 if (preview) {
@@ -647,54 +419,52 @@ function setupEventListeners() {
         const menu = document.getElementById('slideMenu');
         const menuToggle = document.getElementById('menuToggle');
         
-        if (menu && menuToggle && menu.classList.contains('open') && 
+        if (menu.classList.contains('open') && 
             !menu.contains(e.target) && 
             !menuToggle.contains(e.target)) {
             toggleMenu();
         }
     });
-    
-    // Close modals when clicking outside
-    window.addEventListener('click', (e) => {
-        if (e.target.classList.contains('modal')) {
-            e.target.style.display = 'none';
-        }
-    });
 }
 
-// Initialize the application
-async function init() {
-    console.log('Initializing application...');
+// Initialize app
+document.addEventListener('DOMContentLoaded', async () => {
+    // Configure marked.js for markdown rendering
+    marked.setOptions({
+        highlight: function(code, lang) {
+            if (lang && hljs.getLanguage(lang)) {
+                return hljs.highlight(code, { language: lang }).value;
+            }
+            return hljs.highlightAuto(code).value;
+        },
+        breaks: true,
+        gfm: true
+    });
     
-    // Setup event listeners
+    // Custom renderer for enhanced features
+    markdownRenderer = new marked.Renderer();
+    
+    // Custom link renderer to handle media embeds
+    markdownRenderer.link = function(href, title, text) {
+        const mediaHtml = renderMediaFromUrl(href);
+        if (mediaHtml) return mediaHtml;
+        
+        return `<a href="${href}" target="_blank" rel="noopener noreferrer" ${title ? `title="${title}"` : ''}>${text}</a>`;
+    };
+    
+    // Custom image renderer
+    markdownRenderer.image = function(href, title, text) {
+        return `<img src="${href}" alt="${text || 'Image'}" ${title ? `title="${title}"` : ''} onclick="openImageModal('${href}')" style="cursor: pointer;">`;
+    };
+
+    await loadUser();
+    await loadCommunities();
+    await loadPosts();
+    updateUI();
     setupEventListeners();
     
-    // Check for existing session
-    if (typeof checkSession === 'function') {
-        const session = await checkSession();
-        if (session) {
-            currentUser = session;
-        }
+    // Load admin stats if user is admin
+    if (currentUser?.profile?.isAdmin) {
+        await loadAdminStats();
     }
-    
-    // Load initial data
-    if (typeof loadPosts === 'function') {
-        await loadPosts();
-    }
-    
-    if (typeof loadCommunities === 'function') {
-        await loadCommunities();
-    }
-    
-    // Initial UI update
-    updateUI();
-    
-    console.log('Application initialized successfully');
-}
-
-// Start the application when DOM is ready
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
-} else {
-    init();
-}
+});
