@@ -1,566 +1,129 @@
-// app.js - Complete Main Application Logic with All Functions
 
-// Global state
-let currentUser = null;
-let currentPage = 'feed';
-let currentCommunityView = null;
-let currentCommunity = null; // Add this for community page
-let posts = [];
-let communities = [];
-let isLoading = false;
-let currentPostType = 'text';
-let currentFeedTab = 'general'; // 'general' or 'followed'
-let menuOpen = false;
-let composeModal = null;
-let createCommunityModal = null;
-let authModal = null;
-let communityDropdownOpen = false;
-let inlineLoginFormOpen = false;
-let followedCommunities = new Set(); // Add this for followed communities
+// api.js - API and storage operations
 
-// Navigation functions
-function navigateToFeed() {
-    currentPage = 'feed';
-    currentCommunityView = null;
-    currentCommunity = null;
-    updateUI();
-}
+// ============================================
+// TOKEN MANAGEMENT SYSTEM (NEW)
+// ============================================
 
-function navigateToCommunity(communityName) {
-    currentPage = 'community';
-    currentCommunityView = communityName;
-    currentCommunity = communityName;
-    updateUI();
-}
+// Store the session token in a variable
+let currentSessionToken = null;
 
-function navigateToProfile() {
-    currentPage = 'profile';
-    currentCommunityView = null;
-    currentCommunity = null;
-    updateUI();
-}
-
-function navigateToMyShed() {
-    currentPage = 'myshed';
-    currentCommunityView = null;
-    currentCommunity = null;
-    updateUI();
-}
-
-function navigateToAdmin() {
-    if (!currentUser || !currentUser.profile?.isAdmin) {
-        showSuccessMessage('Admin access required');
-        return;
-    }
-    currentPage = 'admin';
-    currentCommunityView = null;
-    currentCommunity = null;
-    updateUI();
-}
-
-function navigateToChat() {
-    currentPage = 'chat';
-    currentCommunityView = null;
-    currentCommunity = null;
-    updateUI();
-}
-
-function navigateToBrowse() {
-    currentPage = 'browse';
-    currentCommunityView = null;
-    currentCommunity = null;
-    updateUI();
-}
-
-function navigateToSettings() {
-    currentPage = 'settings';
-    currentCommunityView = null;
-    currentCommunity = null;
-    updateUI();
-}
-
-// Feed tab switching
-function switchFeedTab(tabName) {
-    currentFeedTab = tabName;
-    updateFeedTabsVisibility();
-    renderFeedWithTabs();
-}
-
-function updateFeedTabsVisibility() {
-    const feedTabs = document.getElementById('feedTabs');
-    if (!feedTabs) return;
-    
-    // Show tabs only on feed page and when user is logged in
-    if (currentPage === 'feed' && currentUser) {
-        feedTabs.style.display = 'flex';
-        
-        // Update active states
-        document.querySelectorAll('.feed-tab').forEach(tab => {
-            tab.classList.remove('active');
-        });
-        
-        const generalTab = document.getElementById('generalTab');
-        const followedTab = document.getElementById('followedTab');
-        
-        if (currentFeedTab === 'general' && generalTab) {
-            generalTab.classList.add('active');
-        } else if (currentFeedTab === 'followed' && followedTab) {
-            followedTab.classList.add('active');
-        }
-    } else {
-        feedTabs.style.display = 'none';
-    }
-}
-
-// Menu functions - FIXED WITH NULL CHECKS (FIX 2)
-function toggleMenu() {
-    const menu = document.getElementById('slideMenu');
-    const menuToggle = document.getElementById('menuToggle');
-    
-    // FIX 2: Add null checks
-    if (!menu || !menuToggle) {
-        console.error('Menu elements not found');
-        return;
+// Get auth token function
+async function getAuthToken() {
+    // First, check if we have a token in memory
+    if (currentSessionToken) {
+        return currentSessionToken;
     }
     
-    if (menu.classList.contains('open')) {
-        menu.classList.remove('open');
-        menuToggle.innerHTML = '☰';
-        inlineLoginFormOpen = false;
-        communityDropdownOpen = false;
-    } else {
-        menu.classList.add('open');
-        menuToggle.innerHTML = '✕';
-        updateMenuForUser();
-        updateCommunitiesInMenu();
+    // Try to get from localStorage
+    const storedToken = localStorage.getItem('sessionToken');
+    if (storedToken) {
+        currentSessionToken = storedToken;
+        return storedToken;
     }
+    
+    // If no token found, user needs to authenticate
+    console.warn('No authentication token found');
+    return null;
 }
 
-// FIXED WITH COMPREHENSIVE NULL CHECKS (FIX 2)
-function updateMenuForUser() {
-    const menuUserInfo = document.getElementById('menuUserInfo');
-    const menuLogout = document.getElementById('menuLogout');
-    const menuAdmin = document.getElementById('menuAdmin');
-    
-    // FIX 2: Check if required elements exist
-    if (!menuUserInfo) {
-        console.error('Menu user info element not found');
-        return;
-    }
-    
-    if (currentUser) {
-        // Show user info
-        menuUserInfo.innerHTML = `
-            <div class="menu-user-details">
-                <div class="menu-username">@${escapeHtml(currentUser.username)}</div>
-                ${currentUser.profile?.isAdmin ? '<div class="menu-user-badge">Admin</div>' : ''}
-            </div>
-        `;
-        
-        // Show authenticated menu items with null checks
-        const menuFeed = document.getElementById('menuFeed');
-        const menuChat = document.getElementById('menuChat');
-        const menuProfile = document.getElementById('menuProfile');
-        const menuMyShed = document.getElementById('menuMyShed');
-        const menuCreateCommunity = document.getElementById('menuCreateCommunity');
-        const menuBrowseCommunities = document.getElementById('menuBrowseCommunities');
-        const menuSettings = document.getElementById('menuSettings');
-        
-        if (menuFeed) menuFeed.style.display = 'flex';
-        if (menuChat) menuChat.style.display = 'flex';
-        if (menuProfile) menuProfile.style.display = 'flex';
-        if (menuMyShed) menuMyShed.style.display = 'flex';
-        if (menuCreateCommunity) menuCreateCommunity.style.display = 'flex';
-        if (menuBrowseCommunities) menuBrowseCommunities.style.display = 'flex';
-        
-        // Show admin menu if admin
-        if (currentUser.profile?.isAdmin && menuAdmin) {
-            menuAdmin.style.display = 'flex';
-        } else if (menuAdmin) {
-            menuAdmin.style.display = 'none';
-        }
-        
-        if (menuSettings) menuSettings.style.display = 'flex';
-        if (menuLogout) menuLogout.style.display = 'flex';
-        
-    } else {
-        // Show login prompt
-        menuUserInfo.innerHTML = `
-            <div class="menu-login-prompt">
-                <button class="menu-login-toggle-btn" onclick="toggleInlineLoginForm()">
-                    Sign In
-                </button>
-                <div id="inlineLoginForm" class="inline-login-form">
-                    <form id="inlineLoginFormElement" onsubmit="handleInlineLogin(event); return false;">
-                        <div class="inline-form-group">
-                            <label for="inlineUsername">Username</label>
-                            <input type="text" id="inlineUsername" required minlength="3">
-                        </div>
-                        <div class="inline-form-group">
-                            <label for="inlinePassword">Password</label>
-                            <input type="password" id="inlinePassword" required minlength="6">
-                        </div>
-                        <div class="inline-form-buttons">
-                            <button type="submit" class="inline-btn-primary" id="inlineLoginBtn">Sign In</button>
-                            <button type="button" class="inline-btn-secondary" onclick="openAuthModal('signup'); toggleMenu();">Sign Up</button>
-                        </div>
-                    </form>
-                    <div id="inlineLoginError" style="display: none;"></div>
-                </div>
-            </div>
-        `;
-        
-        // Hide authenticated menu items with null checks
-        const menuFeed = document.getElementById('menuFeed');
-        const menuChat = document.getElementById('menuChat');
-        const menuProfile = document.getElementById('menuProfile');
-        const menuMyShed = document.getElementById('menuMyShed');
-        const menuCreateCommunity = document.getElementById('menuCreateCommunity');
-        const menuBrowseCommunities = document.getElementById('menuBrowseCommunities');
-        const menuSettings = document.getElementById('menuSettings');
-        
-        if (menuFeed) menuFeed.style.display = 'flex'; // Keep feed visible for non-auth users
-        if (menuChat) menuChat.style.display = 'none';
-        if (menuProfile) menuProfile.style.display = 'none';
-        if (menuMyShed) menuMyShed.style.display = 'none';
-        if (menuCreateCommunity) menuCreateCommunity.style.display = 'none';
-        if (menuBrowseCommunities) menuBrowseCommunities.style.display = 'none';
-        if (menuAdmin) menuAdmin.style.display = 'none';
-        if (menuSettings) menuSettings.style.display = 'none';
-        if (menuLogout) menuLogout.style.display = 'none';
-    }
+// Set auth token function
+function setAuthToken(token) {
+    currentSessionToken = token;
+    // Store in localStorage for persistence
+    localStorage.setItem('sessionToken', token);
+    console.log('Token stored in localStorage');
 }
 
-function toggleInlineLoginForm() {
-    const form = document.getElementById('inlineLoginForm');
-    if (!form) {
-        console.error('Inline login form not found');
-        return;
-    }
-    
-    const isOpen = form.classList.contains('open');
-    
-    if (isOpen) {
-        form.classList.remove('open');
-        inlineLoginFormOpen = false;
-    } else {
-        form.classList.add('open');
-        inlineLoginFormOpen = true;
-        // Focus on username field
-        setTimeout(() => {
-            const usernameField = document.getElementById('inlineUsername');
-            if (usernameField) usernameField.focus();
-        }, 300);
-    }
+// Clear auth token function
+function clearAuthToken() {
+    currentSessionToken = null;
+    localStorage.removeItem('sessionToken');
+    console.log('Token cleared from localStorage');
 }
 
-function handleLogout() {
-    logout();
-    toggleMenu();
-}
+// ============================================
+// NETLIFY BLOBS API IMPLEMENTATION (UNCHANGED)
+// ============================================
 
-function updateCommunitiesInMenu() {
-    const menuCommunities = document.getElementById('menuCommunities');
-    if (!menuCommunities) return;
-    
-    if (!currentUser) {
-        menuCommunities.innerHTML = '';
-        return;
-    }
-    
-    if (communities.length === 0) {
-        menuCommunities.innerHTML = `
-            <div class="menu-no-communities">
-                No communities yet
-            </div>
-        `;
-        return;
-    }
-    
-    const communitiesHtml = communities.slice(0, 10).map(community => `
-        <div class="menu-community-item" onclick="navigateToCommunity('${community.name}'); toggleMenu();">
-            <span class="menu-community-name">${escapeHtml(community.displayName)}</span>
-            <span class="menu-community-members">${community.members?.length || 1} members</span>
-        </div>
-    `).join('');
-    
-    menuCommunities.innerHTML = communitiesHtml;
-    
-    if (communities.length > 10) {
-        menuCommunities.innerHTML += `
-            <div class="menu-more-communities">
-                +${communities.length - 10} more communities
-            </div>
-        `;
-    }
-}
-
-function toggleCommunitiesDropdown() {
-    const dropdown = document.getElementById('communitiesDropdown');
-    if (!dropdown) return;
-    
-    communityDropdownOpen = !communityDropdownOpen;
-    dropdown.style.display = communityDropdownOpen ? 'block' : 'none';
-}
-
-// Community management functions
-async function handleFollowCommunity(communityName, followBtn) {
-    if (!currentUser) {
-        openAuthModal('signin');
-        return;
-    }
-
-    try {
-        followBtn.disabled = true;
-        
-        // Check current follow status
-        const isCurrentlyFollowing = await checkIfFollowing(communityName);
-        const shouldFollow = !isCurrentlyFollowing;
-        
-        // Toggle follow status
-        const result = await toggleFollowStatus(communityName, shouldFollow);
-        
-        if (result.success) {
-            // Update button UI
-            followBtn.textContent = shouldFollow ? '✓ Following' : 'Follow';
-            followBtn.classList.toggle('following', shouldFollow);
+const blobAPI = {
+    async get(key) {
+        try {
+            const response = await fetch(`/.netlify/functions/blobs?key=${encodeURIComponent(key)}`, {
+                method: 'GET',
+                headers: { 'Content-Type': 'application/json' }
+            });
             
-            showSuccessMessage(shouldFollow ? 
-                `You are now following ${communityName}!` : 
-                `You have unfollowed ${communityName}`);
-        } else {
-            throw new Error('Failed to update follow status');
-        }
-        
-    } catch (error) {
-        console.error('Error toggling follow:', error);
-        showSuccessMessage('Failed to update follow status. Please try again.');
-    } finally {
-        followBtn.disabled = false;
-    }
-}
-
-async function toggleCommunityFollow(communityName) {
-    const btn = document.getElementById(`followBtn-${communityName}`);
-    if (btn) {
-        await handleFollowCommunity(communityName, btn);
-    }
-}
-
-// UI Update functions
-function updateUI() {
-    updateComposeButton();
-    updateFeedTabsVisibility();
-    renderCurrentPage();
-}
-
-function updateComposeButton() {
-    const composeBtn = document.getElementById('composeBtn');
-    if (!composeBtn) return;
-    
-    // Hide compose button on chat page
-    if (currentUser && currentPage !== 'chat') {
-        composeBtn.style.display = 'block';
-    } else {
-        composeBtn.style.display = 'none';
-    }
-}
-
-function renderCurrentPage() {
-    if (currentPage === 'feed') {
-        renderFeedWithTabs();
-    } else if (currentPage === 'chat') {
-        if (typeof renderChatPage === 'function') {
-            renderChatPage();
-        } else if (typeof renderChatRoomList === 'function') {
-            renderChatRoomList();
-        }
-    } else if (currentPage === 'community') {
-        if (typeof renderCommunityPage === 'function') {
-            renderCommunityPage();
-        }
-    } else if (currentPage === 'profile') {
-        if (typeof renderProfilePage === 'function') {
-            renderProfilePage();
-        }
-    } else if (currentPage === 'myshed') {
-        if (typeof renderMyShedPage === 'function') {
-            renderMyShedPage();
-        }
-    } else if (currentPage === 'admin') {
-        if (typeof renderAdminPage === 'function') {
-            renderAdminPage();
-        }
-    } else if (currentPage === 'browse') {
-        renderBrowseCommunitiesPage();
-    } else if (currentPage === 'settings') {
-        renderSettingsPage();
-    }
-}
-
-// Modal functions
-function openModal(modalId) {
-    const modal = document.getElementById(modalId);
-    if (modal) {
-        modal.style.display = 'block';
-    }
-}
-
-function closeModal(modalId) {
-    const modal = document.getElementById(modalId);
-    if (modal) {
-        modal.style.display = 'none';
-    }
-}
-
-function openComposeModal() {
-    if (!currentUser) {
-        openAuthModal('signin');
-        return;
-    }
-    openModal('composeModal');
-}
-
-function openCreateCommunityModal() {
-    if (!currentUser) {
-        openAuthModal('signin');
-        return;
-    }
-    openModal('createCommunityModal');
-}
-
-// Browse and Settings pages
-function renderBrowseCommunitiesPage() {
-    const html = `
-        <div class="browse-communities">
-            <h2>Browse Communities</h2>
-            <div class="communities-grid">
-                ${communities.map(community => `
-                    <div class="community-card">
-                        <h3>${escapeHtml(community.displayName)}</h3>
-                        <p>${escapeHtml(community.description || 'No description')}</p>
-                        <div class="community-stats">
-                            <span>${community.members?.length || 0} members</span>
-                        </div>
-                        <button class="btn" onclick="navigateToCommunity('${community.name}')">
-                            View Community
-                        </button>
-                    </div>
-                `).join('')}
-            </div>
-        </div>
-    `;
-    updateFeedContent(html);
-}
-
-function renderSettingsPage() {
-    if (!currentUser) {
-        const html = `
-            <div class="settings-page">
-                <h2>Settings</h2>
-                <p>Please log in to access settings.</p>
-                <button class="btn" onclick="openAuthModal('signin')">Sign In</button>
-            </div>
-        `;
-        updateFeedContent(html);
-        return;
-    }
-    
-    const html = `
-        <div class="settings-page">
-            <h2>Settings</h2>
-            <div class="settings-section">
-                <h3>Account Settings</h3>
-                <p>Username: @${escapeHtml(currentUser.username)}</p>
-                <button class="btn" onclick="logout()">Log Out</button>
-            </div>
-        </div>
-    `;
-    updateFeedContent(html);
-}
-
-// Setup event listeners
-function setupEventListeners() {
-    // Auth form
-    const authForm = document.getElementById('authForm');
-    if (authForm) {
-        authForm.addEventListener('submit', handleAuth);
-    }
-    
-    // Create community form
-    const createCommunityForm = document.getElementById('createCommunityForm');
-    if (createCommunityForm) {
-        createCommunityForm.addEventListener('submit', handleCreateCommunity);
-    }
-    
-    // Compose form
-    const composeForm = document.getElementById('composeForm');
-    if (composeForm) {
-        composeForm.addEventListener('submit', handleCreatePost);
-    }
-    
-    // Create room form (chat)
-    const createRoomForm = document.getElementById('createRoomForm');
-    if (createRoomForm) {
-        createRoomForm.addEventListener('submit', handleCreateRoom);
-    }
-    
-    // URL input for media preview
-    const urlInput = document.getElementById('postUrl');
-    if (urlInput) {
-        let previewTimeout;
-        urlInput.addEventListener('input', (e) => {
-            clearTimeout(previewTimeout);
-            const url = e.target.value.trim();
+            if (!response.ok) {
+                if (response.status === 404) return null;
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
             
-            if (url && url.length > 10) {
-                previewTimeout = setTimeout(() => {
-                    if (typeof previewMedia === 'function') {
-                        previewMedia(url);
-                    }
-                }, 1000); // Debounce for 1 second
-            } else {
-                const preview = document.getElementById('mediaPreview');
-                if (preview) {
-                    preview.innerHTML = '';
-                }
+            const result = await response.json();
+            return result.data;
+        } catch (error) {
+            console.error('Error getting blob:', error);
+            return null;
+        }
+    },
+    
+    async set(key, value) {
+        try {
+            const response = await fetch('/.netlify/functions/blobs', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ key, value })
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }
-        });
+            
+            return await response.json();
+        } catch (error) {
+            console.error('Error setting blob:', error);
+            throw error;
+        }
+    },
+    
+    async list(prefix = '') {
+        try {
+            const response = await fetch(`/.netlify/functions/blobs?list=true&prefix=${encodeURIComponent(prefix)}`, {
+                method: 'GET',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            const result = await response.json();
+            return result.keys || [];
+        } catch (error) {
+            console.error('Error listing blobs:', error);
+            return [];
+        }
+    },
+    
+    async delete(key) {
+        try {
+            const response = await fetch('/.netlify/functions/blobs', {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ key })
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            return await response.json();
+        } catch (error) {
+            console.error('Error deleting blob:', error);
+            throw error;
+        }
     }
-    
-    // Close menu when clicking outside
-    document.addEventListener('click', (e) => {
-        const menu = document.getElementById('slideMenu');
-        const menuToggle = document.getElementById('menuToggle');
-        
-        if (menu && menuToggle && menu.classList.contains('open') && 
-            !menu.contains(e.target) && 
-            !menuToggle.contains(e.target)) {
-            toggleMenu();
-        }
-    });
-    
-    // Page visibility change handling for chat
-    document.addEventListener('visibilitychange', () => {
-        if (currentPage === 'chat' && typeof currentChatRoom !== 'undefined' && currentChatRoom) {
-            if (document.hidden) {
-                console.log('Page hidden, chat may reduce activity');
-            } else {
-                console.log('Page visible, ensuring chat is active');
-                if (typeof chatRefreshInterval !== 'undefined' && !chatRefreshInterval && currentChatRoom && typeof startChatRefresh === 'function') {
-                    startChatRefresh(currentChatRoom.id);
-                }
-            }
-        }
-    });
-    
-    // Cleanup chat when leaving the page
-    window.addEventListener('beforeunload', () => {
-        if (currentPage === 'chat' && typeof stopChatRefresh === 'function') {
-            stopChatRefresh();
-        }
-    });
-}
+};
 
 // Data loading functions
 async function loadUser() {
@@ -574,14 +137,7 @@ async function loadUser() {
             }
             
             // Load user's followed communities after loading user
-            if (typeof loadFollowedCommunities === 'function') {
-                await loadFollowedCommunities();
-            }
-            
-            // Initialize chat system for authenticated user
-            if (typeof initializeChat === 'function') {
-                await initializeChat();
-            }
+            await loadFollowedCommunities();
         }
     } catch (error) {
         console.error('Error loading user:', error);
@@ -606,9 +162,7 @@ async function loadCommunities() {
             .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
         // Update community dropdown in compose modal
-        if (typeof updateCommunityDropdown === 'function') {
-            updateCommunityDropdown();
-        }
+        updateCommunityDropdown();
         
     } catch (error) {
         console.error('Error loading communities:', error);
@@ -636,9 +190,8 @@ async function loadPosts() {
         const loadedPosts = await Promise.all(postPromises);
         posts = loadedPosts
             .filter(Boolean)
-            .filter(post => !post.isPrivate || (currentUser && post.author === currentUser.username))
             .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-        
+            
     } catch (error) {
         console.error('Error loading posts:', error);
         posts = [];
@@ -647,93 +200,786 @@ async function loadPosts() {
     }
 }
 
-// Helper function to get followed community posts
-function getFollowedCommunityPosts() {
-    if (!currentUser || !followedCommunities || followedCommunities.size === 0) {
-        return [];
+// User's followed communities storage
+let followedCommunities = new Set();
+
+// Load user's followed communities from storage
+async function loadFollowedCommunities() {
+    if (!currentUser) {
+        followedCommunities = new Set();
+        return;
+    }
+
+    try {
+        const userFollows = await blobAPI.get(`user_follows_${currentUser.username}`);
+        followedCommunities = new Set(userFollows?.communities || []);
+        console.log('Loaded followed communities:', Array.from(followedCommunities));
+    } catch (error) {
+        console.error('Error loading followed communities:', error);
+        followedCommunities = new Set();
+    }
+}
+
+// Save user's followed communities to storage
+async function saveFollowedCommunities() {
+    if (!currentUser) return;
+
+    try {
+        const followData = {
+            username: currentUser.username,
+            communities: Array.from(followedCommunities),
+            lastUpdated: new Date().toISOString()
+        };
+        await blobAPI.set(`user_follows_${currentUser.username}`, followData);
+        console.log('Saved followed communities:', followData);
+    } catch (error) {
+        console.error('Error saving followed communities:', error);
+    }
+}
+
+// Check if user is following a specific community
+async function checkIfFollowing(communityName) {
+    if (!currentUser) return false;
+    
+    // Load followed communities if not already loaded
+    if (followedCommunities.size === 0) {
+        await loadFollowedCommunities();
     }
     
-    return posts.filter(post => 
-        !post.isPrivate && 
-        post.communityName && 
-        followedCommunities.has(post.communityName)
-    );
+    const isFollowing = followedCommunities.has(communityName);
+    console.log(`User ${currentUser.username} is ${isFollowing ? '' : 'not '}following ${communityName}`);
+    return isFollowing;
 }
 
-// Cleanup chat state (helper function)
-function cleanupChat() {
-    if (typeof stopChatRefresh === 'function') {
-        stopChatRefresh();
+// Update toggleFollowStatus to refresh followed feed if currently viewing it
+async function toggleFollowStatus(communityName, shouldFollow) {
+    if (!currentUser) {
+        throw new Error('User not authenticated');
     }
-    if (typeof currentChatRoom !== 'undefined') {
-        currentChatRoom = null;
-    }
-    if (typeof chatMessages !== 'undefined') {
-        chatMessages = [];
+
+    try {
+        // Update user's followed communities
+        if (shouldFollow) {
+            followedCommunities.add(communityName);
+        } else {
+            followedCommunities.delete(communityName);
+        }
+
+        // Save user's followed communities
+        await saveFollowedCommunities();
+
+        // Update community member count
+        const community = communities.find(c => c.name === communityName);
+        if (community) {
+            // Initialize members array if it doesn't exist
+            if (!community.members) {
+                community.members = [community.createdBy]; // Creator is always a member
+            }
+
+            if (shouldFollow) {
+                // Add user to community members if not already there
+                if (!community.members.includes(currentUser.username)) {
+                    community.members.push(currentUser.username);
+                }
+            } else {
+                // Remove user from community members (but keep creator)
+                if (currentUser.username !== community.createdBy) {
+                    community.members = community.members.filter(member => member !== currentUser.username);
+                }
+            }
+
+            // Save updated community to storage
+            await blobAPI.set(`community_${communityName}`, community);
+            console.log(`Updated community ${communityName} members:`, community.members);
+
+            // Update local communities array
+            const localCommunityIndex = communities.findIndex(c => c.name === communityName);
+            if (localCommunityIndex !== -1) {
+                communities[localCommunityIndex] = community;
+            }
+
+            // Update member count display on page
+            updateCommunityMemberCount(communityName, community.members.length);
+        }
+
+        // If we're currently viewing the followed feed, refresh it
+        if (currentPage === 'feed' && currentFeedTab === 'followed') {
+            console.log('Refreshing followed feed after follow status change');
+            setTimeout(() => {
+                renderFollowedFeed();
+            }, 100); // Small delay to allow UI to update first
+        }
+
+        return {
+            success: true,
+            following: shouldFollow,
+            memberCount: community?.members?.length || 1
+        };
+
+    } catch (error) {
+        console.error('Error toggling follow status:', error);
+        throw error;
     }
 }
 
-// Initialize app
-document.addEventListener('DOMContentLoaded', async () => {
-    // Configure marked.js for markdown rendering if available
-    if (typeof marked !== 'undefined') {
-        marked.setOptions({
-            highlight: function(code, lang) {
-                if (typeof hljs !== 'undefined' && lang && hljs.getLanguage(lang)) {
-                    return hljs.highlight(code, { language: lang }).value;
+// ============================================
+// AUTHENTICATION FUNCTIONS - UPDATED TO USE API
+// ============================================
+
+async function handleAuth(e) {
+    e.preventDefault();
+    const form = e.target;
+    const mode = form.dataset.mode;
+    const username = document.getElementById('username').value.trim();
+    const password = document.getElementById('password').value;
+    const bio = document.getElementById('bio').value.trim();
+    const errorDiv = document.getElementById('authError');
+    const submitBtn = document.getElementById('authSubmitBtn');
+
+    errorDiv.innerHTML = '';
+    
+    if (username.length < 3) {
+        showError('authError', 'Username must be at least 3 characters long');
+        return;
+    }
+    
+    if (password.length < 6) {
+        showError('authError', 'Password must be at least 6 characters long');
+        return;
+    }
+
+    try {
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Loading...';
+
+        if (mode === 'signup') {
+            // Call the registration API
+            const response = await fetch('/.netlify/functions/api/auth/register', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ username, password, bio: bio || `Hello! I'm ${username}` })
+            });
+
+            const data = await response.json();
+            
+            if (!response.ok) {
+                throw new Error(data.error || 'Registration failed');
+            }
+
+            closeModal('authModal');
+            showSuccessMessage('Account created! Waiting for admin approval.');
+            
+        } else {
+            // Call the login API
+            const response = await fetch('/.netlify/functions/api/auth/login', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ username, password })
+            });
+
+            const data = await response.json();
+            
+            if (!response.ok) {
+                if (data.error === 'Your account is pending admin approval') {
+                    showError('authError', 'Your account is still pending admin approval.');
+                } else {
+                    showError('authError', data.error || 'Invalid username or password');
                 }
-                if (typeof hljs !== 'undefined') {
-                    return hljs.highlightAuto(code).value;
-                }
-                return code;
-            },
-            breaks: true,
-            gfm: true
-        });
+                return;
+            }
+
+            // Store the session token - THIS IS CRITICAL FOR CHAT
+            if (data.token) {
+                setAuthToken(data.token);
+                console.log('Session token stored:', data.token);
+            }
+
+            // Store user data
+            currentUser = { 
+                username: data.user.username, 
+                profile: data.user 
+            };
+            
+            // Store in blob API for other purposes
+            await blobAPI.set('current_user', currentUser);
+            
+            // Load user's followed communities after login
+            await loadFollowedCommunities();
+            
+            // Initialize chat system after successful login
+            if (typeof initializeChat === 'function') {
+                await initializeChat();
+            }
+            
+            closeModal('authModal');
+            updateUI();
+            showSuccessMessage('Welcome back!');
+
+            if (data.user.isAdmin) {
+                await loadAdminStats();
+            }
+        }
         
-        // Custom renderer for enhanced features
-        if (typeof marked.Renderer !== 'undefined') {
-            window.markdownRenderer = new marked.Renderer();
-            
-            // Custom link renderer to handle media embeds
-            window.markdownRenderer.link = function(href, title, text) {
-                if (typeof renderMediaFromUrl === 'function') {
-                    const mediaHtml = renderMediaFromUrl(href);
-                    if (mediaHtml) return mediaHtml;
+        form.reset();
+        
+    } catch (error) {
+        console.error('Auth error:', error);
+        showError('authError', error.message || 'Something went wrong. Please try again.');
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = mode === 'signup' ? 'Sign Up' : 'Sign In';
+    }
+}
+
+async function logout() {
+    try {
+        const token = await getAuthToken();
+        
+        if (token) {
+            // Notify the server about logout
+            await fetch('/.netlify/functions/api/auth/logout', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`
                 }
-                
-                return `<a href="${href}" target="_blank" rel="noopener noreferrer" ${title ? `title="${title}"` : ''}>${text}</a>`;
-            };
-            
-            // Custom image renderer
-            window.markdownRenderer.image = function(href, title, text) {
-                return `<img src="${href}" alt="${text || 'Image'}" ${title ? `title="${title}"` : ''} onclick="openImageModal('${href}')" style="cursor: pointer;">`;
-            };
+            });
+        }
+        
+        // Clear auth token
+        clearAuthToken();
+        
+        // Clear user state
+        currentUser = null;
+        followedCommunities = new Set();
+        
+        // Try to delete current_user key, but don't fail if it doesn't exist
+        try {
+            await blobAPI.delete('current_user');
+        } catch (deleteError) {
+            // Ignore 404 errors - the key might not exist
+            if (!deleteError.message.includes('404')) {
+                console.warn('Failed to delete current_user key:', deleteError);
+            }
+        }
+        
+        // Hide admin panel
+        document.getElementById('adminPanel').style.display = 'none';
+        
+        navigateToFeed();
+        updateUI();
+        showSuccessMessage('Logged out successfully!');
+    } catch (error) {
+        console.error('Logout error:', error);
+        // Even if there's an error, still clear the user state
+        clearAuthToken();
+        currentUser = null;
+        followedCommunities = new Set();
+        document.getElementById('adminPanel').style.display = 'none';
+        navigateToFeed();
+        updateUI();
+        showSuccessMessage('Logged out successfully!');
+    }
+}
+
+// Inline login handling - UPDATED TO USE API
+async function handleInlineLogin(e) {
+    e.preventDefault();
+    
+    const username = document.getElementById('inlineUsername').value.trim();
+    const password = document.getElementById('inlinePassword').value;
+    const errorDiv = document.getElementById('inlineLoginError');
+    const submitBtn = document.getElementById('inlineLoginBtn');
+
+    errorDiv.innerHTML = '';
+    
+    if (username.length < 3) {
+        showInlineError('Username must be at least 3 characters long');
+        return;
+    }
+    
+    if (password.length < 6) {
+        showInlineError('Password must be at least 6 characters long');
+        return;
+    }
+
+    try {
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Signing in...';
+
+        // Call the login API
+        const response = await fetch('/.netlify/functions/api/auth/login', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ username, password })
+        });
+
+        const data = await response.json();
+        
+        if (!response.ok) {
+            if (data.error === 'Your account is pending admin approval') {
+                showInlineError('Your account is still pending admin approval.');
+            } else {
+                showInlineError(data.error || 'Invalid username or password');
+            }
+            return;
+        }
+        
+        // Store the session token - THIS IS CRITICAL FOR CHAT
+        if (data.token) {
+            setAuthToken(data.token);
+            console.log('Session token stored from inline login:', data.token);
+        }
+        
+        // Store user data
+        currentUser = { 
+            username: data.user.username, 
+            profile: data.user 
+        };
+        await blobAPI.set('current_user', currentUser);
+        
+        // Load user's followed communities after login
+        await loadFollowedCommunities();
+        
+        // Initialize chat system after successful login
+        if (typeof initializeChat === 'function') {
+            await initializeChat();
+        }
+        
+        // Clear the form
+        document.getElementById('inlineLoginFormElement').reset();
+        
+        // Close menu and update UI
+        toggleMenu();
+        updateUI();
+        showSuccessMessage('Welcome back!');
+
+        if (data.user.isAdmin) {
+            await loadAdminStats();
+        }
+        
+    } catch (error) {
+        console.error('Inline login error:', error);
+        showInlineError('Something went wrong. Please try again.');
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Sign In';
+    }
+}
+
+function showInlineError(message) {
+    const errorDiv = document.getElementById('inlineLoginError');
+    errorDiv.innerHTML = `<div class="inline-error-message">${escapeHtml(message)}</div>`;
+}
+
+// Community functions (UNCHANGED)
+async function handleCreateCommunity(e) {
+    e.preventDefault();
+    
+    if (!currentUser) {
+        showError('createCommunityError', 'Please sign in to create a community');
+        return;
+    }
+    
+    const name = document.getElementById('communityName').value.trim().toLowerCase();
+    const displayName = document.getElementById('communityDisplayName').value.trim();
+    const description = document.getElementById('communityDescription').value.trim();
+    const submitBtn = document.getElementById('createCommunitySubmitBtn');
+    const errorDiv = document.getElementById('createCommunityError');
+    
+    errorDiv.innerHTML = '';
+    
+    // Validation
+    if (!/^[a-z0-9_]{3,25}$/.test(name)) {
+        showError('createCommunityError', 'Community name must be 3-25 characters, lowercase, alphanumeric and underscores only');
+        return;
+    }
+
+    if (!displayName || displayName.length > 50) {
+        showError('createCommunityError', 'Display name is required and must be 50 characters or less');
+        return;
+    }
+
+    if (description.length > 500) {
+        showError('createCommunityError', 'Description must be 500 characters or less');
+        return;
+    }
+
+    // Check if community already exists
+    const existingCommunity = await blobAPI.get(`community_${name}`);
+    if (existingCommunity) {
+        showError('createCommunityError', 'Community name already exists');
+        return;
+    }
+    
+    try {
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Creating...';
+        
+        const community = {
+            name,
+            displayName,
+            description,
+            createdBy: currentUser.username,
+            createdAt: new Date().toISOString(),
+            isPrivate: false,
+            moderators: [currentUser.username],
+            members: [currentUser.username],
+            rules: []
+        };
+        
+        await blobAPI.set(`community_${name}`, community);
+        communities.unshift(community);
+        
+        closeModal('createCommunityModal');
+        document.getElementById('createCommunityForm').reset();
+        
+        updateCommunityDropdown();
+        
+        if (currentUser.profile?.isAdmin) {
+            await loadAdminStats();
+        }
+        
+        showSuccessMessage(`Community "${displayName}" created successfully!`);
+        
+    } catch (error) {
+        console.error('Error creating community:', error);
+        showError('createCommunityError', 'Failed to create community. Please try again.');
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Build Shed';
+    }
+}
+
+// Post functions (UNCHANGED)
+async function handleCreatePost(e) {
+    e.preventDefault();
+    
+    if (!currentUser) {
+        showError('composeError', 'Please sign in to create a post');
+        return;
+    }
+    
+    const title = document.getElementById('postTitle').value.trim();
+    const communityName = document.getElementById('postCommunity').value;
+    const isPrivate = document.getElementById('isPrivate').checked;
+    const submitBtn = document.getElementById('composeSubmitBtn');
+    const errorDiv = document.getElementById('composeError');
+    
+    let content = '';
+    let url = '';
+    let description = '';
+    
+    if (currentPostType === 'text') {
+        content = document.getElementById('postContent').value.trim();
+        if (!content) {
+            showError('composeError', 'Please provide content');
+            return;
+        }
+    } else {
+        url = document.getElementById('postUrl').value.trim();
+        description = document.getElementById('postDescription').value.trim();
+        if (!url) {
+            showError('composeError', 'Please provide a URL');
+            return;
+        }
+        
+        try {
+            new URL(url);
+        } catch {
+            showError('composeError', 'Please provide a valid URL');
+            return;
         }
     }
-
-    await loadUser();
-    await loadCommunities();
-    await loadPosts();
     
-    // Initialize chat system if user is logged in and function exists
-    if (currentUser && typeof initializeChat === 'function') {
-        await initializeChat();
+    errorDiv.innerHTML = '';
+    
+    if (!title) {
+        showError('composeError', 'Please provide a title');
+        return;
     }
     
-    updateUI();
-    setupEventListeners();
-    
-    // Load admin stats if user is admin
-    if (currentUser?.profile?.isAdmin && typeof loadAdminStats === 'function') {
-        await loadAdminStats();
-    }
-});
+    try {
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Posting...';
+        
+        const post = {
+            id: `post_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            type: currentPostType,
+            title,
+            author: currentUser.username,
+            timestamp: new Date().toISOString(),
+            isPrivate,
+            communityName: communityName || null,
+            replies: []
+        };
 
-// Utility function to update feed content
-function updateFeedContent(html) {
-    const feedElement = document.getElementById('feedContent') || document.getElementById('feed');
-    if (feedElement) {
-        feedElement.innerHTML = html;
+        if (currentPostType === 'text') {
+            post.content = content;
+        } else {
+            post.url = url;
+            if (description) post.description = description;
+        }
+        
+        await blobAPI.set(post.id, post);
+        posts.unshift(post);
+        
+        closeModal('composeModal');
+        document.getElementById('composeForm').reset();
+        
+        // Reset post type
+        currentPostType = 'text';
+        setPostType('text');
+        
+        updateUI();
+        
+        if (currentUser.profile?.isAdmin) {
+            await loadAdminStats();
+        }
+        
+        showSuccessMessage('Post created successfully!');
+        
+    } catch (error) {
+        console.error('Error creating post:', error);
+        showError('composeError', 'Failed to create post. Please try again.');
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Post';
+    }
+}
+
+async function deletePost(postId) {
+    if (!confirm('Are you sure you want to delete this post?')) {
+        return;
+    }
+    
+    try {
+        await blobAPI.delete(postId);
+        posts = posts.filter(p => p.id !== postId);
+        updateUI();
+        
+        if (currentUser.profile?.isAdmin) {
+            await loadAdminStats();
+        }
+        
+        showSuccessMessage('Post deleted successfully!');
+    } catch (error) {
+        console.error('Error deleting post:', error);
+        showError('general', 'Failed to delete post. Please try again.');
+    }
+}
+
+// Reply functions (UNCHANGED)
+async function submitReply(postId) {
+    if (!currentUser) {
+        openAuthModal('signin');
+        return;
+    }
+
+    const replyInput = document.getElementById(`reply-input-${postId}`);
+    const content = replyInput.value.trim();
+    
+    if (!content) {
+        showSuccessMessage('Please write a reply before submitting.');
+        return;
+    }
+
+    if (content.length > 2000) {
+        showSuccessMessage('Reply must be 2000 characters or less.');
+        return;
+    }
+
+    try {
+        // Find the post
+        const post = posts.find(p => p.id === postId);
+        if (!post) {
+            showSuccessMessage('Post not found.');
+            return;
+        }
+
+        // Create reply object
+        const reply = {
+            id: `reply_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            author: currentUser.username,
+            content: content,
+            timestamp: new Date().toISOString(),
+            postId: postId // Add postId reference for deletion
+        };
+
+        // Add reply to post
+        if (!post.replies) {
+            post.replies = [];
+        }
+        post.replies.push(reply);
+
+        // Update post in storage
+        await blobAPI.set(postId, post);
+
+        // Update local posts array
+        const postIndex = posts.findIndex(p => p.id === postId);
+        if (postIndex !== -1) {
+            posts[postIndex] = post;
+        }
+
+        // Clear input
+        replyInput.value = '';
+
+        // Update replies display
+        const repliesList = document.getElementById(`replies-list-${postId}`);
+        if (repliesList) {
+            repliesList.innerHTML = renderReplies(post.replies);
+        }
+
+        // Update reply count in button
+        updateReplyCount(postId, post.replies.length);
+
+        showSuccessMessage('Reply added successfully!');
+
+    } catch (error) {
+        console.error('Error submitting reply:', error);
+        showSuccessMessage('Failed to submit reply. Please try again.');
+    }
+}
+
+async function deleteReply(postId, replyId) {
+    if (!currentUser) {
+        showSuccessMessage('Please sign in to delete replies.');
+        return;
+    }
+
+    if (!confirm('Are you sure you want to delete this reply?')) {
+        return;
+    }
+
+    try {
+        // Find the post
+        const post = posts.find(p => p.id === postId);
+        if (!post) {
+            showSuccessMessage('Post not found.');
+            return;
+        }
+
+        // Find the reply
+        const replyIndex = post.replies.findIndex(r => r.id === replyId);
+        if (replyIndex === -1) {
+            showSuccessMessage('Reply not found.');
+            return;
+        }
+
+        const reply = post.replies[replyIndex];
+
+        // Check if user can delete this reply
+        if (reply.author !== currentUser.username && !currentUser.profile?.isAdmin) {
+            showSuccessMessage('You can only delete your own replies.');
+            return;
+        }
+
+        // Remove reply from post
+        post.replies.splice(replyIndex, 1);
+
+        // Update post in storage
+        await blobAPI.set(postId, post);
+
+        // Update local posts array
+        const postIndex = posts.findIndex(p => p.id === postId);
+        if (postIndex !== -1) {
+            posts[postIndex] = post;
+        }
+
+        // Remove reply from DOM
+        const replyElement = document.getElementById(`reply-${replyId}`);
+        if (replyElement) {
+            replyElement.remove();
+        }
+
+        // Update replies display if no replies left
+        if (post.replies.length === 0) {
+            const repliesList = document.getElementById(`replies-list-${postId}`);
+            if (repliesList) {
+                repliesList.innerHTML = renderReplies(post.replies);
+            }
+        }
+
+        // Update reply count in button
+        updateReplyCount(postId, post.replies.length);
+
+        showSuccessMessage('Reply deleted successfully!');
+
+    } catch (error) {
+        console.error('Error deleting reply:', error);
+        showSuccessMessage('Failed to delete reply. Please try again.');
+    }
+}
+
+// Profile update (UNCHANGED)
+async function handleUpdateProfile(e) {
+    e.preventDefault();
+    
+    if (!currentUser) {
+        showError('editProfileError', 'Please sign in to update your profile');
+        return;
+    }
+    
+    const newPictureUrl = document.getElementById('editProfilePicture').value.trim();
+    const newBio = document.getElementById('editProfileBio').value.trim();
+    const submitBtn = document.getElementById('editProfileSubmitBtn');
+    const errorDiv = document.getElementById('editProfileError');
+    
+    errorDiv.innerHTML = '';
+    
+    // Validation
+    if (newBio.length > 500) {
+        showError('editProfileError', 'Bio must be 500 characters or less');
+        return;
+    }
+
+    // Validate URL if provided
+    if (newPictureUrl && newPictureUrl.length > 0) {
+        try {
+            new URL(newPictureUrl);
+        } catch {
+            showError('editProfileError', 'Please provide a valid URL for the profile picture');
+            return;
+        }
+    }
+    
+    try {
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Updating...';
+        
+        // Update user profile
+        const updatedProfile = {
+            ...currentUser.profile,
+            profilePicture: newPictureUrl,
+            bio: newBio,
+            updatedAt: new Date().toISOString()
+        };
+        
+        // Save to storage
+        await blobAPI.set(`user_${currentUser.username}`, updatedProfile);
+        
+        // Update current user object
+        currentUser.profile = updatedProfile;
+        await blobAPI.set('current_user', currentUser);
+        
+        closeModal('editProfileModal');
+        document.getElementById('editProfileForm').reset();
+        
+        // Re-render profile page to show changes
+        renderProfilePage();
+        
+        showSuccessMessage('Profile updated successfully!');
+        
+    } catch (error) {
+        console.error('Error updating profile:', error);
+        showError('editProfileError', 'Failed to update profile. Please try again.');
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Update Profile';
     }
 }
