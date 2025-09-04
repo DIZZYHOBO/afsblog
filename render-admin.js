@@ -1,4 +1,4 @@
-// render-admin.js - Admin UI rendering functions
+// render-admin.js - Admin UI rendering functions - UPDATED: Private posts removed from admin view
 
 // Admin page rendering and functionality
 async function renderAdminPage() {
@@ -23,11 +23,14 @@ async function renderAdminPage() {
     const allUsers = await loadAllUsersList();
     const allCommunities = await loadAllCommunitiesList();
 
+    // Only count PUBLIC posts for admin stats (private posts are not admin business)
+    const publicPosts = posts.filter(post => !post.isPrivate);
+
     const adminHtml = `
         <div class="admin-page">
             <div class="admin-header">
                 <h1 class="admin-title">🔧 Admin Panel</h1>
-                <p class="admin-subtitle">Manage users, communities, and site content</p>
+                <p class="admin-subtitle">Manage users, communities, and public content</p>
             </div>
 
             <!-- Admin Stats Cards -->
@@ -50,7 +53,7 @@ async function renderAdminPage() {
                     <div class="admin-stat-icon">📝</div>
                     <div class="admin-stat-info">
                         <div class="admin-stat-number" id="adminTotalPosts">0</div>
-                        <div class="admin-stat-label">Total Posts</div>
+                        <div class="admin-stat-label">Public Posts</div>
                     </div>
                 </div>
                 <div class="admin-stat-card">
@@ -75,7 +78,7 @@ async function renderAdminPage() {
                         🏘️ Communities (${allCommunities.length})
                     </button>
                     <button class="admin-tab" id="adminPostsTab" onclick="switchAdminTab('posts')">
-                        📝 Posts (${posts.length})
+                        📝 Public Posts (${publicPosts.length})
                     </button>
                 </div>
 
@@ -95,9 +98,9 @@ async function renderAdminPage() {
                         ${renderCommunitiesPanel(allCommunities)}
                     </div>
 
-                    <!-- Posts Tab -->
+                    <!-- Posts Tab (PUBLIC ONLY) -->
                     <div id="adminPostsContent" class="admin-tab-panel">
-                        ${renderPostsPanel(posts)}
+                        ${renderPublicPostsPanel(publicPosts)}
                     </div>
                 </div>
             </div>
@@ -106,10 +109,10 @@ async function renderAdminPage() {
 
     updateFeedContent(adminHtml);
     
-    // Update the stats numbers
+    // Update the stats numbers (only public posts)
     document.getElementById('adminTotalUsers').textContent = allUsers.length;
     document.getElementById('adminPendingUsers').textContent = pendingUsers.length;
-    document.getElementById('adminTotalPosts').textContent = posts.length;
+    document.getElementById('adminTotalPosts').textContent = publicPosts.length;
     document.getElementById('adminTotalCommunities').textContent = allCommunities.length;
 }
 
@@ -167,7 +170,11 @@ function renderAllUsersPanel(allUsers) {
             <p>View and manage all registered users</p>
         </div>
         <div class="admin-users-list">
-            ${allUsers.map(user => `
+            ${allUsers.map(user => {
+                // Only count PUBLIC posts for admin view - private posts are not admin business
+                const userPublicPosts = posts.filter(p => p.author === user.username && !p.isPrivate);
+                
+                return `
                 <div class="admin-user-card">
                     <div class="admin-user-info">
                         <div class="admin-user-avatar">
@@ -184,7 +191,7 @@ function renderAllUsersPanel(allUsers) {
                             <p class="admin-user-bio">${escapeHtml(user.bio || 'No bio provided')}</p>
                             <div class="admin-user-meta">
                                 <span>📅 Joined ${formatDate(user.createdAt || new Date().toISOString())}</span>
-                                <span>📝 ${posts.filter(p => p.author === user.username).length} posts</span>
+                                <span>📝 ${userPublicPosts.length} public posts</span>
                                 <span>🏘️ ${communities.filter(c => c.createdBy === user.username).length} communities</span>
                             </div>
                         </div>
@@ -210,7 +217,7 @@ function renderAllUsersPanel(allUsers) {
                         ` : ''}
                     </div>
                 </div>
-            `).join('')}
+            `}).join('')}
         </div>
     `;
 }
@@ -224,7 +231,8 @@ function renderCommunitiesPanel(allCommunities) {
         </div>
         <div class="admin-communities-list">
             ${allCommunities.map(community => {
-                const communityPosts = posts.filter(p => p.communityName === community.name);
+                // Only count PUBLIC posts in communities for admin view
+                const communityPublicPosts = posts.filter(p => p.communityName === community.name && !p.isPrivate);
                 return `
                     <div class="admin-community-card">
                         <div class="admin-community-info">
@@ -238,7 +246,7 @@ function renderCommunitiesPanel(allCommunities) {
                                 <div class="admin-community-meta">
                                     <span>📅 Created ${formatDate(community.createdAt)}</span>
                                     <span>👤 By @${escapeHtml(community.createdBy)}</span>
-                                    <span>📝 ${communityPosts.length} posts</span>
+                                    <span>📝 ${communityPublicPosts.length} public posts</span>
                                     <span>👥 ${community.members ? community.members.length : 0} members</span>
                                 </div>
                             </div>
@@ -258,30 +266,36 @@ function renderCommunitiesPanel(allCommunities) {
     `;
 }
 
-// Render posts panel
-function renderPostsPanel(allPosts) {
-    const publicPosts = allPosts.filter(post => !post.isPrivate);
-    const privatePosts = allPosts.filter(post => post.isPrivate);
-    
+// UPDATED: Render PUBLIC posts panel only (private posts excluded)
+function renderPublicPostsPanel(publicPosts) {
     return `
         <div class="admin-section-header">
-            <h3>Posts Management</h3>
-            <p>View and manage all posts on the platform</p>
-            <div class="admin-filters">
+            <h3>Public Posts Management</h3>
+            <p>View and manage public posts on the platform</p>
+            <div class="admin-privacy-notice" style="background: rgba(63, 185, 80, 0.1); border: 1px solid var(--success-fg); border-radius: 6px; padding: 12px; margin-top: 12px;">
+                <div style="display: flex; align-items: center; gap: 8px; color: var(--success-fg); font-weight: 600; margin-bottom: 4px;">
+                    <span>🔒</span>
+                    <span>Privacy Protected</span>
+                </div>
+                <p style="margin: 0; font-size: 14px; color: var(--fg-muted);">
+                    Only public posts are shown here. Private posts remain private and are not visible to administrators to protect user privacy.
+                </p>
+            </div>
+            <div class="admin-filters" style="margin-top: 16px;">
                 <button class="btn btn-secondary" onclick="filterAdminPosts('all')" id="filterAllPosts">
-                    All Posts (${allPosts.length})
+                    All Public Posts (${publicPosts.length})
                 </button>
-                <button class="btn btn-secondary" onclick="filterAdminPosts('public')" id="filterPublicPosts">
-                    Public (${publicPosts.length})
+                <button class="btn btn-secondary" onclick="filterAdminPosts('community')" id="filterCommunityPosts">
+                    Community Posts (${publicPosts.filter(p => p.communityName).length})
                 </button>
-                <button class="btn btn-secondary" onclick="filterAdminPosts('private')" id="filterPrivatePosts">
-                    Private (${privatePosts.length})
+                <button class="btn btn-secondary" onclick="filterAdminPosts('general')" id="filterGeneralPosts">
+                    General Posts (${publicPosts.filter(p => !p.communityName).length})
                 </button>
             </div>
         </div>
         <div id="adminPostsList">
-            ${renderPostList(allPosts.slice(0, 20), 'No posts found')}
-            ${allPosts.length > 20 ? `
+            ${renderPostList(publicPosts.slice(0, 20), 'No public posts found')}
+            ${publicPosts.length > 20 ? `
                 <div class="admin-load-more">
                     <button class="btn btn-secondary" onclick="loadMoreAdminPosts()">
                         Load More Posts
