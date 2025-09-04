@@ -1,4 +1,4 @@
-// ui.js - UI rendering and modal functions - Updated to remove private tab
+// ui.js - UI rendering and modal functions - Updated to remove c/ prefix
 
 let markdownRenderer;
 let uploadedMedia = null;
@@ -489,7 +489,7 @@ function renderPostList(postList, emptyMessage) {
                     ${post.communityName && community && currentPage !== 'community' ? `
                         <div class="post-community">
                             <a href="#" class="post-community-link" onclick="navigateToCommunity('${post.communityName}'); return false;">
-                                c/${escapeHtml(community.displayName)}
+                                ${escapeHtml(community.displayName)}
                             </a>
                         </div>
                     ` : ''}
@@ -603,7 +603,7 @@ async function renderFollowedFeed() {
                 <h3>🏘️ No Posts Yet</h3>
                 <p>You're following ${followedCommunities.size} ${followedCommunities.size === 1 ? 'community' : 'communities'}, but there are no recent posts.</p>
                 <div style="margin-top: 16px; color: var(--fg-muted); font-size: 14px;">
-                    <p><strong>Following:</strong> ${Array.from(followedCommunities).map(name => `c/${name}`).join(', ')}</p>
+                    <p><strong>Following:</strong> ${Array.from(followedCommunities).map(name => name).join(', ')}</p>
                 </div>
                 <div style="margin-top: 20px;">
                     <button class="btn" onclick="switchFeedTab('general')" style="margin-right: 12px;">
@@ -633,7 +633,7 @@ async function renderFollowedFeed() {
                               class="post-community-link" 
                               onclick="navigateToCommunity('${name}'); return false;"
                               style="font-size: 12px;">
-                        c/${community ? escapeHtml(community.displayName) : escapeHtml(name)}
+                        ${community ? escapeHtml(community.displayName) : escapeHtml(name)}
                     </a>`;
                 }).join('')}
             </div>
@@ -826,7 +826,7 @@ async function renderCommunityPage() {
                 </div>
                 <div class="community-info">
                     <h1 class="community-title">${escapeHtml(community.displayName)}</h1>
-                    <p class="community-handle">c/${escapeHtml(community.name)}</p>
+                    <p class="community-handle">${escapeHtml(community.name)}</p>
                     ${community.description ? `<p class="community-description">${escapeHtml(community.description)}</p>` : ''}
                 </div>
                 <div class="community-actions">
@@ -1016,7 +1016,7 @@ function renderCommunitiesList(communitiesList) {
                     </div>
                     <div class="community-card-info">
                         <h4 class="community-card-name">${escapeHtml(community.displayName)}</h4>
-                        <p class="community-card-handle">c/${escapeHtml(community.name)}</p>
+                        <p class="community-card-handle">${escapeHtml(community.name)}</p>
                         ${community.description ? `<p class="community-card-description">${escapeHtml(community.description)}</p>` : ''}
                     </div>
                     <div class="community-card-actions">
@@ -1054,7 +1054,7 @@ function renderFollowingList() {
                     </div>
                     <div class="community-card-info">
                         <h4 class="community-card-name">${escapeHtml(community.displayName)}</h4>
-                        <p class="community-card-handle">c/${escapeHtml(community.name)}</p>
+                        <p class="community-card-handle">${escapeHtml(community.name)}</p>
                         ${community.description ? `<p class="community-card-description">${escapeHtml(community.description)}</p>` : ''}
                     </div>
                     <div class="community-card-actions">
