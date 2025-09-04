@@ -320,7 +320,7 @@ async function deleteUser(username) {
 }
 
 async function deleteCommunity(communityName) {
-    if (!confirm(`Delete community c/${communityName}? This will also delete all PUBLIC posts in this community. This action cannot be undone. Note: Private posts are not accessible to admins and cannot be deleted through the admin panel.`)) return;
+    if (!confirm(`Delete community ${communityName}? This will also delete all PUBLIC posts in this community. This action cannot be undone. Note: Private posts are not accessible to admins and cannot be deleted through the admin panel.`)) return;
     
     try {
         // Delete community
