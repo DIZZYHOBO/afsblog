@@ -275,7 +275,7 @@
                 loginButton.disabled = true;
 
                 try {
-                    const loginEndpoint = `${instanceUrl}/api/auth/login`; // Assuming this endpoint for now
+                    const loginEndpoint = `${instanceUrl}/api/alpha/user/login`; // Updated to the correct login endpoint
                     const response = await fetch(loginEndpoint, {
                         method: 'POST',
                         headers: {
