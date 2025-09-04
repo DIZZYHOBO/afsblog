@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Piefed Feeds App</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+        }
+        .container {
+            max-width: 28rem;
+        }
+        .login-card {
+            background-color: white;
+            padding: 2.5rem;
+            border-radius: 1rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1), 0 10px 15px rgba(0, 0, 0, 0.1);
+        }
+        .feed-container {
+            max-width: 48rem;
+        }
+        .feed-card {
+            background-color: white;
+            padding: 2rem;
+            border-radius: 1rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1), 0 10px 15px rgba(0, 0, 0, 0.1);
+        }
+        .feed-post {
+            border-bottom: 1px solid #e5e7eb;
+        }
+        .tab-button.active {
+            border-bottom-width: 2px;
+            border-bottom-color: #4f46e5;
+            color: #4f46e5;
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen p-4">
+
+    <!-- Login View -->
+    <div id="loginView" class="container mx-auto login-card">
+        <div class="text-center mb-8">
+            <h1 class="text-3xl font-bold text-gray-900 mb-2">Piefed Login</h1>
+            <p class="text-gray-500">Connect to your Piefed instance.</p>
+        </div>
+
+        <form id="loginForm" class="space-y-6">
+            <div>
+                <label for="instanceUrl" class="block text-sm font-medium text-gray-700">Piefed Instance URL</label>
+                <div class="mt-1">
+                    <input type="url" id="instanceUrl" name="instanceUrl" required placeholder="e.g., https://piefed.social"
+                           class="w-full px-4 py-2 mt-1 text-gray-700 bg-gray-100 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                </div>
+            </div>
+
+            <div>
+                <label for="username" class="block text-sm font-medium text-gray-700">Username</label>
+                <div class="mt-1">
+                    <input type="text" id="username" name="username" required placeholder="Your username"
+                           class="w-full px-4 py-2 mt-1 text-gray-700 bg-gray-100 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                </div>
+            </div>
+
+            <div>
+                <label for="password" class="block text-sm font-medium text-gray-700">Password</label>
+                <div class="mt-1">
+                    <input type="password" id="password" name="password" required placeholder="Your password"
+                           class="w-full px-4 py-2 mt-1 text-gray-700 bg-gray-100 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                </div>
+            </div>
+
+            <div>
+                <button type="submit" id="loginButton"
+                        class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition ease-in-out duration-150">
+                    Log In
+                </button>
+            </div>
+        </form>
+
+        <div id="loadingMessage" class="mt-6 text-center text-indigo-600 hidden">
+            <p>Connecting to instance...</p>
+        </div>
+
+        <div id="resultMessage" class="mt-6 text-center hidden">
+            <!-- Message will be displayed here -->
+        </div>
+
+        <!-- Custom Modal for Alerts -->
+        <div id="custom-modal" class="fixed inset-0 z-50 overflow-y-auto hidden">
+            <div class="flex items-center justify-center min-h-screen px-4 text-center">
+                <div class="fixed inset-0 transition-opacity" aria-hidden="true">
+                    <div class="absolute inset-0 bg-gray-500 opacity-75"></div>
+                </div>
+
+                <div class="inline-block p-6 my-8 overflow-hidden text-left align-middle transition-all transform bg-white shadow-xl rounded-2xl">
+                    <h3 id="modal-title" class="text-lg font-medium leading-6 text-gray-900"></h3>
+                    <div class="mt-2">
+                        <p id="modal-body" class="text-sm text-gray-500"></p>
+                    </div>
+                    <div class="mt-4">
+                        <button type="button" id="modal-close" class="inline-flex justify-center rounded-md border border-transparent bg-indigo-100 px-4 py-2 text-sm font-medium text-indigo-900 hover:bg-indigo-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2">
+                            Close
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Feeds View -->
+    <div id="feedsView" class="w-full feed-container mx-auto feed-card hidden">
+        <div class="text-center mb-8">
+            <h1 id="feedsHeader" class="text-3xl font-bold text-gray-900 mb-2">Welcome!</h1>
+            <p class="text-gray-500">Explore your feeds below.</p>
+        </div>
+
+        <!-- Tabs -->
+        <div class="flex border-b border-gray-200">
+            <button id="allFeedTab" class="tab-button flex-1 py-4 text-center font-medium text-gray-600 hover:text-indigo-600 transition-colors duration-200 active">All Feed</button>
+            <button id="subscribedFeedTab" class="tab-button flex-1 py-4 text-center font-medium text-gray-600 hover:text-indigo-600 transition-colors duration-200">Subscribed Feed</button>
+            <button id="localFeedTab" class="tab-button flex-1 py-4 text-center font-medium text-gray-600 hover:text-indigo-600 transition-colors duration-200">Local Feed</button>
+        </div>
+
+        <!-- Feed Content -->
+        <div id="feedContent" class="mt-6 space-y-4">
+            <!-- Feed posts will be dynamically injected here -->
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const loginView = document.getElementById('loginView');
+            const feedsView = document.getElementById('feedsView');
+            const loginForm = document.getElementById('loginForm');
+            const usernameInput = document.getElementById('username');
+            const loginButton = document.getElementById('loginButton');
+            const loadingMessage = document.getElementById('loadingMessage');
+            const resultMessage = document.getElementById('resultMessage');
+            const feedsHeader = document.getElementById('feedsHeader');
+            const feedContent = document.getElementById('feedContent');
+            const allFeedTab = document.getElementById('allFeedTab');
+            const subscribedFeedTab = document.getElementById('subscribedFeedTab');
+            const localFeedTab = document.getElementById('localFeedTab');
+
+            // Modal elements
+            const modal = document.getElementById('custom-modal');
+            const modalTitle = document.getElementById('modal-title');
+            const modalBody = document.getElementById('modal-body');
+            const modalCloseButton = document.getElementById('modal-close');
+
+            const showModal = (title, body) => {
+                modalTitle.textContent = title;
+                modalBody.textContent = body;
+                modal.classList.remove('hidden');
+            };
+
+            const hideModal = () => {
+                modal.classList.add('hidden');
+            };
+
+            modalCloseButton.addEventListener('click', hideModal);
+
+            // Mock data to simulate API responses locally.
+            const mockApi = {
+                'all': [
+                    { author: 'user1', content: 'A post from the federated feed.', date: '2025-09-04T12:00:00Z' },
+                    { author: 'user2', content: 'Another post from a different instance.', date: '2025-09-04T11:55:00Z' },
+                    { author: 'user3', content: 'Checking out the latest federated news.', date: '2025-09-04T11:50:00Z' },
+                    { author: 'user4', content: 'Just joined the fediverse, it\'s great!', date: '2025-09-04T11:45:00Z' },
+                ],
+                'subscribed': [
+                    { author: 'friend1', content: 'My latest project update.', date: '2025-09-04T10:30:00Z' },
+                    { author: 'friend2', content: 'Having a great time with this new tool.', date: '2025-09-04T10:25:00Z' },
+                    { author: 'friend3', content: 'Thinking about new ideas.', date: '2025-09-04T10:20:00Z' },
+                ],
+                'local': [
+                    { author: 'localUser1', content: 'Local instance news!', date: '2025-09-04T09:00:00Z' },
+                    { author: 'localUser2', content: 'Looking for a new collaborator.', date: '2025-09-04T08:55:00Z' },
+                    { author: 'localUser3', content: 'Who\'s online right now?', date: '2025-09-04T08:50:00Z' },
+                ]
+            };
+
+            const fetchFeed = async (feedType) => {
+                // Simulate an API call with a delay
+                return new Promise(resolve => {
+                    setTimeout(() => {
+                        resolve(mockApi[feedType]);
+                    }, 1000);
+                });
+            };
+
+            const renderFeed = (feedData) => {
+                feedContent.innerHTML = ''; // Clear existing content
+                if (!feedData || feedData.length === 0) {
+                    feedContent.innerHTML = `<p class="text-center text-gray-500">No posts to display in this feed.</p>`;
+                    return;
+                }
+                feedData.forEach(post => {
+                    const postElement = document.createElement('div');
+                    postElement.className = 'feed-post p-4';
+                    postElement.innerHTML = `
+                        <div class="flex items-center mb-2">
+                            <span class="font-semibold text-gray-900">${post.author}</span>
+                            <span class="text-xs text-gray-500 ml-2">&bull; ${new Date(post.date).toLocaleString()}</span>
+                        </div>
+                        <p class="text-gray-700">${post.content}</p>
+                    `;
+                    feedContent.appendChild(postElement);
+                });
+            };
+
+            const handleTabClick = async (tabId, feedType) => {
+                // Remove 'active' class from all tabs
+                document.querySelectorAll('.tab-button').forEach(btn => {
+                    btn.classList.remove('active');
+                });
+
+                // Add 'active' class to the clicked tab
+                document.getElementById(tabId).classList.add('active');
+                feedContent.innerHTML = `<p class="text-center text-gray-500">Loading feed...</p>`;
+
+                try {
+                    const data = await fetchFeed(feedType);
+                    renderFeed(data);
+                } catch (error) {
+                    showModal('API Error', 'Failed to fetch feed data.');
+                    console.error('API Error:', error);
+                    feedContent.innerHTML = `<p class="text-center text-red-500">Failed to load feed data.</p>`;
+                }
+            };
+
+            // Initial feed rendering on load
+            handleTabClick('allFeedTab', 'all');
+            allFeedTab.addEventListener('click', () => handleTabClick('allFeedTab', 'all'));
+            subscribedFeedTab.addEventListener('click', () => handleTabClick('subscribedFeedTab', 'subscribed'));
+            localFeedTab.addEventListener('click', () => handleTabClick('localFeedTab', 'local'));
+
+            loginForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+
+                const username = usernameInput.value.trim();
+                
+                // Clear previous messages
+                resultMessage.classList.add('hidden');
+                resultMessage.innerHTML = '';
+                
+                // Show loading state
+                loadingMessage.classList.remove('hidden');
+                loginButton.disabled = true;
+
+                try {
+                    // Simulate a network request delay
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+                    
+                    // Simulate a successful login
+                    const mockResponse = {
+                        success: true,
+                        user: {
+                            username: username,
+                            displayName: username
+                        }
+                    };
+
+                    if (mockResponse.success) {
+                        resultMessage.classList.remove('hidden');
+                        resultMessage.innerHTML = `
+                            <p class="text-lg font-semibold text-green-600">Connection Successful!</p>
+                            <p class="mt-2 text-gray-600">Logged in as: <span class="font-bold text-gray-800">${mockResponse.user.displayName}</span></p>
+                        `;
+
+                        // Hide login view and show feeds view
+                        setTimeout(() => {
+                            loginView.classList.add('hidden');
+                            feedsView.classList.remove('hidden');
+                            feedsHeader.textContent = `Welcome, ${mockResponse.user.displayName}!`;
+                            // Load the initial feed after login
+                            handleTabClick('allFeedTab', 'all');
+                        }, 1000);
+                        
+                    } else {
+                        resultMessage.classList.remove('hidden');
+                        resultMessage.innerHTML = `
+                            <p class="text-lg font-semibold text-red-600">Login Failed</p>
+                            <p class="mt-2 text-gray-600">Could not connect to the specified instance. Please check your credentials and the URL.</p>
+                        `;
+                    }
+
+                } catch (error) {
+                    showModal('Connection Error', `An error occurred while trying to connect. Please check the console for more details.`);
+                    console.error('Error during login simulation:', error);
+                    resultMessage.classList.remove('hidden');
+                    resultMessage.innerHTML = `
+                        <p class="text-lg font-semibold text-red-600">Connection Error</p>
+                        <p class="mt-2 text-gray-600">An unexpected error occurred. Please try again later.</p>
+                    `;
+                } finally {
+                    // Hide loading state
+                    loadingMessage.classList.add('hidden');
+                    loginButton.disabled = false;
+                }
+            });
+        });
+    </script>
+</body>
+</html>
