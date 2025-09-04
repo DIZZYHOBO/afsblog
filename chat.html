@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chat Servers - Fixed Version</title>
+    <title>Chat Servers - With Session Check</title>
     <style>
         * {
             margin: 0;
@@ -230,6 +230,29 @@
             color: #ffffff;
             display: flex;
             align-items: center;
+            flex: 1;
+        }
+
+        .chat-actions {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .refresh-btn {
+            background: #4f545c;
+            border: none;
+            border-radius: 4px;
+            color: #dcddde;
+            cursor: pointer;
+            font-size: 14px;
+            height: 28px;
+            padding: 0 8px;
+            transition: background-color 0.15s ease;
+        }
+
+        .refresh-btn:hover {
+            background: #5865f2;
         }
 
         .messages-wrapper {
@@ -473,12 +496,12 @@
         }
 
         .btn-secondary {
-            background-color: transparent;
+            background-color: #4f545c;
             color: #ffffff;
         }
 
         .btn-secondary:hover {
-            background-color: #4f545c;
+            background-color: #5d6269;
         }
 
         .error-message {
@@ -540,6 +563,101 @@
             font-size: 16px;
             padding: 12px 24px;
             height: auto;
+            margin: 0 8px;
+        }
+
+        .session-status {
+            margin-top: 16px;
+            padding: 12px;
+            border-radius: 6px;
+            font-size: 14px;
+            max-width: 500px;
+        }
+
+        /* Mobile Responsive */
+        @media (max-width: 768px) {
+            .app {
+                position: relative;
+            }
+
+            .guilds-wrapper {
+                width: 100%;
+                height: 60px;
+                flex-direction: row;
+                padding: 8px 12px;
+                overflow-x: auto;
+                overflow-y: hidden;
+                border-right: none;
+                border-bottom: 1px solid #1e2124;
+                position: fixed;
+                top: 0;
+                z-index: 100;
+            }
+
+            .guild-item {
+                width: 40px;
+                height: 40px;
+                min-width: 40px;
+                margin-right: 8px;
+                margin-bottom: 0;
+                font-size: 10px;
+            }
+
+            .channels-wrapper {
+                width: 100%;
+                position: fixed;
+                top: 60px;
+                left: 0;
+                height: calc(100vh - 60px);
+                transform: translateX(-100%);
+                transition: transform 0.3s ease;
+                z-index: 99;
+                box-shadow: 2px 0 5px rgba(0, 0, 0, 0.3);
+            }
+
+            .channels-wrapper.mobile-open {
+                transform: translateX(0);
+            }
+
+            .chat-wrapper {
+                margin-top: 60px;
+                height: calc(100vh - 60px);
+            }
+
+            .chat-header {
+                padding: 0 12px;
+            }
+
+            .chat-title {
+                font-size: 14px;
+            }
+
+            .refresh-btn {
+                font-size: 12px;
+                height: 24px;
+                padding: 0 6px;
+            }
+
+            .server-header::before {
+                content: "☰ ";
+                font-size: 18px;
+                margin-right: 8px;
+            }
+        }
+
+        .mobile-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 98;
+        }
+
+        .mobile-overlay.active {
+            display: block;
         }
     </style>
 </head>
@@ -547,7 +665,11 @@
     <div id="authRequired" class="auth-required" style="display: none;">
         <h1>🔒 Authentication Required</h1>
         <p>Please log in to your blog account to access the chat system.</p>
-        <button class="btn btn-primary" onclick="redirectToLogin()">Go to Login</button>
+        <div style="display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;">
+            <button class="btn btn-primary" onclick="redirectToLogin()">Go to Login</button>
+            <button class="btn btn-secondary" onclick="checkSessionToken()">🔄 Check Session</button>
+        </div>
+        <div id="sessionStatus" class="session-status" style="display: none;"></div>
     </div>
 
     <div id="chatApp" class="app">
@@ -565,8 +687,8 @@
         </div>
 
         <!-- Channels List (middle sidebar) -->
-        <div class="channels-wrapper">
-            <div class="server-header" id="serverHeader">
+        <div class="channels-wrapper" id="channelsWrapper">
+            <div class="server-header" id="serverHeader" onclick="toggleMobileChannels()">
                 <span id="currentServerName">Select a Server</span>
                 <span>⌄</span>
             </div>
@@ -595,10 +717,15 @@
 
         <!-- Main Chat Area -->
         <div class="chat-wrapper">
-            <div class="chat-header">
+            <div class="chat-header" onclick="toggleMobileChannels()">
                 <div class="chat-title">
                     <span class="channel-prefix">#</span>
                     <span id="chatRoomName">Select a channel</span>
+                </div>
+                <div class="chat-actions">
+                    <button class="refresh-btn" onclick="checkSessionToken()" title="Check Session Token">
+                        🔄
+                    </button>
                 </div>
             </div>
 
@@ -623,6 +750,9 @@
             </div>
         </div>
     </div>
+
+    <!-- Mobile overlay for closing channel menu -->
+    <div class="mobile-overlay" id="mobileOverlay" onclick="closeMobileChannels()"></div>
 
     <!-- Create Server Modal -->
     <div id="createServerModal" class="modal">
@@ -719,7 +849,7 @@
             }
         }
 
-        // Auth token management
+        // Auth token management with refresh capability
         function getAuthToken() {
             return localStorage.getItem('sessionToken');
         }
@@ -733,9 +863,90 @@
             window.location.href = '/';
         }
 
-        // Validate token and get user info
+        // *** MAIN SESSION TOKEN CHECKER FUNCTION ***
+        async function checkSessionToken() {
+            const statusDiv = document.getElementById('sessionStatus');
+            statusDiv.style.display = 'block';
+            statusDiv.style.backgroundColor = '#5865f2';
+            statusDiv.style.color = '#ffffff';
+            statusDiv.innerHTML = '🔄 Checking for session token...';
+            
+            console.log('=== MANUAL SESSION TOKEN CHECK ===');
+            
+            try {
+                // Check if token exists in localStorage
+                const token = localStorage.getItem('sessionToken');
+                console.log('Token in localStorage:', token ? 'Found' : 'Not found');
+                console.log('Token preview:', token?.substring(0, 30) + '...');
+                
+                if (!token) {
+                    statusDiv.style.backgroundColor = '#f04747';
+                    statusDiv.innerHTML = '❌ No session token found in localStorage.<br>Please log in to the main app first.';
+                    return;
+                }
+                
+                statusDiv.innerHTML = '🔄 Validating session token with server...';
+                
+                // Try to validate the token with the chat API
+                const response = await fetch('/.netlify/functions/chat-api/servers', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                console.log('API Response:', response.status, response.statusText);
+                
+                if (response.status === 401) {
+                    statusDiv.style.backgroundColor = '#f04747';
+                    statusDiv.innerHTML = '❌ Session token is invalid or expired.<br>Please log in to the main app again.';
+                    
+                    // Clear the invalid token
+                    localStorage.removeItem('sessionToken');
+                    console.log('Cleared invalid token from localStorage');
+                    return;
+                }
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                // Token is valid, try to initialize the app
+                statusDiv.style.backgroundColor = '#43b581';
+                statusDiv.innerHTML = '✅ Valid session found! Initializing chat...';
+                
+                console.log('Token is valid, initializing chat app...');
+                
+                setTimeout(async () => {
+                    try {
+                        await initApp();
+                        statusDiv.innerHTML = '🎉 Chat initialized successfully!';
+                        
+                        // Hide the status message after success
+                        setTimeout(() => {
+                            statusDiv.style.display = 'none';
+                        }, 2000);
+                        
+                    } catch (error) {
+                        console.error('Error during initialization:', error);
+                        statusDiv.style.backgroundColor = '#f04747';
+                        statusDiv.innerHTML = `❌ Failed to initialize chat: ${error.message}`;
+                    }
+                }, 1000);
+                
+            } catch (error) {
+                console.error('Error checking session:', error);
+                statusDiv.style.backgroundColor = '#f04747';
+                statusDiv.innerHTML = `❌ Error checking session: ${error.message}`;
+            }
+        }
+
+        // Validate token and get user info with better error handling
         async function validateAndGetUser(token) {
             try {
+                console.log('Validating token:', token?.substring(0, 20) + '...');
+                
                 const response = await fetch('/.netlify/functions/chat-api/servers', {
                     method: 'GET',
                     headers: {
@@ -744,12 +955,22 @@
                     }
                 });
 
+                console.log('Token validation response:', response.status);
+
+                if (response.status === 401) {
+                    console.log('Token is invalid or expired');
+                    localStorage.removeItem('sessionToken');
+                    throw new Error('Token expired');
+                }
+
                 if (!response.ok) {
-                    throw new Error('Invalid token');
+                    throw new Error(`HTTP ${response.status}`);
                 }
 
                 const data = await response.json();
                 const username = extractUsernameFromServers(data.servers) || 'User';
+                
+                console.log('Token validation successful for user:', username);
                 
                 return {
                     username: username,
@@ -758,6 +979,11 @@
 
             } catch (error) {
                 console.error('Token validation failed:', error);
+                
+                if (error.message.includes('401') || error.message.includes('expired')) {
+                    localStorage.removeItem('sessionToken');
+                }
+                
                 return null;
             }
         }
@@ -804,7 +1030,6 @@
                 userServers = data.servers || [];
                 renderServersList();
 
-                // Auto-select first server if available
                 if (userServers.length > 0 && !currentServer) {
                     await selectServer(userServers[0].id);
                 }
@@ -819,7 +1044,6 @@
             }
         }
 
-        // Render servers list in left sidebar
         function renderServersList() {
             const serversList = document.getElementById('serversList');
             
@@ -844,20 +1068,16 @@
             }).join('');
         }
 
-        // Select a server
         async function selectServer(serverId) {
             try {
                 currentServer = userServers.find(server => server.id === serverId);
                 if (!currentServer) return;
 
-                // Update UI
                 renderServersList();
                 document.getElementById('currentServerName').textContent = currentServer.name;
                 
-                // Load server rooms
                 await loadServerRooms(serverId);
 
-                // Clear current room selection
                 currentRoom = null;
                 document.getElementById('chatRoomName').textContent = 'Select a channel';
                 document.getElementById('messageInputWrapper').style.display = 'none';
@@ -868,7 +1088,6 @@
             }
         }
 
-        // Load rooms for a server
         async function loadServerRooms(serverId) {
             try {
                 const token = getAuthToken();
@@ -898,7 +1117,6 @@
             }
         }
 
-        // Render rooms list in middle sidebar
         function renderRoomsList() {
             const roomsList = document.getElementById('roomsList');
             
@@ -944,7 +1162,6 @@
             channelsWrapper.classList.add('mobile-open');
             overlay.classList.add('active');
             
-            // Prevent body scroll when menu is open
             document.body.style.overflow = 'hidden';
         }
 
@@ -955,37 +1172,24 @@
             channelsWrapper.classList.remove('mobile-open');
             overlay.classList.remove('active');
             
-            // Restore body scroll
             document.body.style.overflow = '';
         }
 
-        // Close mobile menu when window is resized to desktop
-        window.addEventListener('resize', function() {
-            if (window.innerWidth > 768) {
-                closeMobileChannels();
-            }
-        });
-
-        // Enhanced join room function for mobile
         async function joinRoom(roomId) {
             try {
                 currentRoom = serverRooms.find(room => room.id === roomId);
                 if (!currentRoom) return;
 
-                // Update UI
                 renderRoomsList();
                 document.getElementById('chatRoomName').textContent = currentRoom.name;
                 document.getElementById('messageInputWrapper').style.display = 'block';
 
-                // Close mobile menu after selecting room
                 if (window.innerWidth <= 768) {
                     closeMobileChannels();
                 }
 
-                // Load messages
                 await loadRoomMessages(roomId);
 
-                // Start auto-refresh
                 if (refreshInterval) clearInterval(refreshInterval);
                 refreshInterval = setInterval(() => loadNewMessages(roomId), 5000);
 
@@ -994,7 +1198,6 @@
             }
         }
 
-        // Load messages for a room
         async function loadRoomMessages(roomId) {
             try {
                 const token = getAuthToken();
@@ -1020,7 +1223,6 @@
             }
         }
 
-        // Load new messages (for auto-refresh)
         async function loadNewMessages(roomId) {
             if (!currentRoom || currentRoom.id !== roomId) return;
 
@@ -1057,7 +1259,6 @@
             }
         }
 
-        // Render messages in chat area
         function renderMessages() {
             const messagesWrapper = document.getElementById('messagesWrapper');
             
@@ -1108,7 +1309,6 @@
             `;
         }
 
-        // Send a chat message
         async function sendMessage(content) {
             if (!content.trim() || !currentRoom) return;
 
@@ -1143,7 +1343,6 @@
             }
         }
 
-        // Message input handlers
         function handleMessageKeydown(event) {
             if (event.key === 'Enter' && !event.shiftKey) {
                 event.preventDefault();
@@ -1159,7 +1358,6 @@
             textarea.style.height = Math.min(textarea.scrollHeight, 200) + 'px';
         }
 
-        // Create server modal functions
         function openCreateServerModal() {
             console.log('Opening create server modal...');
             document.getElementById('createServerModal').style.display = 'block';
@@ -1168,25 +1366,19 @@
         function closeCreateServerModal() {
             document.getElementById('createServerModal').style.display = 'none';
             document.getElementById('createServerError').innerHTML = '';
-            // Clear form fields
             document.getElementById('serverNameInput').value = '';
             document.getElementById('serverDescInput').value = '';
             document.getElementById('serverPrivateInput').checked = false;
         }
 
-        // FIXED SERVER CREATION FUNCTION
         async function createServerSubmit() {
             console.log('=== CREATE SERVER BUTTON CLICKED ===');
             
-            // Get values directly from elements
             const nameEl = document.getElementById('serverNameInput');
             const descEl = document.getElementById('serverDescInput');
             const privateEl = document.getElementById('serverPrivateInput');
             
-            console.log('Form elements found:');
-            console.log('Name element:', nameEl);
-            console.log('Desc element:', descEl);
-            console.log('Private element:', privateEl);
+            console.log('Form elements found:', !!nameEl, !!descEl, !!privateEl);
             
             if (!nameEl) {
                 console.error('Could not find name input element!');
@@ -1198,10 +1390,7 @@
             const description = descEl.value.trim();
             const isPrivate = privateEl.checked;
             
-            console.log('=== FORM VALUES ===');
-            console.log('Name:', name);
-            console.log('Description:', description);
-            console.log('Is Private:', isPrivate);
+            console.log('Form values:', { name, description, isPrivate });
             
             if (!name) {
                 console.log('ERROR: No server name provided');
@@ -1255,7 +1444,6 @@
             console.log('Create room modal - not implemented yet');
         }
 
-        // Utility functions
         function escapeHtml(text) {
             const div = document.createElement('div');
             div.textContent = text;
@@ -1290,6 +1478,13 @@
                 closeCreateServerModal();
             }
         }
+
+        // Window resize handler
+        window.addEventListener('resize', function() {
+            if (window.innerWidth > 768) {
+                closeMobileChannels();
+            }
+        });
 
         // Initialize app when page loads
         document.addEventListener('DOMContentLoaded', initApp);
