@@ -222,6 +222,8 @@
 
                     const data = await response.json();
                     
+                    console.log('Raw API data:', data); // Log the raw data here
+
                     const feedData = data.posts || [];
                     
                     if (Array.isArray(feedData)) {
@@ -240,6 +242,7 @@
             };
 
             const renderFeed = (feedData) => {
+                console.log('Rendering posts:', feedData); // Log the data being rendered
                 feedContent.innerHTML = '';
                 if (!feedData || feedData.length === 0) {
                     feedContent.innerHTML = `<p class="text-center text-gray-500 mt-6">No posts to display in this feed.</p>`;
@@ -304,7 +307,7 @@
                 if (data) {
                     renderFeed(data);
                 } else {
-                    feedContent.innerHTML = `<p class="text-center text-red-500 mt-6">Failed to load feed data.</p>`;
+                    feedContent.innerHTML = `<p class="text-center text-red-500 mt-6">Failed to load feed data. Please check the console for more details.</p>`;
                 }
             };
 
