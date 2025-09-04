@@ -909,7 +909,52 @@
             `).join('');
         }
 
-        // Join a chat room
+        // Mobile navigation functions
+        function toggleMobileChannels() {
+            if (window.innerWidth <= 768) {
+                const channelsWrapper = document.getElementById('channelsWrapper');
+                const overlay = document.getElementById('mobileOverlay');
+                
+                const isOpen = channelsWrapper.classList.contains('mobile-open');
+                
+                if (isOpen) {
+                    closeMobileChannels();
+                } else {
+                    openMobileChannels();
+                }
+            }
+        }
+
+        function openMobileChannels() {
+            const channelsWrapper = document.getElementById('channelsWrapper');
+            const overlay = document.getElementById('mobileOverlay');
+            
+            channelsWrapper.classList.add('mobile-open');
+            overlay.classList.add('active');
+            
+            // Prevent body scroll when menu is open
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeMobileChannels() {
+            const channelsWrapper = document.getElementById('channelsWrapper');
+            const overlay = document.getElementById('mobileOverlay');
+            
+            channelsWrapper.classList.remove('mobile-open');
+            overlay.classList.remove('active');
+            
+            // Restore body scroll
+            document.body.style.overflow = '';
+        }
+
+        // Close mobile menu when window is resized to desktop
+        window.addEventListener('resize', function() {
+            if (window.innerWidth > 768) {
+                closeMobileChannels();
+            }
+        });
+
+        // Enhanced join room function for mobile
         async function joinRoom(roomId) {
             try {
                 currentRoom = serverRooms.find(room => room.id === roomId);
@@ -919,6 +964,11 @@
                 renderRoomsList();
                 document.getElementById('chatRoomName').textContent = currentRoom.name;
                 document.getElementById('messageInputWrapper').style.display = 'block';
+
+                // Close mobile menu after selecting room
+                if (window.innerWidth <= 768) {
+                    closeMobileChannels();
+                }
 
                 // Load messages
                 await loadRoomMessages(roomId);
