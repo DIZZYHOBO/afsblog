@@ -167,16 +167,15 @@
             modalCloseButton.addEventListener('click', hideModal);
 
             const API_ENDPOINTS = {
-               'all': '/api/alpha/feed/list', // Updated to use the correct endpoint
-               'subscribed': '/api/alpha/feed/list', // Updated to use the correct endpoint
-               'local': '/api/alpha/feed/list' // Updated to use the correct endpoint
+               'all': '/api/alpha/feed/list',
+               'subscribed': '/api/alpha/feed/list',
+               'local': '/api/alpha/feed/list'
             };
 
             let instanceUrl = '';
-            let authToken = ''; // This would be the auth token you get after a successful login.
+            let authToken = '';
 
             const fetchFeed = async (feedType) => {
-                // Ensure there is an instance URL and a valid auth token before fetching.
                 if (!instanceUrl || !authToken) {
                     showModal('Authentication Error', 'You must log in first to fetch feeds.');
                     return [];
@@ -184,16 +183,10 @@
 
                 const endpoint = `${instanceUrl}${API_ENDPOINTS[feedType]}`;
                 const url = new URL(endpoint);
-                
-                // Add parameters based on the feed type
-                // The documentation suggests parameters like mine_only, but we'll fetch all and filter
-                // to make the app more robust and avoid guessing the parameters.
+
                 if (feedType === 'subscribed') {
-                    // Assuming 'mine_only' is the parameter for subscribed feeds.
                     url.searchParams.append('mine_only', 'true');
                 } else if (feedType === 'local') {
-                    // Assuming 'local' or 'local_only' is the parameter for local feeds.
-                    // If the API doesn't support this, we will still get a response, but it may not be filtered.
                     url.searchParams.append('local_only', 'true');
                 }
 
@@ -211,7 +204,18 @@
                     }
 
                     const data = await response.json();
-                    return data;
+                    
+                    // The API response is an object with a 'posts' key, not a direct array.
+                    // We must extract the array before rendering.
+                    const feedData = data.posts || [];
+                    
+                    if (Array.isArray(feedData)) {
+                      console.log('Successfully fetched feed data:', feedData);
+                      return feedData;
+                    } else {
+                      console.error('API response for feed list is not a valid array:', data);
+                      throw new Error('Invalid feed data received from API.');
+                    }
 
                 } catch (error) {
                     showModal('Network Error', `Failed to fetch feed data from ${url.toString()}. Error: ${error.message}`);
@@ -221,12 +225,12 @@
             };
 
             const renderFeed = (feedData) => {
-                feedContent.innerHTML = ''; // Clear existing content
+                feedContent.innerHTML = '';
                 if (!feedData || feedData.length === 0) {
                     feedContent.innerHTML = `<p class="text-center text-gray-500">No posts to display in this feed.</p>`;
                     return;
                 }
-                
+
                 feedData.forEach(post => {
                     const postElement = document.createElement('div');
                     postElement.className = 'feed-post p-4';
@@ -242,12 +246,9 @@
             };
 
             const handleTabClick = async (tabId, feedType) => {
-                // Remove 'active' class from all tabs
                 document.querySelectorAll('.tab-button').forEach(btn => {
                     btn.classList.remove('active');
                 });
-
-                // Add 'active' class to the clicked tab
                 document.getElementById(tabId).classList.add('active');
                 feedContent.innerHTML = `<p class="text-center text-gray-500">Loading feed...</p>`;
 
@@ -265,17 +266,15 @@
                 instanceUrl = instanceUrlInput.value.trim();
                 const username = usernameInput.value.trim();
                 const password = passwordInput.value.trim();
-                
-                // Clear previous messages
+
                 resultMessage.classList.add('hidden');
                 resultMessage.innerHTML = '';
-                
-                // Show loading state
+
                 loadingMessage.classList.remove('hidden');
                 loginButton.disabled = true;
 
                 try {
-                    const loginEndpoint = `${instanceUrl}/api/alpha/user/login`; // Updated to the correct login endpoint
+                    const loginEndpoint = `${instanceUrl}/api/alpha/user/login`;
                     const response = await fetch(loginEndpoint, {
                         method: 'POST',
                         headers: {
@@ -283,16 +282,14 @@
                         },
                         body: JSON.stringify({ username, password })
                     });
-                    
+
                     if (!response.ok) {
                          throw new Error(`Login failed with status ${response.status}`);
                     }
 
                     const data = await response.json();
-                    
-                    // Correctly retrieve the token using the "jwt" field
                     authToken = data.jwt;
-                    
+
                     if (authToken) {
                         resultMessage.classList.remove('hidden');
                         resultMessage.innerHTML = `
@@ -300,17 +297,14 @@
                             <p class="mt-2 text-gray-600">Logged in as: <span class="font-bold text-gray-800">${username}</span></p>
                         `;
 
-                        // Hide login view and show feeds view
                         setTimeout(() => {
                             loginView.classList.add('hidden');
                             feedsView.classList.remove('hidden');
                             feedsHeader.textContent = `Welcome, ${username}!`;
-                            // Load the initial feed after a successful login
                             handleTabClick('allFeedTab', 'all');
                         }, 1000);
-                        
+
                     } else {
-                         // If no token is found, log the response to help debug
                          console.error('No authentication token received. Please check the API response below and provide the correct key name.');
                          console.log('API Response Data:', data);
                          throw new Error('No authentication token received.');
@@ -325,13 +319,11 @@
                         <p class="mt-2 text-gray-600">Please check your instance URL and credentials.</p>
                     `;
                 } finally {
-                    // Hide loading state
                     loadingMessage.classList.add('hidden');
                     loginButton.disabled = false;
                 }
             });
 
-            // Set up event listeners for tabs
             allFeedTab.addEventListener('click', () => handleTabClick('allFeedTab', 'all'));
             subscribedFeedTab.addEventListener('click', () => handleTabClick('subscribedFeedTab', 'subscribed'));
             localFeedTab.addEventListener('click', () => handleTabClick('localFeedTab', 'local'));
