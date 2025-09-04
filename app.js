@@ -4,19 +4,19 @@
 let currentUser = null;
 let currentPage = 'feed';
 let currentCommunityView = null;
-let currentCommunity = null; // Add this for community page
+let currentCommunity = null;
 let posts = [];
 let communities = [];
 let isLoading = false;
 let currentPostType = 'text';
-let currentFeedTab = 'general'; // 'general' or 'followed'
+let currentFeedTab = 'general';
 let menuOpen = false;
 let composeModal = null;
 let createCommunityModal = null;
 let authModal = null;
 let communityDropdownOpen = false;
 let inlineLoginFormOpen = false;
-let followedCommunities = new Set(); // Add this for followed communities
+let followedCommunities = new Set();
 
 // Navigation functions
 function navigateToFeed() {
@@ -90,11 +90,9 @@ function updateFeedTabsVisibility() {
     const feedTabs = document.getElementById('feedTabs');
     if (!feedTabs) return;
     
-    // Show tabs only on feed page and when user is logged in
     if (currentPage === 'feed' && currentUser) {
         feedTabs.style.display = 'flex';
         
-        // Update active states
         document.querySelectorAll('.feed-tab').forEach(tab => {
             tab.classList.remove('active');
         });
@@ -112,12 +110,11 @@ function updateFeedTabsVisibility() {
     }
 }
 
-// Menu functions - FIXED WITH NULL CHECKS (FIX 2)
+// Menu functions - FIXED WITH NULL CHECKS
 function toggleMenu() {
     const menu = document.getElementById('slideMenu');
     const menuToggle = document.getElementById('menuToggle');
     
-    // FIX 2: Add null checks
     if (!menu || !menuToggle) {
         console.error('Menu elements not found');
         return;
@@ -136,20 +133,18 @@ function toggleMenu() {
     }
 }
 
-// FIXED WITH COMPREHENSIVE NULL CHECKS (FIX 2)
+// FIXED WITH COMPREHENSIVE NULL CHECKS
 function updateMenuForUser() {
     const menuUserInfo = document.getElementById('menuUserInfo');
     const menuLogout = document.getElementById('menuLogout');
     const menuAdmin = document.getElementById('menuAdmin');
     
-    // FIX 2: Check if required elements exist
     if (!menuUserInfo) {
         console.error('Menu user info element not found');
         return;
     }
     
     if (currentUser) {
-        // Show user info
         menuUserInfo.innerHTML = `
             <div class="menu-user-details">
                 <div class="menu-username">@${escapeHtml(currentUser.username)}</div>
@@ -157,7 +152,6 @@ function updateMenuForUser() {
             </div>
         `;
         
-        // Show authenticated menu items with null checks
         const menuFeed = document.getElementById('menuFeed');
         const menuChat = document.getElementById('menuChat');
         const menuProfile = document.getElementById('menuProfile');
@@ -173,7 +167,6 @@ function updateMenuForUser() {
         if (menuCreateCommunity) menuCreateCommunity.style.display = 'flex';
         if (menuBrowseCommunities) menuBrowseCommunities.style.display = 'flex';
         
-        // Show admin menu if admin
         if (currentUser.profile?.isAdmin && menuAdmin) {
             menuAdmin.style.display = 'flex';
         } else if (menuAdmin) {
@@ -184,7 +177,6 @@ function updateMenuForUser() {
         if (menuLogout) menuLogout.style.display = 'flex';
         
     } else {
-        // Show login prompt
         menuUserInfo.innerHTML = `
             <div class="menu-login-prompt">
                 <button class="menu-login-toggle-btn" onclick="toggleInlineLoginForm()">
@@ -210,7 +202,6 @@ function updateMenuForUser() {
             </div>
         `;
         
-        // Hide authenticated menu items with null checks
         const menuFeed = document.getElementById('menuFeed');
         const menuChat = document.getElementById('menuChat');
         const menuProfile = document.getElementById('menuProfile');
@@ -219,7 +210,7 @@ function updateMenuForUser() {
         const menuBrowseCommunities = document.getElementById('menuBrowseCommunities');
         const menuSettings = document.getElementById('menuSettings');
         
-        if (menuFeed) menuFeed.style.display = 'flex'; // Keep feed visible for non-auth users
+        if (menuFeed) menuFeed.style.display = 'flex';
         if (menuChat) menuChat.style.display = 'none';
         if (menuProfile) menuProfile.style.display = 'none';
         if (menuMyShed) menuMyShed.style.display = 'none';
@@ -246,7 +237,6 @@ function toggleInlineLoginForm() {
     } else {
         form.classList.add('open');
         inlineLoginFormOpen = true;
-        // Focus on username field
         setTimeout(() => {
             const usernameField = document.getElementById('inlineUsername');
             if (usernameField) usernameField.focus();
@@ -255,7 +245,9 @@ function toggleInlineLoginForm() {
 }
 
 function handleLogout() {
-    logout();
+    if (typeof logout === 'function') {
+        logout();
+    }
     toggleMenu();
 }
 
@@ -313,23 +305,23 @@ async function handleFollowCommunity(communityName, followBtn) {
     try {
         followBtn.disabled = true;
         
-        // Check current follow status
-        const isCurrentlyFollowing = await checkIfFollowing(communityName);
+        const isCurrentlyFollowing = typeof checkIfFollowing === 'function' ? 
+            await checkIfFollowing(communityName) : false;
         const shouldFollow = !isCurrentlyFollowing;
         
-        // Toggle follow status
-        const result = await toggleFollowStatus(communityName, shouldFollow);
-        
-        if (result.success) {
-            // Update button UI
-            followBtn.textContent = shouldFollow ? '✓ Following' : 'Follow';
-            followBtn.classList.toggle('following', shouldFollow);
+        if (typeof toggleFollowStatus === 'function') {
+            const result = await toggleFollowStatus(communityName, shouldFollow);
             
-            showSuccessMessage(shouldFollow ? 
-                `You are now following ${communityName}!` : 
-                `You have unfollowed ${communityName}`);
-        } else {
-            throw new Error('Failed to update follow status');
+            if (result.success) {
+                followBtn.textContent = shouldFollow ? '✓ Following' : 'Follow';
+                followBtn.classList.toggle('following', shouldFollow);
+                
+                showSuccessMessage(shouldFollow ? 
+                    `You are now following ${communityName}!` : 
+                    `You have unfollowed ${communityName}`);
+            } else {
+                throw new Error('Failed to update follow status');
+            }
         }
         
     } catch (error) {
@@ -358,7 +350,6 @@ function updateComposeButton() {
     const composeBtn = document.getElementById('composeBtn');
     if (!composeBtn) return;
     
-    // Hide compose button on chat page
     if (currentUser && currentPage !== 'chat') {
         composeBtn.style.display = 'block';
     } else {
@@ -368,7 +359,11 @@ function updateComposeButton() {
 
 function renderCurrentPage() {
     if (currentPage === 'feed') {
-        renderFeedWithTabs();
+        if (typeof renderFeedWithTabs === 'function') {
+            renderFeedWithTabs();
+        } else {
+            updateFeedContent('<div class="loading">Loading feed...</div>');
+        }
     } else if (currentPage === 'chat') {
         if (typeof renderChatPage === 'function') {
             renderChatPage();
@@ -481,31 +476,26 @@ function renderSettingsPage() {
 
 // Setup event listeners
 function setupEventListeners() {
-    // Auth form
     const authForm = document.getElementById('authForm');
     if (authForm) {
         authForm.addEventListener('submit', handleAuth);
     }
     
-    // Create community form
     const createCommunityForm = document.getElementById('createCommunityForm');
     if (createCommunityForm) {
         createCommunityForm.addEventListener('submit', handleCreateCommunity);
     }
     
-    // Compose form
     const composeForm = document.getElementById('composeForm');
     if (composeForm) {
         composeForm.addEventListener('submit', handleCreatePost);
     }
     
-    // Create room form (chat)
     const createRoomForm = document.getElementById('createRoomForm');
     if (createRoomForm) {
         createRoomForm.addEventListener('submit', handleCreateRoom);
     }
     
-    // URL input for media preview
     const urlInput = document.getElementById('postUrl');
     if (urlInput) {
         let previewTimeout;
@@ -518,7 +508,7 @@ function setupEventListeners() {
                     if (typeof previewMedia === 'function') {
                         previewMedia(url);
                     }
-                }, 1000); // Debounce for 1 second
+                }, 1000);
             } else {
                 const preview = document.getElementById('mediaPreview');
                 if (preview) {
@@ -528,7 +518,6 @@ function setupEventListeners() {
         });
     }
     
-    // Close menu when clicking outside
     document.addEventListener('click', (e) => {
         const menu = document.getElementById('slideMenu');
         const menuToggle = document.getElementById('menuToggle');
@@ -540,7 +529,6 @@ function setupEventListeners() {
         }
     });
     
-    // Page visibility change handling for chat
     document.addEventListener('visibilitychange', () => {
         if (currentPage === 'chat' && typeof currentChatRoom !== 'undefined' && currentChatRoom) {
             if (document.hidden) {
@@ -554,7 +542,6 @@ function setupEventListeners() {
         }
     });
     
-    // Cleanup chat when leaving the page
     window.addEventListener('beforeunload', () => {
         if (currentPage === 'chat' && typeof stopChatRefresh === 'function') {
             stopChatRefresh();
@@ -562,9 +549,15 @@ function setupEventListeners() {
     });
 }
 
-// Data loading functions
+// Data loading functions - FIXED to check if blobAPI exists
 async function loadUser() {
     try {
+        // Check if blobAPI exists, if not wait for it
+        if (typeof blobAPI === 'undefined') {
+            console.log('Waiting for blobAPI to be initialized...');
+            return;
+        }
+        
         const userData = await blobAPI.get('current_user');
         if (userData) {
             currentUser = userData;
@@ -573,12 +566,10 @@ async function loadUser() {
                 currentUser.profile = fullProfile;
             }
             
-            // Load user's followed communities after loading user
             if (typeof loadFollowedCommunities === 'function') {
                 await loadFollowedCommunities();
             }
             
-            // Initialize chat system for authenticated user
             if (typeof initializeChat === 'function') {
                 await initializeChat();
             }
@@ -590,6 +581,12 @@ async function loadUser() {
 
 async function loadCommunities() {
     try {
+        // Check if blobAPI exists
+        if (typeof blobAPI === 'undefined') {
+            console.log('Waiting for blobAPI to be initialized...');
+            return;
+        }
+        
         const communityKeys = await blobAPI.list('community_');
         const communityPromises = communityKeys.map(async (key) => {
             try {
@@ -605,7 +602,6 @@ async function loadCommunities() {
             .filter(Boolean)
             .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
-        // Update community dropdown in compose modal
         if (typeof updateCommunityDropdown === 'function') {
             updateCommunityDropdown();
         }
@@ -618,6 +614,12 @@ async function loadCommunities() {
 
 async function loadPosts() {
     try {
+        // Check if blobAPI exists
+        if (typeof blobAPI === 'undefined') {
+            console.log('Waiting for blobAPI to be initialized...');
+            return;
+        }
+        
         if (!isLoading) {
             isLoading = true;
             updateFeedContent('<div class="loading">Loading...</div>');
@@ -660,7 +662,7 @@ function getFollowedCommunityPosts() {
     );
 }
 
-// Cleanup chat state (helper function)
+// Cleanup chat state
 function cleanupChat() {
     if (typeof stopChatRefresh === 'function') {
         stopChatRefresh();
@@ -670,6 +672,20 @@ function cleanupChat() {
     }
     if (typeof chatMessages !== 'undefined') {
         chatMessages = [];
+    }
+}
+
+// Utility function to update feed content - FIXED
+function updateFeedContent(html) {
+    const feedElement = document.getElementById('feedContent');
+    if (feedElement) {
+        feedElement.innerHTML = html;
+    } else {
+        // Fallback to old ID if it exists
+        const oldFeed = document.getElementById('feed');
+        if (oldFeed) {
+            oldFeed.innerHTML = html;
+        }
     }
 }
 
@@ -691,11 +707,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             gfm: true
         });
         
-        // Custom renderer for enhanced features
         if (typeof marked.Renderer !== 'undefined') {
             window.markdownRenderer = new marked.Renderer();
             
-            // Custom link renderer to handle media embeds
             window.markdownRenderer.link = function(href, title, text) {
                 if (typeof renderMediaFromUrl === 'function') {
                     const mediaHtml = renderMediaFromUrl(href);
@@ -705,35 +719,27 @@ document.addEventListener('DOMContentLoaded', async () => {
                 return `<a href="${href}" target="_blank" rel="noopener noreferrer" ${title ? `title="${title}"` : ''}>${text}</a>`;
             };
             
-            // Custom image renderer
             window.markdownRenderer.image = function(href, title, text) {
                 return `<img src="${href}" alt="${text || 'Image'}" ${title ? `title="${title}"` : ''} onclick="openImageModal('${href}')" style="cursor: pointer;">`;
             };
         }
     }
 
-    await loadUser();
-    await loadCommunities();
-    await loadPosts();
-    
-    // Initialize chat system if user is logged in and function exists
-    if (currentUser && typeof initializeChat === 'function') {
-        await initializeChat();
-    }
-    
-    updateUI();
-    setupEventListeners();
-    
-    // Load admin stats if user is admin
-    if (currentUser?.profile?.isAdmin && typeof loadAdminStats === 'function') {
-        await loadAdminStats();
-    }
+    // Wait a bit for api.js to load and initialize blobAPI
+    setTimeout(async () => {
+        await loadUser();
+        await loadCommunities();
+        await loadPosts();
+        
+        if (currentUser && typeof initializeChat === 'function') {
+            await initializeChat();
+        }
+        
+        updateUI();
+        setupEventListeners();
+        
+        if (currentUser?.profile?.isAdmin && typeof loadAdminStats === 'function') {
+            await loadAdminStats();
+        }
+    }, 100); // Small delay to ensure api.js loads first
 });
-
-// Utility function to update feed content
-function updateFeedContent(html) {
-    const feedElement = document.getElementById('feedContent') || document.getElementById('feed');
-    if (feedElement) {
-        feedElement.innerHTML = html;
-    }
-}
