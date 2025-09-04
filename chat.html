@@ -1547,7 +1547,13 @@
         });
 
         // Initialize app when page loads
-        document.addEventListener('DOMContentLoaded', initApp);
+        document.addEventListener('DOMContentLoaded', function() {
+            // Set up localStorage monitoring first
+            setupLocalStorageMonitor();
+            
+            // Then initialize the app
+            initApp();
+        });
 
         // Cleanup on page unload
         window.addEventListener('beforeunload', function() {
