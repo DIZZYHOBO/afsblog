@@ -931,20 +931,14 @@
             }
         }
 
-        // Load new messages (for auto-refresh)
+        // Load new messages (for auto-refresh) - Fixed with proper deduplication
         async function loadNewMessages(roomId) {
             if (!currentRoom || currentRoom.id !== roomId) return;
 
             try {
                 const token = getAuthToken();
                 
-                // Get the timestamp of the last message we have
-                const lastTimestamp = chatMessages.length > 0 ? 
-                    chatMessages[chatMessages.length - 1].createdAt : null;
-                
-                let url = `/.netlify/functions/chat-api/rooms/${roomId}/messages?limit=50`;
-                
-                const response = await fetch(url, {
+                const response = await fetch(`/.netlify/functions/chat-api/rooms/${roomId}/messages?limit=50`, {
                     method: 'GET',
                     headers: {
                         'Authorization': `Bearer ${token}`,
@@ -957,28 +951,26 @@
                 const data = await response.json();
                 const allMessages = data.messages || [];
                 
-                // Filter out messages we already have
-                const newMessages = allMessages.filter(newMsg => {
-                    if (!lastTimestamp) return true; // If no existing messages, all are new
-                    
-                    // Check if this message is newer than our last message
-                    return new Date(newMsg.createdAt) > new Date(lastTimestamp);
-                });
+                // Create a Set of existing message IDs for fast lookup
+                const existingMessageIds = new Set(chatMessages.map(msg => msg.id));
+                
+                // Filter for truly new messages (messages we don't already have)
+                const newMessages = allMessages.filter(msg => !existingMessageIds.has(msg.id));
                 
                 if (newMessages.length > 0) {
+                    console.log(`Found ${newMessages.length} new messages`);
+                    
                     // Check if user was scrolled to bottom before adding messages
                     const wasAtBottom = isScrolledToBottom();
                     
                     // Add only the new messages
-                    chatMessages = chatMessages.concat(newMessages);
+                    chatMessages = [...chatMessages, ...newMessages];
                     renderMessages();
                     
                     // Only auto-scroll if user was already at bottom
                     if (wasAtBottom) {
                         scrollToBottom();
                     }
-                    
-                    console.log(`Added ${newMessages.length} new messages`);
                 }
 
             } catch (error) {
