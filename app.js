@@ -16,7 +16,6 @@ let createCommunityModal = null;
 let authModal = null;
 let communityDropdownOpen = false;
 let inlineLoginFormOpen = false;
-let followedCommunities = new Set();
 
 // Navigation functions
 function navigateToFeed() {
