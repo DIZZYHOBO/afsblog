@@ -1,6 +1,50 @@
 // api.js - API and storage operations
 
-// Netlify Blobs API implementation
+// ============================================
+// TOKEN MANAGEMENT SYSTEM (NEW)
+// ============================================
+
+// Store the session token in a variable
+let currentSessionToken = null;
+
+// Get auth token function
+async function getAuthToken() {
+    // First, check if we have a token in memory
+    if (currentSessionToken) {
+        return currentSessionToken;
+    }
+    
+    // Try to get from localStorage
+    const storedToken = localStorage.getItem('sessionToken');
+    if (storedToken) {
+        currentSessionToken = storedToken;
+        return storedToken;
+    }
+    
+    // If no token found, user needs to authenticate
+    console.warn('No authentication token found');
+    return null;
+}
+
+// Set auth token function
+function setAuthToken(token) {
+    currentSessionToken = token;
+    // Store in localStorage for persistence
+    localStorage.setItem('sessionToken', token);
+    console.log('Token stored in localStorage');
+}
+
+// Clear auth token function
+function clearAuthToken() {
+    currentSessionToken = null;
+    localStorage.removeItem('sessionToken');
+    console.log('Token cleared from localStorage');
+}
+
+// ============================================
+// NETLIFY BLOBS API IMPLEMENTATION (UNCHANGED)
+// ============================================
+
 const blobAPI = {
     async get(key) {
         try {
@@ -277,7 +321,10 @@ async function toggleFollowStatus(communityName, shouldFollow) {
     }
 }
 
-// Authentication functions
+// ============================================
+// AUTHENTICATION FUNCTIONS - UPDATED TO USE API
+// ============================================
+
 async function handleAuth(e) {
     e.preventDefault();
     const form = e.target;
@@ -305,57 +352,73 @@ async function handleAuth(e) {
         submitBtn.textContent = 'Loading...';
 
         if (mode === 'signup') {
-            const existingUser = await blobAPI.get(`user_${username}`);
-            const pendingUser = await blobAPI.get(`pending_user_${username}`);
+            // Call the registration API
+            const response = await fetch('/.netlify/functions/api/auth/register', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ username, password, bio: bio || `Hello! I'm ${username}` })
+            });
+
+            const data = await response.json();
             
-            if (existingUser || pendingUser) {
-                showError('authError', 'Username already exists or is pending approval!');
-                return;
+            if (!response.ok) {
+                throw new Error(data.error || 'Registration failed');
             }
-            
-            const newPendingUser = { 
-                username, 
-                password,
-                bio: bio || `Hello! I'm ${username}`,
-                createdAt: new Date().toISOString(),
-                status: 'pending',
-                isAdmin: false
-            };
-            
-            await blobAPI.set(`pending_user_${username}`, newPendingUser);
-            
+
             closeModal('authModal');
             showSuccessMessage('Account created! Waiting for admin approval.');
             
         } else {
-            const user = await blobAPI.get(`user_${username}`);
+            // Call the login API
+            const response = await fetch('/.netlify/functions/api/auth/login', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ username, password })
+            });
+
+            const data = await response.json();
             
-            if (!user) {
-                const pendingUser = await blobAPI.get(`pending_user_${username}`);
-                if (pendingUser) {
+            if (!response.ok) {
+                if (data.error === 'Your account is pending admin approval') {
                     showError('authError', 'Your account is still pending admin approval.');
                 } else {
-                    showError('authError', 'Invalid username or password');
+                    showError('authError', data.error || 'Invalid username or password');
                 }
                 return;
             }
-            
-            if (user.password !== password) {
-                showError('authError', 'Invalid username or password');
-                return;
+
+            // Store the session token - THIS IS CRITICAL FOR CHAT
+            if (data.token) {
+                setAuthToken(data.token);
+                console.log('Session token stored:', data.token);
             }
+
+            // Store user data
+            currentUser = { 
+                username: data.user.username, 
+                profile: data.user 
+            };
             
-            currentUser = { username, profile: user };
+            // Store in blob API for other purposes
             await blobAPI.set('current_user', currentUser);
             
             // Load user's followed communities after login
             await loadFollowedCommunities();
             
+            // Initialize chat system after successful login
+            if (typeof initializeChat === 'function') {
+                await initializeChat();
+            }
+            
             closeModal('authModal');
             updateUI();
             showSuccessMessage('Welcome back!');
 
-            if (user.isAdmin) {
+            if (data.user.isAdmin) {
                 await loadAdminStats();
             }
         }
@@ -364,7 +427,7 @@ async function handleAuth(e) {
         
     } catch (error) {
         console.error('Auth error:', error);
-        showError('authError', 'Something went wrong. Please try again.');
+        showError('authError', error.message || 'Something went wrong. Please try again.');
     } finally {
         submitBtn.disabled = false;
         submitBtn.textContent = mode === 'signup' ? 'Sign Up' : 'Sign In';
@@ -373,8 +436,24 @@ async function handleAuth(e) {
 
 async function logout() {
     try {
+        const token = await getAuthToken();
+        
+        if (token) {
+            // Notify the server about logout
+            await fetch('/.netlify/functions/api/auth/logout', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+        }
+        
+        // Clear auth token
+        clearAuthToken();
+        
+        // Clear user state
         currentUser = null;
-        followedCommunities = new Set(); // Clear followed communities
+        followedCommunities = new Set();
         
         // Try to delete current_user key, but don't fail if it doesn't exist
         try {
@@ -395,6 +474,7 @@ async function logout() {
     } catch (error) {
         console.error('Logout error:', error);
         // Even if there's an error, still clear the user state
+        clearAuthToken();
         currentUser = null;
         followedCommunities = new Set();
         document.getElementById('adminPanel').style.display = 'none';
@@ -404,7 +484,7 @@ async function logout() {
     }
 }
 
-// Inline login handling
+// Inline login handling - UPDATED TO USE API
 async function handleInlineLogin(e) {
     e.preventDefault();
     
@@ -429,28 +509,46 @@ async function handleInlineLogin(e) {
         submitBtn.disabled = true;
         submitBtn.textContent = 'Signing in...';
 
-        const user = await blobAPI.get(`user_${username}`);
+        // Call the login API
+        const response = await fetch('/.netlify/functions/api/auth/login', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ username, password })
+        });
+
+        const data = await response.json();
         
-        if (!user) {
-            const pendingUser = await blobAPI.get(`pending_user_${username}`);
-            if (pendingUser) {
+        if (!response.ok) {
+            if (data.error === 'Your account is pending admin approval') {
                 showInlineError('Your account is still pending admin approval.');
             } else {
-                showInlineError('Invalid username or password');
+                showInlineError(data.error || 'Invalid username or password');
             }
             return;
         }
         
-        if (user.password !== password) {
-            showInlineError('Invalid username or password');
-            return;
+        // Store the session token - THIS IS CRITICAL FOR CHAT
+        if (data.token) {
+            setAuthToken(data.token);
+            console.log('Session token stored from inline login:', data.token);
         }
         
-        currentUser = { username, profile: user };
+        // Store user data
+        currentUser = { 
+            username: data.user.username, 
+            profile: data.user 
+        };
         await blobAPI.set('current_user', currentUser);
         
         // Load user's followed communities after login
         await loadFollowedCommunities();
+        
+        // Initialize chat system after successful login
+        if (typeof initializeChat === 'function') {
+            await initializeChat();
+        }
         
         // Clear the form
         document.getElementById('inlineLoginFormElement').reset();
@@ -460,7 +558,7 @@ async function handleInlineLogin(e) {
         updateUI();
         showSuccessMessage('Welcome back!');
 
-        if (user.isAdmin) {
+        if (data.user.isAdmin) {
             await loadAdminStats();
         }
         
@@ -478,7 +576,7 @@ function showInlineError(message) {
     errorDiv.innerHTML = `<div class="inline-error-message">${escapeHtml(message)}</div>`;
 }
 
-// Community functions
+// Community functions (UNCHANGED)
 async function handleCreateCommunity(e) {
     e.preventDefault();
     
@@ -557,7 +655,7 @@ async function handleCreateCommunity(e) {
     }
 }
 
-// Post functions
+// Post functions (UNCHANGED)
 async function handleCreatePost(e) {
     e.preventDefault();
     
@@ -675,7 +773,7 @@ async function deletePost(postId) {
     }
 }
 
-// Reply functions
+// Reply functions (UNCHANGED)
 async function submitReply(postId) {
     if (!currentUser) {
         openAuthModal('signin');
@@ -817,7 +915,7 @@ async function deleteReply(postId, replyId) {
     }
 }
 
-// Profile update
+// Profile update (UNCHANGED)
 async function handleUpdateProfile(e) {
     e.preventDefault();
     
