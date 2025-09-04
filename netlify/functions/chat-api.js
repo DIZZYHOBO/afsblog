@@ -12,7 +12,7 @@ const CHAT_CONFIG = {
 };
 
 export default async (req, context) => {
-  // Use the context object provided by Netlify - this contains the necessary configuration
+  // Use the context object provided by Netlify
   const chatStore = getStore({
     name: "chat-data",
     siteID: context.site?.id || process.env.SITE_ID,
@@ -21,6 +21,12 @@ export default async (req, context) => {
   
   const blogStore = getStore({
     name: "blog-data",
+    siteID: context.site?.id || process.env.SITE_ID,
+    token: context.token || process.env.NETLIFY_AUTH_TOKEN
+  });
+
+  const apiStore = getStore({
+    name: "blog-api-data",
     siteID: context.site?.id || process.env.SITE_ID,
     token: context.token || process.env.NETLIFY_AUTH_TOKEN
   });
@@ -46,37 +52,20 @@ export default async (req, context) => {
       pathParts.slice(apiIndex + 1).join('/') : 
       pathParts.join('/');
 
-    // Helper function to get authenticated user
-    async function getAuthenticatedUser(req) {
-      const authHeader = req.headers.get('authorization');
-      if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        return null;
-      }
-
-      const token = authHeader.substring(7);
-      const session = await blogStore.get(`session_${token}`, { type: "json" });
-      
-      if (!session || new Date(session.expiresAt) < new Date()) {
-        return null;
-      }
-
-      const user = await blogStore.get(`user_${session.username}`, { type: "json" });
-      return user;
-    }
-
     // Check authentication for protected routes
     const publicRoutes = ['rooms/public'];
     const requiresAuth = !publicRoutes.includes(path);
     
     let user = null;
     if (requiresAuth) {
-      user = await getAuthenticatedUser(req);
-      if (!user) {
+      const authResult = await validateChatAuth(req, apiStore, blogStore);
+      if (!authResult.valid) {
         return new Response(
-          JSON.stringify({ error: "Authentication required" }),
-          { status: 401, headers }
+          JSON.stringify({ error: authResult.error }),
+          { status: authResult.status, headers }
         );
       }
+      user = authResult.user;
     }
 
     // Route handling
@@ -86,6 +75,10 @@ export default async (req, context) => {
 
     if (path === 'rooms' && req.method === 'POST') {
       return await createRoom(req, chatStore, user, headers);
+    }
+
+    if (path === 'rooms/public' && req.method === 'GET') {
+      return await getPublicRooms(chatStore, headers);
     }
 
     if (path.startsWith('rooms/') && path.endsWith('/join') && req.method === 'POST') {
@@ -124,6 +117,49 @@ export default async (req, context) => {
     );
   }
 };
+
+// Authentication validation - FIXED VERSION
+async function validateChatAuth(req, apiStore, blogStore) {
+  const authHeader = req.headers.get("Authorization");
+  
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return { valid: false, error: "Authentication required", status: 401 };
+  }
+
+  try {
+    const token = authHeader.substring(7);
+    
+    // Get session from API store using the token
+    const session = await apiStore.get(`session_${token}`, { type: "json" });
+    
+    if (!session) {
+      return { valid: false, error: "Invalid session", status: 401 };
+    }
+    
+    // Check if session is expired
+    if (new Date(session.expiresAt) < new Date()) {
+      return { valid: false, error: "Session expired", status: 401 };
+    }
+    
+    // Check if session is active
+    if (!session.active) {
+      return { valid: false, error: "Session inactive", status: 401 };
+    }
+    
+    // Get full user profile from blog store
+    const userProfile = await blogStore.get(`user_${session.username}`, { type: "json" });
+    
+    if (!userProfile) {
+      return { valid: false, error: "User not found", status: 404 };
+    }
+
+    return { valid: true, user: userProfile };
+    
+  } catch (error) {
+    console.error("Auth validation error:", error);
+    return { valid: false, error: "Authentication error", status: 500 };
+  }
+}
 
 // Helper function to generate unique IDs
 function generateId() {
@@ -172,6 +208,36 @@ async function getUserRooms(chatStore, user, headers) {
     console.error("Get user rooms error:", error);
     return new Response(
       JSON.stringify({ error: "Failed to load rooms" }),
+      { status: 500, headers }
+    );
+  }
+}
+
+// Get public rooms (no auth required)
+async function getPublicRooms(chatStore, headers) {
+  try {
+    const publicRoomIds = await chatStore.get('public_rooms', { type: "json" }) || [];
+    
+    const roomPromises = publicRoomIds.map(async (roomId) => {
+      const room = await chatStore.get(`room_${roomId}`, { type: "json" });
+      return room;
+    });
+
+    const rooms = await Promise.all(roomPromises);
+    const validRooms = rooms.filter(room => room !== null);
+
+    return new Response(
+      JSON.stringify({ 
+        success: true, 
+        rooms: validRooms 
+      }),
+      { status: 200, headers }
+    );
+
+  } catch (error) {
+    console.error("Get public rooms error:", error);
+    return new Response(
+      JSON.stringify({ error: "Failed to load public rooms" }),
       { status: 500, headers }
     );
   }
