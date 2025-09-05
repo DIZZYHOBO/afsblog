@@ -1,4 +1,6 @@
-// app.js - Main application logic and initialization - Updated with Session Persistence Fix
+// COMPREHENSIVE FIX: Replace your current app.js file with this updated version
+
+// app.js - Main application logic and initialization - FIXED VERSION
 
 // App state
 let currentUser = null;
@@ -10,12 +12,12 @@ let isLoading = false;
 let adminData = null;
 let currentPostType = 'text';
 let inlineLoginFormOpen = false;
-let currentFeedTab = 'general'; // Track current feed tab - only 'general' and 'followed' now
-let followedCommunities = new Set(); // Track followed communities
+let currentFeedTab = 'general';
+let followedCommunities = new Set();
 let markdownRenderer = null;
 let previewTimeout = null;
 
-// blobAPI object for data operations
+// FIXED: blobAPI object with corrected list method
 const blobAPI = {
     async get(key) {
         try {
@@ -56,9 +58,10 @@ const blobAPI = {
         }
     },
     
+    // FIXED: Corrected list method to use the right parameter
     async list(prefix = '') {
         try {
-            const response = await fetch(`/.netlify/functions/blobs?prefix=${encodeURIComponent(prefix)}`, {
+            const response = await fetch(`/.netlify/functions/blobs?list=true&prefix=${encodeURIComponent(prefix)}`, {
                 method: 'GET',
                 headers: { 'Content-Type': 'application/json' }
             });
@@ -116,33 +119,33 @@ function updateMenuContent() {
     const menuLogout = document.getElementById('menuLogout');
     
     if (currentUser) {
-    // Update menu avatar to use profile picture
-    if (currentUser.profile?.profilePicture) {
-        menuHeader.innerHTML = `
-            <div class="menu-user-info">
-                <img src="${currentUser.profile.profilePicture}" 
-                     alt="Profile" 
-                     class="profile-avatar"
-                     style="border-radius: 50%; object-fit: cover;"
-                     onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
-                <div class="profile-avatar" style="display: none;">${currentUser.username.charAt(0).toUpperCase()}</div>
-                <div class="menu-user-details">
-                    <h4>@${escapeHtml(currentUser.username)}</h4>
-                    <p>${currentUser.profile?.isAdmin ? 'Administrator' : 'Member'}</p>
+        // Update menu avatar to use profile picture
+        if (currentUser.profile?.profilePicture) {
+            menuHeader.innerHTML = `
+                <div class="menu-user-info">
+                    <img src="${currentUser.profile.profilePicture}" 
+                         alt="Profile" 
+                         class="profile-avatar"
+                         style="border-radius: 50%; object-fit: cover;"
+                         onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                    <div class="profile-avatar" style="display: none;">${currentUser.username.charAt(0).toUpperCase()}</div>
+                    <div class="menu-user-details">
+                        <h4>@${escapeHtml(currentUser.username)}</h4>
+                        <p>${currentUser.profile?.isAdmin ? 'Administrator' : 'Member'}</p>
+                    </div>
                 </div>
-            </div>
-        `;
-    } else {
-        menuHeader.innerHTML = `
-            <div class="menu-user-info">
-                <div class="profile-avatar">${currentUser.username.charAt(0).toUpperCase()}</div>
-                <div class="menu-user-details">
-                    <h4>@${escapeHtml(currentUser.username)}</h4>
-                    <p>${currentUser.profile?.isAdmin ? 'Administrator' : 'Member'}</p>
+            `;
+        } else {
+            menuHeader.innerHTML = `
+                <div class="menu-user-info">
+                    <div class="profile-avatar">${currentUser.username.charAt(0).toUpperCase()}</div>
+                    <div class="menu-user-details">
+                        <h4>@${escapeHtml(currentUser.username)}</h4>
+                        <p>${currentUser.profile?.isAdmin ? 'Administrator' : 'Member'}</p>
+                    </div>
                 </div>
-            </div>
-        `;
-    }
+            `;
+        }
         
         menuLogout.style.display = 'block';
     } else {
@@ -357,7 +360,7 @@ async function handleAuth(e, mode) {
     }
 }
 
-// UPDATED: handleInlineLogin function - now uses ONLY new authentication system
+// UPDATED: handleInlineLogin function
 async function handleInlineLogin(e) {
     e.preventDefault();
     
@@ -442,7 +445,7 @@ async function handleInlineLogin(e) {
     }
 }
 
-// Logout function - Updated to properly clear session token
+// Logout function
 async function logout() {
     console.log('🚪 Logging out user...');
     
@@ -476,7 +479,7 @@ async function logout() {
     showSuccessMessage('Logged out successfully!');
 }
 
-// Session validation function - Check if user has valid session on page load
+// Session validation function
 async function validateSession() {
     const token = localStorage.getItem('sessionToken');
     
@@ -553,7 +556,7 @@ async function loadFollowedCommunities() {
     }
 }
 
-// Add localStorage monitoring to debug session storage
+// Session monitoring
 function setupSessionMonitoring() {
     console.log('🔍 Setting up session monitoring for main app...');
     
@@ -587,7 +590,10 @@ function setupSessionMonitoring() {
 // Data loading functions
 async function loadCommunities() {
     try {
+        console.log('📋 Loading communities...');
         const communityKeys = await blobAPI.list('community_');
+        console.log('📋 Found community keys:', communityKeys.length);
+        
         const communityPromises = communityKeys.map(async (key) => {
             try {
                 return await blobAPI.get(key);
@@ -602,8 +608,12 @@ async function loadCommunities() {
             .filter(Boolean)
             .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
-        // Update community dropdown in compose modal
-        updateCommunityDropdown();
+        console.log('✅ Loaded communities:', communities.length);
+        
+        // Update community dropdown in compose modal if it exists
+        if (typeof updateCommunityDropdown === 'function') {
+            updateCommunityDropdown();
+        }
         
     } catch (error) {
         console.error('Error loading communities:', error);
@@ -613,12 +623,19 @@ async function loadCommunities() {
 
 async function loadPosts() {
     try {
+        console.log('📄 Loading posts...');
         if (!isLoading) {
             isLoading = true;
-            updateFeedContent('<div class="loading">Loading...</div>');
+            // Only show loading if feed element exists
+            const feedElement = document.getElementById('feed');
+            if (feedElement) {
+                feedElement.innerHTML = '<div class="loading">Loading...</div>';
+            }
         }
         
         const postKeys = await blobAPI.list('post_');
+        console.log('📄 Found post keys:', postKeys.length);
+        
         const postPromises = postKeys.map(async (key) => {
             try {
                 return await blobAPI.get(key);
@@ -632,6 +649,8 @@ async function loadPosts() {
         posts = loadedPosts
             .filter(Boolean)
             .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+            
+        console.log('✅ Loaded posts:', posts.length);
             
     } catch (error) {
         console.error('Error loading posts:', error);
@@ -705,7 +724,7 @@ function updateAdminStatsDisplay() {
     if (totalCommunitiesEl) totalCommunitiesEl.textContent = adminData.totalCommunities;
 }
 
-// UI Update function
+// FIXED: UI Update function with null checks
 function updateUI() {
     updateHeader();
     updateMainContent();
@@ -716,6 +735,12 @@ function updateHeader() {
     const signInBtn = document.getElementById('signInBtn');
     const userMenu = document.getElementById('userMenu');
     const profileBtn = document.getElementById('profileBtn');
+    
+    // Add null checks to prevent errors
+    if (!signInBtn || !userMenu || !profileBtn) {
+        console.warn('⚠️ Header elements not found, skipping header update');
+        return;
+    }
     
     if (currentUser) {
         signInBtn.style.display = 'none';
@@ -743,24 +768,46 @@ function updateHeader() {
 function updateMainContent() {
     const feedElement = document.getElementById('feed');
     
+    if (!feedElement) {
+        console.warn('⚠️ Feed element not found, skipping content update');
+        return;
+    }
+    
     switch (currentPage) {
         case 'feed':
-            renderFeedPage();
+            if (typeof renderFeedPage === 'function') {
+                renderFeedPage();
+            } else {
+                feedElement.innerHTML = '<div class="loading">Loading feed...</div>';
+            }
             break;
         case 'community':
-            renderCommunityPage();
+            if (typeof renderCommunityPage === 'function') {
+                renderCommunityPage();
+            } else {
+                feedElement.innerHTML = '<div class="loading">Loading community...</div>';
+            }
             break;
         case 'admin':
-            renderAdminPage();
+            if (typeof renderAdminPage === 'function') {
+                renderAdminPage();
+            } else {
+                feedElement.innerHTML = '<div class="loading">Loading admin panel...</div>';
+            }
             break;
         default:
-            renderFeedPage();
+            feedElement.innerHTML = '<div class="loading">Loading...</div>';
             break;
     }
 }
 
 function updateComposeButton() {
     const composeBtn = document.getElementById('composeBtn');
+    
+    if (!composeBtn) {
+        console.warn('⚠️ Compose button not found, skipping compose button update');
+        return;
+    }
     
     if (currentUser && (currentPage === 'feed' || currentPage === 'community')) {
         composeBtn.style.display = 'flex';
@@ -884,7 +931,9 @@ function setupEventListeners() {
             
             if (url && url.length > 10) {
                 previewTimeout = setTimeout(() => {
-                    previewMedia(url);
+                    if (typeof previewMedia === 'function') {
+                        previewMedia(url);
+                    }
                 }, 1000); // Debounce for 1 second
             } else {
                 const preview = document.getElementById('mediaPreview');
@@ -900,7 +949,7 @@ function setupEventListeners() {
         const menu = document.getElementById('slideMenu');
         const menuToggle = document.getElementById('menuToggle');
         
-        if (menu.classList.contains('open') && 
+        if (menu && menuToggle && menu.classList.contains('open') && 
             !menu.contains(e.target) && 
             !menuToggle.contains(e.target)) {
             toggleMenu();
@@ -908,40 +957,44 @@ function setupEventListeners() {
     });
 }
 
-// Initialize app - FIXED VERSION
+// FIXED: Initialize app with comprehensive error handling
 document.addEventListener('DOMContentLoaded', async () => {
     console.log('🚀 Starting main app initialization...');
     
     // Set up session monitoring for debugging
     setupSessionMonitoring();
     
-    // Configure marked.js for markdown rendering
-    marked.setOptions({
-        highlight: function(code, lang) {
-            if (lang && hljs.getLanguage(lang)) {
-                return hljs.highlight(code, { language: lang }).value;
-            }
-            return hljs.highlightAuto(code).value;
-        },
-        breaks: true,
-        gfm: true
-    });
-    
-    // Custom renderer for enhanced features
-    markdownRenderer = new marked.Renderer();
-    
-    // Custom link renderer to handle media embeds
-    markdownRenderer.link = function(href, title, text) {
-        const mediaHtml = renderMediaFromUrl(href);
-        if (mediaHtml) return mediaHtml;
+    // Configure marked.js for markdown rendering if available
+    if (typeof marked !== 'undefined') {
+        marked.setOptions({
+            highlight: function(code, lang) {
+                if (typeof hljs !== 'undefined' && lang && hljs.getLanguage(lang)) {
+                    return hljs.highlight(code, { language: lang }).value;
+                }
+                return typeof hljs !== 'undefined' ? hljs.highlightAuto(code).value : code;
+            },
+            breaks: true,
+            gfm: true
+        });
         
-        return `<a href="${href}" target="_blank" rel="noopener noreferrer" ${title ? `title="${title}"` : ''}>${text}</a>`;
-    };
-    
-    // Custom image renderer
-    markdownRenderer.image = function(href, title, text) {
-        return `<img src="${href}" alt="${text || 'Image'}" ${title ? `title="${title}"` : ''} onclick="openImageModal('${href}')" style="cursor: pointer;">`;
-    };
+        // Custom renderer for enhanced features
+        markdownRenderer = new marked.Renderer();
+        
+        // Custom link renderer to handle media embeds
+        markdownRenderer.link = function(href, title, text) {
+            if (typeof renderMediaFromUrl === 'function') {
+                const mediaHtml = renderMediaFromUrl(href);
+                if (mediaHtml) return mediaHtml;
+            }
+            
+            return `<a href="${href}" target="_blank" rel="noopener noreferrer" ${title ? `title="${title}"` : ''}>${text}</a>`;
+        };
+        
+        // Custom image renderer
+        markdownRenderer.image = function(href, title, text) {
+            return `<img src="${href}" alt="${text || 'Image'}" ${title ? `title="${title}"` : ''} onclick="openImageModal('${href}')" style="cursor: pointer;">`;
+        };
+    }
 
     // 🚨 CRITICAL FIX: Properly validate session and restore user state
     console.log('🔍 Checking for existing session...');
@@ -981,8 +1034,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Load data regardless of authentication status
     console.log('📊 Loading application data...');
     
-    await loadCommunities();
-    await loadPosts();
+    try {
+        await loadCommunities();
+        await loadPosts();
+    } catch (error) {
+        console.error('💥 Error loading data:', error);
+    }
     
     // Update UI based on current authentication state
     updateUI();
@@ -991,7 +1048,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Load admin stats if user is admin
     if (currentUser?.profile?.isAdmin) {
         console.log('👑 Loading admin interface...');
-        await loadAdminStats();
+        try {
+            await loadAdminStats();
+        } catch (error) {
+            console.error('💥 Error loading admin stats:', error);
+        }
     }
     
     console.log('✅ Main app initialization complete');
