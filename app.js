@@ -674,6 +674,150 @@ function setupSessionMonitoring() {
     
     console.log('✅ Session monitoring active in main app');
 }
+// Add these missing functions to your app.js file
+// (These are the data loading functions that were in api.js)
+
+async function loadCommunities() {
+    try {
+        const communityKeys = await blobAPI.list('community_');
+        const communityPromises = communityKeys.map(async (key) => {
+            try {
+                return await blobAPI.get(key);
+            } catch (error) {
+                console.error(`Error loading community ${key}:`, error);
+                return null;
+            }
+        });
+        
+        const loadedCommunities = await Promise.all(communityPromises);
+        communities = loadedCommunities
+            .filter(Boolean)
+            .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+        // Update community dropdown in compose modal
+        updateCommunityDropdown();
+        
+    } catch (error) {
+        console.error('Error loading communities:', error);
+        communities = [];
+    }
+}
+
+async function loadPosts() {
+    try {
+        if (!isLoading) {
+            isLoading = true;
+            updateFeedContent('<div class="loading">Loading...</div>');
+        }
+        
+        const postKeys = await blobAPI.list('post_');
+        const postPromises = postKeys.map(async (key) => {
+            try {
+                return await blobAPI.get(key);
+            } catch (error) {
+                console.error(`Error loading post ${key}:`, error);
+                return null;
+            }
+        });
+        
+        const loadedPosts = await Promise.all(postPromises);
+        posts = loadedPosts
+            .filter(Boolean)
+            .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+            
+    } catch (error) {
+        console.error('Error loading posts:', error);
+        posts = [];
+    } finally {
+        isLoading = false;
+    }
+}
+
+async function loadData() {
+    // Wrapper function to load all data
+    await loadCommunities();
+    await loadPosts();
+}
+
+// You'll also need the blobAPI object - add this too:
+const blobAPI = {
+    async get(key) {
+        try {
+            const response = await fetch(`/.netlify/functions/blobs?key=${encodeURIComponent(key)}`, {
+                method: 'GET',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            
+            if (!response.ok) {
+                if (response.status === 404) return null;
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            const result = await response.json();
+            return result.data;
+        } catch (error) {
+            console.error('Error getting blob:', error);
+            return null;
+        }
+    },
+    
+    async set(key, value) {
+        try {
+            const response = await fetch('/.netlify/functions/blobs', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ key, value })
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            return await response.json();
+        } catch (error) {
+            console.error('Error setting blob:', error);
+            throw error;
+        }
+    },
+    
+    async list(prefix = '') {
+        try {
+            const response = await fetch(`/.netlify/functions/blobs?list=true&prefix=${encodeURIComponent(prefix)}`, {
+                method: 'GET',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            const result = await response.json();
+            return result.keys || [];
+        } catch (error) {
+            console.error('Error listing blobs:', error);
+            return [];
+        }
+    },
+    
+    async delete(key) {
+        try {
+            const response = await fetch('/.netlify/functions/blobs', {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ key })
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            return await response.json();
+        } catch (error) {
+            console.error('Error deleting blob:', error);
+            throw error;
+        }
+    }
+};
 
 function setupEventListeners() {
     // Auth form
