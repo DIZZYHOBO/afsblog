@@ -1,6 +1,4 @@
-// COMPREHENSIVE FIX: Replace your current app.js file with this updated version
-
-// app.js - Main application logic and initialization - FIXED VERSION
+// app.js - Main application logic and initialization - Complete Working Version
 
 // App state
 let currentUser = null;
@@ -17,7 +15,7 @@ let followedCommunities = new Set();
 let markdownRenderer = null;
 let previewTimeout = null;
 
-// FIXED: blobAPI object with corrected list method
+// blobAPI object for data operations
 const blobAPI = {
     async get(key) {
         try {
@@ -58,7 +56,6 @@ const blobAPI = {
         }
     },
     
-    // FIXED: Corrected list method to use the right parameter
     async list(prefix = '') {
         try {
             const response = await fetch(`/.netlify/functions/blobs?list=true&prefix=${encodeURIComponent(prefix)}`, {
@@ -119,7 +116,6 @@ function updateMenuContent() {
     const menuLogout = document.getElementById('menuLogout');
     
     if (currentUser) {
-        // Update menu avatar to use profile picture
         if (currentUser.profile?.profilePicture) {
             menuHeader.innerHTML = `
                 <div class="menu-user-info">
@@ -188,7 +184,6 @@ function showInlineLoginForm() {
         </div>
     `;
     
-    // Add form submission handler
     document.getElementById('inlineLoginFormElement').addEventListener('submit', handleInlineLogin);
 }
 
@@ -210,8 +205,6 @@ function navigateToFeed() {
     currentPage = 'feed';
     currentCommunity = null;
     updateUI();
-    
-    // Update URL without page reload
     history.pushState({page: 'feed'}, 'Feed', '/');
 }
 
@@ -219,13 +212,10 @@ function navigateToCommunity(communityName) {
     currentPage = 'community';
     currentCommunity = communities.find(c => c.name === communityName);
     updateUI();
-    
-    // Update URL without page reload
     history.pushState({page: 'community', community: communityName}, `${communityName}`, `/${communityName}`);
 }
 
 function navigateToChat() {
-    // Open chat in new tab/window
     window.open('/chat.html', '_blank');
 }
 
@@ -237,12 +227,10 @@ function navigateToAdmin() {
     
     currentPage = 'admin';
     updateUI();
-    
-    // Update URL without page reload
     history.pushState({page: 'admin'}, 'Admin', '/admin');
 }
 
-// Authentication functions - UPDATED with session token storage
+// Authentication functions
 async function handleAuth(e, mode) {
     e.preventDefault();
     
@@ -272,7 +260,6 @@ async function handleAuth(e, mode) {
         submitBtn.textContent = mode === 'signup' ? 'Creating Account...' : 'Signing In...';
         
         if (mode === 'signup') {
-            // SIGNUP MODE
             console.log('🔐 Attempting signup for user:', username);
             
             const response = await fetch('/api/auth/register', {
@@ -299,7 +286,6 @@ async function handleAuth(e, mode) {
             }
             
         } else {
-            // LOGIN MODE - UPDATED with session token storage
             console.log('🔐 Attempting login for user:', username);
             
             const response = await fetch('/api/auth/login', {
@@ -315,7 +301,6 @@ async function handleAuth(e, mode) {
             if (response.ok && data.success) {
                 console.log('✅ Login successful:', data);
                 
-                // 🚨 CRITICAL FIX: Store the session token in localStorage
                 if (data.token) {
                     console.log('💾 Storing session token in localStorage...');
                     localStorage.setItem('sessionToken', data.token);
@@ -324,9 +309,8 @@ async function handleAuth(e, mode) {
                     console.warn('⚠️ No token received from server');
                 }
                 
-                // Set current user
                 currentUser = data.user;
-                currentUser.profile = data.user; // Ensure profile is available
+                currentUser.profile = data.user;
                 
                 console.log('🎉 User authenticated:', currentUser.username);
                 
@@ -335,10 +319,8 @@ async function handleAuth(e, mode) {
                 await loadData();
                 showSuccess('authError', 'Login successful!');
                 
-                // Load user's followed communities after login
                 await loadFollowedCommunities();
                 
-                // Load admin stats if user is admin
                 if (currentUser?.profile?.isAdmin) {
                     await loadAdminStats();
                 }
@@ -360,7 +342,6 @@ async function handleAuth(e, mode) {
     }
 }
 
-// UPDATED: handleInlineLogin function
 async function handleInlineLogin(e) {
     e.preventDefault();
     
@@ -400,7 +381,6 @@ async function handleInlineLogin(e) {
         if (response.ok && data.success) {
             console.log('✅ Inline login successful:', data);
             
-            // 🚨 CRITICAL: Store the session token in localStorage
             if (data.token) {
                 console.log('💾 Storing session token in localStorage...');
                 localStorage.setItem('sessionToken', data.token);
@@ -409,24 +389,19 @@ async function handleInlineLogin(e) {
                 console.warn('⚠️ No token received from server');
             }
             
-            // Set current user from API response
             currentUser = data.user;
-            currentUser.profile = data.user; // Ensure profile is available
+            currentUser.profile = data.user;
             
             console.log('🎉 User authenticated via inline login:', currentUser.username);
             
-            // Load user's followed communities after login
             await loadFollowedCommunities();
             
-            // Clear the form
             document.getElementById('inlineLoginFormElement').reset();
             
-            // Close menu and update UI
             toggleMenu();
             updateUI();
             showSuccessMessage('Welcome back!');
             
-            // Load admin stats if user is admin
             if (currentUser?.profile?.isAdmin) {
                 await loadAdminStats();
             }
@@ -445,7 +420,6 @@ async function handleInlineLogin(e) {
     }
 }
 
-// Logout function
 async function logout() {
     console.log('🚪 Logging out user...');
     
@@ -453,7 +427,6 @@ async function logout() {
         const token = localStorage.getItem('sessionToken');
         
         if (token) {
-            // Call the logout API to invalidate the session on the server
             await fetch('/api/auth/logout', {
                 method: 'POST',
                 headers: {
@@ -466,20 +439,17 @@ async function logout() {
         console.error('🚨 Logout API call failed:', error);
     }
     
-    // Clear local session data
     localStorage.removeItem('sessionToken');
     currentUser = null;
     followedCommunities = new Set();
     
     console.log('✅ User logged out successfully');
     
-    // Update UI and redirect to feed
     updateUI();
     navigateToFeed();
     showSuccessMessage('Logged out successfully!');
 }
 
-// Session validation function
 async function validateSession() {
     const token = localStorage.getItem('sessionToken');
     
@@ -503,9 +473,8 @@ async function validateSession() {
             const data = await response.json();
             console.log('✅ Session token is valid');
             
-            // 🚨 CRITICAL: Set the current user from the validated session
             currentUser = data.user;
-            currentUser.profile = data.user; // Ensure profile is available
+            currentUser.profile = data.user;
             
             console.log('🎉 User session restored:', currentUser.username);
             return true;
@@ -524,7 +493,6 @@ async function validateSession() {
     }
 }
 
-// Load user's followed communities
 async function loadFollowedCommunities() {
     if (!currentUser) {
         followedCommunities = new Set();
@@ -556,7 +524,6 @@ async function loadFollowedCommunities() {
     }
 }
 
-// Session monitoring
 function setupSessionMonitoring() {
     console.log('🔍 Setting up session monitoring for main app...');
     
@@ -610,7 +577,6 @@ async function loadCommunities() {
 
         console.log('✅ Loaded communities:', communities.length);
         
-        // Update community dropdown in compose modal if it exists
         if (typeof updateCommunityDropdown === 'function') {
             updateCommunityDropdown();
         }
@@ -626,7 +592,6 @@ async function loadPosts() {
         console.log('📄 Loading posts...');
         if (!isLoading) {
             isLoading = true;
-            // Only show loading if feed element exists
             const feedElement = document.getElementById('feed');
             if (feedElement) {
                 feedElement.innerHTML = '<div class="loading">Loading...</div>';
@@ -661,19 +626,16 @@ async function loadPosts() {
 }
 
 async function loadData() {
-    // Wrapper function to load all data
     await loadCommunities();
     await loadPosts();
 }
 
-// Admin stats loading
 async function loadAdminStats() {
     if (!currentUser?.profile?.isAdmin) return;
     
     try {
         console.log('📊 Loading admin statistics...');
         
-        // Load pending users
         const pendingKeys = await blobAPI.list('pending_user_');
         const pendingUsers = [];
         for (const key of pendingKeys) {
@@ -681,7 +643,6 @@ async function loadAdminStats() {
             if (user) pendingUsers.push({...user, key});
         }
         
-        // Load all users
         const userKeys = await blobAPI.list('user_');
         const allUsers = [];
         for (const key of userKeys) {
@@ -689,7 +650,6 @@ async function loadAdminStats() {
             if (user) allUsers.push(user);
         }
         
-        // Calculate stats
         adminData = {
             totalUsers: allUsers.length,
             pendingUsers: pendingUsers.length,
@@ -701,7 +661,6 @@ async function loadAdminStats() {
         
         console.log('✅ Admin stats loaded:', adminData);
         
-        // Update admin UI if on admin page
         if (currentPage === 'admin') {
             updateAdminStatsDisplay();
         }
@@ -724,7 +683,7 @@ function updateAdminStatsDisplay() {
     if (totalCommunitiesEl) totalCommunitiesEl.textContent = adminData.totalCommunities;
 }
 
-// FIXED: UI Update function with null checks
+// UI Update function
 function updateUI() {
     updateHeader();
     updateMainContent();
@@ -736,7 +695,6 @@ function updateHeader() {
     const userMenu = document.getElementById('userMenu');
     const profileBtn = document.getElementById('profileBtn');
     
-    // Add null checks to prevent errors
     if (!signInBtn || !userMenu || !profileBtn) {
         console.warn('⚠️ Header elements not found, skipping header update');
         return;
@@ -746,7 +704,6 @@ function updateHeader() {
         signInBtn.style.display = 'none';
         userMenu.style.display = 'flex';
         
-        // Update profile button with user avatar
         if (currentUser.profile?.profilePicture) {
             profileBtn.innerHTML = `
                 <img src="${currentUser.profile.profilePicture}" 
@@ -822,7 +779,6 @@ function openModal(modalId) {
     if (modal) {
         modal.style.display = 'flex';
         
-        // Auto-focus first input
         const firstInput = modal.querySelector('input[type="text"], input[type="email"], textarea');
         if (firstInput) {
             setTimeout(() => firstInput.focus(), 100);
@@ -835,11 +791,9 @@ function closeModal(modalId) {
     if (modal) {
         modal.style.display = 'none';
         
-        // Clear any error messages
         const errorElements = modal.querySelectorAll('.error-message, .success-message');
         errorElements.forEach(el => el.innerHTML = '');
         
-        // Reset forms
         const forms = modal.querySelectorAll('form');
         forms.forEach(form => form.reset());
     }
@@ -912,6 +866,18 @@ function formatTimeAgo(timestamp) {
 
 // Event listener setup
 function setupEventListeners() {
+    // Auth form event listener - CRITICAL
+    const signupForm = document.getElementById('signupForm');
+    const signinForm = document.getElementById('signinForm');
+    
+    if (signupForm) {
+        signupForm.addEventListener('submit', (e) => handleAuth(e, 'signup'));
+    }
+    
+    if (signinForm) {
+        signinForm.addEventListener('submit', (e) => handleAuth(e, 'signin'));
+    }
+
     // Modal click-outside-to-close
     document.addEventListener('click', (e) => {
         if (e.target.classList.contains('modal')) {
@@ -934,7 +900,7 @@ function setupEventListeners() {
                     if (typeof previewMedia === 'function') {
                         previewMedia(url);
                     }
-                }, 1000); // Debounce for 1 second
+                }, 1000);
             } else {
                 const preview = document.getElementById('mediaPreview');
                 if (preview) {
@@ -957,14 +923,12 @@ function setupEventListeners() {
     });
 }
 
-// FIXED: Initialize app with comprehensive error handling
+// Initialize app
 document.addEventListener('DOMContentLoaded', async () => {
     console.log('🚀 Starting main app initialization...');
     
-    // Set up session monitoring for debugging
     setupSessionMonitoring();
     
-    // Configure marked.js for markdown rendering if available
     if (typeof marked !== 'undefined') {
         marked.setOptions({
             highlight: function(code, lang) {
@@ -977,10 +941,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             gfm: true
         });
         
-        // Custom renderer for enhanced features
         markdownRenderer = new marked.Renderer();
         
-        // Custom link renderer to handle media embeds
         markdownRenderer.link = function(href, title, text) {
             if (typeof renderMediaFromUrl === 'function') {
                 const mediaHtml = renderMediaFromUrl(href);
@@ -990,29 +952,24 @@ document.addEventListener('DOMContentLoaded', async () => {
             return `<a href="${href}" target="_blank" rel="noopener noreferrer" ${title ? `title="${title}"` : ''}>${text}</a>`;
         };
         
-        // Custom image renderer
         markdownRenderer.image = function(href, title, text) {
             return `<img src="${href}" alt="${text || 'Image'}" ${title ? `title="${title}"` : ''} onclick="openImageModal('${href}')" style="cursor: pointer;">`;
         };
     }
 
-    // 🚨 CRITICAL FIX: Properly validate session and restore user state
     console.log('🔍 Checking for existing session...');
     
     try {
-        // First check if we have a session token
         const token = localStorage.getItem('sessionToken');
         
         if (token) {
             console.log('📱 Found session token, validating...');
             
-            // Validate the session and restore user if valid
             const sessionValid = await validateSession();
             
             if (sessionValid && currentUser) {
                 console.log('✅ Session restored successfully for user:', currentUser.username);
                 
-                // Load user's followed communities after successful session restore
                 await loadFollowedCommunities();
                 
                 showSuccessMessage(`Welcome back, ${currentUser.username}!`);
@@ -1027,11 +984,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     } catch (error) {
         console.error('💥 Error during session restoration:', error);
         currentUser = null;
-        // Clear potentially corrupted token
         localStorage.removeItem('sessionToken');
     }
     
-    // Load data regardless of authentication status
     console.log('📊 Loading application data...');
     
     try {
@@ -1041,11 +996,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         console.error('💥 Error loading data:', error);
     }
     
-    // Update UI based on current authentication state
     updateUI();
     setupEventListeners();
     
-    // Load admin stats if user is admin
     if (currentUser?.profile?.isAdmin) {
         console.log('👑 Loading admin interface...');
         try {
