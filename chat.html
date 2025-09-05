@@ -970,38 +970,29 @@
         </div>
     </div>
 
-    <!-- Browse Public Servers Modal -->
+    <!-- Modals -->
     <div class="modal" id="browseServersModal">
         <div class="modal-content">
             <div class="modal-header">
                 <h3 class="modal-title">Browse Public Servers</h3>
                 <button class="close-btn" onclick="closeBrowseServersModal()">&times;</button>
             </div>
-            
             <div class="server-list" id="publicServersList">
-                <div class="loading">
-                    <div class="spinner"></div>
-                </div>
+                <div class="loading"><div class="spinner"></div></div>
             </div>
         </div>
     </div>
 
-    <!-- Join Server Modal -->
     <div class="modal" id="joinServerModal">
         <div class="modal-content">
             <div class="modal-header">
                 <h3 class="modal-title">Join Server</h3>
                 <button class="close-btn" onclick="closeJoinServerModal()">&times;</button>
             </div>
-            
             <div class="form-group">
                 <label for="serverIdInput">Server Code</label>
-                <input type="text" id="serverIdInput" class="form-control" placeholder="Enter server code (e.g., ABC123)" maxlength="100" onkeydown="handleJoinServerKeyDown(event)">
-                <small style="color: #96989d; margin-top: 4px; display: block;">
-                    Ask a server member for the server code or get it from the server's share option.
-                </small>
+                <input type="text" id="serverIdInput" class="form-control" placeholder="Enter server code" maxlength="100" onkeydown="handleJoinServerKeyDown(event)">
             </div>
-            
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" onclick="closeJoinServerModal()">Cancel</button>
                 <button type="button" class="btn btn-primary" onclick="joinServerSubmit()">Join Server</button>
@@ -1009,40 +1000,26 @@
         </div>
     </div>
 
-    <!-- Create Server Modal -->
     <div class="modal" id="createServerModal">
         <div class="modal-content">
             <div class="modal-header">
                 <h3 class="modal-title">Create Server</h3>
                 <button class="close-btn" onclick="closeCreateServerModal()">&times;</button>
             </div>
-            
             <div class="form-group">
                 <label for="serverNameInput">Server Name</label>
                 <input type="text" id="serverNameInput" class="form-control" placeholder="Enter server name" maxlength="50">
             </div>
-            
             <div class="form-group">
                 <label for="serverDescriptionInput">Description</label>
-                <textarea 
-                    id="serverDescriptionInput" 
-                    class="form-control" 
-                    placeholder="Describe your server..."
-                    rows="3"
-                    maxlength="200"
-                ></textarea>
+                <textarea id="serverDescriptionInput" class="form-control" placeholder="Describe your server..." rows="3" maxlength="200"></textarea>
             </div>
-            
             <div class="form-group">
                 <div class="checkbox-wrapper">
                     <input type="checkbox" id="serverPrivateInput" class="checkbox" />
                     <label class="checkbox-label" for="serverPrivateInput">Private Server</label>
                 </div>
-                <small style="color: #96989d; margin-top: 4px; display: block;">
-                    Private servers can only be joined with a share code and won't appear in public listings.
-                </small>
             </div>
-            
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" onclick="closeCreateServerModal()">Cancel</button>
                 <button type="button" class="btn btn-primary" onclick="createServerSubmit()">Create Server</button>
@@ -1050,26 +1027,19 @@
         </div>
     </div>
 
-    <!-- Share Code Modal -->
     <div class="modal" id="shareCodeModal">
         <div class="modal-content">
             <div class="modal-header">
                 <h3 class="modal-title">Share Server</h3>
                 <button class="close-btn" onclick="closeShareCodeModal()">&times;</button>
             </div>
-            
             <div style="text-align: center;">
                 <h4 id="shareServerName" style="margin-bottom: 16px;">Server Name</h4>
-                <p style="color: var(--text-muted); margin-bottom: 16px;">Share this code with others to let them join your server:</p>
-                
+                <p style="color: var(--text-muted); margin-bottom: 16px;">Share this code with others:</p>
                 <div class="share-code">
                     <span id="shareCodeText">Loading...</span>
                     <button class="copy-btn" onclick="copyShareCode()">Copy</button>
                 </div>
-                
-                <p style="color: var(--text-muted); font-size: 12px; margin-top: 8px;">
-                    This code never expires and can be used multiple times.
-                </p>
             </div>
         </div>
     </div>
@@ -1086,7 +1056,7 @@
         let publicServers = [];
         let lastActivity = Date.now();
 
-        // Ultra-Fast Polling Chat Manager
+        // Fixed Chat Manager
         class ChatManager {
             constructor() {
                 this.lastMessageTimestamp = null;
@@ -1094,13 +1064,15 @@
                 this.connectionState = 'disconnected';
                 this.retryCount = 0;
                 this.maxRetries = 5;
-                this.baseDelay = 200; // Ultra-fast base polling
+                this.baseDelay = 500;
                 this.currentDelay = this.baseDelay;
                 this.isActive = true;
                 this.pendingMessages = new Map();
                 this.roomId = null;
                 this.consecutiveEmptyPolls = 0;
                 this.maxEmptyPolls = 10;
+                this.processedMessageIds = new Set();
+                this.messageHistory = new Map();
             }
 
             startRealTimeUpdates(roomId) {
@@ -1109,13 +1081,13 @@
                 this.connectionState = 'connecting';
                 this.updateConnectionStatus();
                 this.consecutiveEmptyPolls = 0;
+                this.processedMessageIds.clear();
+                this.messageHistory.clear();
+                this.lastMessageTimestamp = null;
                 
-                console.log(`🚀 Starting ultra-fast updates for room ${roomId}`);
+                console.log(`🚀 Starting updates for room ${roomId}`);
                 
-                // Immediate first poll
                 this.pollForMessages();
-                
-                // Start ultra-fast polling
                 this.pollingInterval = setInterval(() => {
                     this.pollForMessages();
                 }, this.currentDelay);
@@ -1126,7 +1098,8 @@
 
                 try {
                     const params = new URLSearchParams();
-                    if (this.lastMessageTimestamp) {
+                    
+                    if (this.lastMessageTimestamp && this.processedMessageIds.size > 0) {
                         params.append('after', this.lastMessageTimestamp);
                         params.append('limit', '20');
                     } else {
@@ -1149,9 +1122,6 @@
                     
                     if (data.success && data.messages?.length > 0) {
                         this.handleNewMessages(data.messages);
-                        this.optimizePollingSpeed(true);
-                        this.resetRetryCount();
-                        this.consecutiveEmptyPolls = 0;
                     } else {
                         this.consecutiveEmptyPolls++;
                         this.optimizePollingSpeed(false);
@@ -1159,6 +1129,7 @@
 
                     this.connectionState = 'connected';
                     this.updateConnectionStatus();
+                    this.resetRetryCount();
                     
                 } catch (error) {
                     console.error('💥 Polling error:', error);
@@ -1167,53 +1138,78 @@
             }
 
             handleNewMessages(messages) {
+                if (!messages || messages.length === 0) return;
+
                 const wasAtBottom = isAtBottom();
+                let newMessagesCount = 0;
+                let latestTimestamp = this.lastMessageTimestamp;
                 
-                // Update last timestamp
-                this.lastMessageTimestamp = messages[messages.length - 1].createdAt;
-                
-                // Add to global messages array
-                chatMessages = [...chatMessages, ...messages];
-                
-                // Render and handle UI
+                // Filter out duplicates
+                const newMessages = messages.filter(message => {
+                    if (this.processedMessageIds.has(message.id)) {
+                        return false;
+                    }
+                    
+                    const exists = chatMessages.some(existingMsg => existingMsg.id === message.id);
+                    if (exists) {
+                        this.processedMessageIds.add(message.id);
+                        return false;
+                    }
+                    
+                    return true;
+                });
+
+                if (newMessages.length === 0) {
+                    this.consecutiveEmptyPolls++;
+                    this.optimizePollingSpeed(false);
+                    return;
+                }
+
+                // Add new messages
+                for (const message of newMessages) {
+                    chatMessages.push(message);
+                    this.processedMessageIds.add(message.id);
+                    this.messageHistory.set(message.id, message.createdAt);
+                    
+                    if (!latestTimestamp || message.createdAt > latestTimestamp) {
+                        latestTimestamp = message.createdAt;
+                    }
+                    
+                    newMessagesCount++;
+                }
+
+                this.lastMessageTimestamp = latestTimestamp;
+                this.consecutiveEmptyPolls = 0;
+                this.optimizePollingSpeed(true);
+
                 renderMessages();
                 
                 if (wasAtBottom) {
                     scrollToBottom();
                 }
                 
-                // Flash notification if not active
                 if (!this.isActive) {
-                    this.flashNotification(messages.length);
+                    this.flashNotification(newMessagesCount);
                 }
                 
-                console.log(`✅ Received ${messages.length} new messages`);
+                console.log(`✅ Received ${newMessagesCount} new messages`);
             }
 
             optimizePollingSpeed(hasActivity) {
                 const timeSinceActivity = Date.now() - lastActivity;
                 
                 if (hasActivity) {
-                    // Messages flowing - poll ultra-fast
-                    this.currentDelay = 200;
-                } else if (timeSinceActivity < 5000) {
-                    // User very active - poll very fast
                     this.currentDelay = 300;
                 } else if (timeSinceActivity < 30000) {
-                    // User active recently - poll fast
                     this.currentDelay = 500;
                 } else if (timeSinceActivity < 120000) {
-                    // User somewhat active - medium polling
                     this.currentDelay = 1000;
                 } else if (this.consecutiveEmptyPolls > this.maxEmptyPolls) {
-                    // No activity for a while - slow polling
-                    this.currentDelay = 3000;
+                    this.currentDelay = 2000;
                 } else {
-                    // Default medium speed
                     this.currentDelay = 1000;
                 }
                 
-                // Restart interval with new delay if changed
                 if (this.pollingInterval) {
                     clearInterval(this.pollingInterval);
                     this.pollingInterval = setInterval(() => {
@@ -1228,9 +1224,8 @@
                 this.retryCount++;
                 
                 if (this.retryCount < this.maxRetries) {
-                    // Exponential backoff
                     const retryDelay = Math.min(1000 * Math.pow(2, this.retryCount), 10000);
-                    console.log(`🔄 Retrying in ${retryDelay}ms (attempt ${this.retryCount})`);
+                    console.log(`🔄 Retrying in ${retryDelay}ms`);
                     
                     setTimeout(() => {
                         this.connectionState = 'connecting';
@@ -1238,9 +1233,9 @@
                         this.pollForMessages();
                     }, retryDelay);
                 } else {
-                    console.error('❌ Max retries reached, stopping real-time updates');
+                    console.error('❌ Max retries reached');
                     this.stopRealTimeUpdates();
-                    showErrorMessage('Lost connection to chat. Please refresh to reconnect.');
+                    showErrorMessage('Connection lost. Please refresh.');
                 }
             }
 
@@ -1252,9 +1247,6 @@
                 this.isActive = active;
                 if (active) {
                     lastActivity = Date.now();
-                    this.optimizePollingSpeed(false);
-                    
-                    // Force immediate poll when becoming active
                     if (this.roomId && this.connectionState === 'connected') {
                         this.pollForMessages();
                     }
@@ -1263,20 +1255,11 @@
 
             flashNotification(messageCount) {
                 const originalTitle = document.title;
-                document.title = `💬 ${messageCount} New Messages - AFS Chat`;
+                document.title = `💬 ${messageCount} New - AFS Chat`;
                 
                 setTimeout(() => {
                     document.title = originalTitle;
                 }, 3000);
-                
-                // Browser notification if supported
-                if ('Notification' in window && Notification.permission === 'granted') {
-                    new Notification(`${messageCount} new message${messageCount > 1 ? 's' : ''} in chat`, {
-                        icon: '/favicon.ico',
-                        badge: '/favicon.ico',
-                        tag: 'chat-notification'
-                    });
-                }
             }
 
             updateConnectionStatus() {
@@ -1306,7 +1289,7 @@
                 this.updateConnectionStatus();
                 this.retryCount = 0;
                 this.consecutiveEmptyPolls = 0;
-                console.log('⏹️ Stopped real-time updates');
+                console.log('⏹️ Stopped updates');
             }
 
             async sendMessage(content) {
@@ -1320,15 +1303,11 @@
                     pending: true
                 };
 
-                // Add to pending messages map
                 this.pendingMessages.set(messageId, optimisticMessage);
-                
-                // Add to UI immediately
                 chatMessages.push(optimisticMessage);
                 renderMessages();
                 scrollToBottom();
 
-                // Track activity
                 lastActivity = Date.now();
                 
                 try {
@@ -1348,20 +1327,23 @@
                     const data = await response.json();
                     
                     if (data.success) {
-                        // Remove optimistic message and replace with real one
-                        chatMessages = chatMessages.filter(m => m.id !== messageId);
+                        const tempIndex = chatMessages.findIndex(m => m.id === messageId);
+                        if (tempIndex !== -1) {
+                            chatMessages.splice(tempIndex, 1);
+                        }
+                        
                         chatMessages.push(data.message);
+                        this.processedMessageIds.add(data.message.id);
                         this.lastMessageTimestamp = data.message.createdAt;
                         this.pendingMessages.delete(messageId);
                         
                         renderMessages();
                         scrollToBottom();
                         
-                        // Speed up polling briefly for rapid responses
-                        this.currentDelay = 200;
+                        this.currentDelay = 300;
                         this.consecutiveEmptyPolls = 0;
                         
-                        console.log('✅ Message sent successfully');
+                        console.log('✅ Message sent');
                     } else {
                         throw new Error(data.error || 'Failed to send message');
                     }
@@ -1369,7 +1351,6 @@
                 } catch (error) {
                     console.error('💥 Error sending message:', error);
                     
-                    // Mark message as failed instead of removing
                     const messageIndex = chatMessages.findIndex(m => m.id === messageId);
                     if (messageIndex !== -1) {
                         chatMessages[messageIndex].pending = false;
@@ -1381,49 +1362,34 @@
                     throw error;
                 }
             }
-
-            getConnectionStatus() {
-                return {
-                    state: this.connectionState,
-                    delay: this.currentDelay,
-                    retries: this.retryCount,
-                    pendingCount: this.pendingMessages.size,
-                    emptyPolls: this.consecutiveEmptyPolls
-                };
-            }
         }
 
-        // Initialize chat manager
         const chatManager = new ChatManager();
 
-        // Initialize the chat app
+        // Initialize app
         function initializeApp() {
             console.log('🚀 Initializing chat app...');
             
-            // Request notification permission
             if ('Notification' in window && Notification.permission === 'default') {
                 Notification.requestPermission();
             }
             
-            // Check for existing session from main app
             const token = getSessionToken();
             if (token) {
-                console.log('📱 Found existing session token from main app, checking validity...');
+                console.log('📱 Found session token, checking validity...');
                 checkSessionToken();
             } else {
-                console.log('❌ No session token found, showing auth required screen');
+                console.log('❌ No session token found');
                 showAuthRequired();
             }
         }
 
-        // Get session token from localStorage (shared with main app)
         function getSessionToken() {
             const sessionToken = localStorage.getItem('sessionToken');
             console.log('🔑 Getting session token:', sessionToken ? 'Token exists' : 'No token');
             return sessionToken;
         }
 
-        // Check if the session token is valid using the main app's auth endpoint
         async function checkSessionToken() {
             console.log('🔍 Checking session token validity...');
             
@@ -1443,7 +1409,6 @@
             }
 
             try {
-                // Use the API endpoint to validate the token
                 const response = await fetch('/.netlify/functions/api/profile', {
                     method: 'GET',
                     headers: {
@@ -1492,7 +1457,6 @@
             }
         }
 
-        // Show the auth required screen
         function showAuthRequired() {
             console.log('🔒 Showing auth required screen');
             document.getElementById('authRequired').style.display = 'flex';
@@ -1500,24 +1464,20 @@
             chatManager.stopRealTimeUpdates();
         }
 
-        // Show the main chat application
         function showChatApp() {
             console.log('💬 Showing chat app');
             document.getElementById('authRequired').style.display = 'none';
             document.getElementById('chatApp').style.display = 'flex';
             
-            // Initialize chat data
             loadUserProfile();
             loadUserServers();
             
-            // Start periodic session check
             if (sessionCheckInterval) {
                 clearInterval(sessionCheckInterval);
             }
-            sessionCheckInterval = setInterval(checkSessionToken, 5 * 60 * 1000); // Check every 5 minutes
+            sessionCheckInterval = setInterval(checkSessionToken, 5 * 60 * 1000);
         }
 
-        // Handle logout
         function handleLogout() {
             console.log('👋 Handling logout');
             currentUser = null;
@@ -1528,7 +1488,6 @@
             chatMessages = [];
             publicServers = [];
             
-            // Stop chat manager
             chatManager.stopRealTimeUpdates();
             
             if (sessionCheckInterval) {
@@ -1539,19 +1498,16 @@
             showAuthRequired();
         }
 
-        // Redirect to main app login
         function redirectToLogin() {
             console.log('🔄 Redirecting to main app');
             window.location.href = '/';
         }
 
-        // Load user profile information
         async function loadUserProfile() {
             if (!currentUser) return;
             
             console.log('👤 Loading user profile for:', currentUser.username);
             
-            // Update UI with user info
             const userNameEl = document.getElementById('userName');
             const userAvatarEl = document.getElementById('userAvatar');
             
@@ -1564,7 +1520,6 @@
             }
         }
 
-        // Load user's servers
         async function loadUserServers() {
             if (!currentUser) return;
             
@@ -1601,7 +1556,6 @@
             }
         }
 
-        // Load public servers
         async function loadPublicServers() {
             console.log('🌐 Loading public servers...');
             
@@ -1636,7 +1590,6 @@
             }
         }
 
-        // Render the servers list
         function renderServersList() {
             const serversListEl = document.getElementById('serversList');
             if (!serversListEl) return;
@@ -1659,7 +1612,6 @@
             `).join('');
         }
 
-        // Render public servers list
         function renderPublicServersList() {
             const publicServersListEl = document.getElementById('publicServersList');
             if (!publicServersListEl) return;
@@ -1693,7 +1645,6 @@
             }).join('');
         }
 
-        // Select a server
         async function selectServer(serverId) {
             console.log('🏠 Selecting server:', serverId);
             
@@ -1706,27 +1657,20 @@
             currentServer = server;
             currentRoom = null;
             
-            // Stop current chat updates
             chatManager.stopRealTimeUpdates();
             
-            // Update UI
             document.getElementById('currentServerName').textContent = server.name;
-            renderServersList(); // Re-render to show active state
-            
-            // Show server actions
+            renderServersList();
             document.getElementById('serverActions').style.display = 'flex';
             
-            // Load server rooms
             await loadServerRooms(serverId);
         }
 
-        // Select server from browse modal
         function selectServerFromBrowse(serverId) {
             closeBrowseServersModal();
             selectServer(serverId);
         }
 
-        // Join public server
         async function joinPublicServer(serverId) {
             console.log('🚀 Joining public server:', serverId);
             
@@ -1750,11 +1694,8 @@
                     console.log('✅ Successfully joined public server');
                     showSuccessMessage('Successfully joined server!');
                     
-                    // Refresh both lists
                     await loadUserServers();
                     await loadPublicServers();
-                    
-                    // Select the newly joined server
                     selectServer(serverId);
                 } else {
                     throw new Error(data.error || 'Failed to join server');
@@ -1765,7 +1706,6 @@
             }
         }
 
-        // Load rooms for a server
         async function loadServerRooms(serverId) {
             console.log('📋 Loading rooms for server:', serverId);
             
@@ -1800,7 +1740,6 @@
             }
         }
 
-        // Render the rooms list
         function renderRoomsList() {
             const roomsListEl = document.getElementById('roomsList');
             if (!roomsListEl) return;
@@ -1824,7 +1763,6 @@
             `).join('');
         }
 
-        // Select a room/channel (with ultra-fast polling)
         async function selectRoom(roomId) {
             console.log('📋 Selecting room:', roomId);
             
@@ -1834,26 +1772,19 @@
                 return;
             }
             
-            // Stop current updates
             chatManager.stopRealTimeUpdates();
             
-            // Clear previous room data
-            chatMessages = [];
+            chatMessages.length = 0;
             currentRoom = room;
             
-            // Update UI
             document.getElementById('chatRoomName').textContent = room.name;
-            renderRoomsList(); // Re-render to show active state
+            renderRoomsList();
             
-            // Load initial messages
-            await loadRoomMessages(roomId, false);
-            
-            // Start ultra-fast real-time updates
+            await loadRoomMessages(roomId);
             chatManager.startRealTimeUpdates(roomId);
         }
 
-        // Load messages for a room
-        async function loadRoomMessages(roomId, isPolling = false) {
+        async function loadRoomMessages(roomId) {
             console.log('💬 Loading messages for room:', roomId);
             
             try {
@@ -1875,63 +1806,60 @@
                 const data = await response.json();
                 
                 if (data.success) {
-                    // Replace all messages with fresh data (no duplicates)
-                    chatMessages = data.messages || [];
+                    chatMessages.length = 0;
+                    chatMessages.push(...(data.messages || []));
+                    
                     if (chatMessages.length > 0) {
-                        // Initialize tracking with all existing messages
                         chatManager.processedMessageIds.clear();
+                        chatManager.messageHistory.clear();
+                        
                         chatMessages.forEach(message => {
                             chatManager.processedMessageIds.add(message.id);
+                            chatManager.messageHistory.set(message.id, message.createdAt);
                         });
                         
-                        // Find the newest message for timestamp tracking
                         const newestMessage = chatMessages.reduce((newest, current) => {
                             const newestTime = new Date(newest.createdAt).getTime();
                             const currentTime = new Date(current.createdAt).getTime();
                             return currentTime > newestTime ? current : newest;
                         });
                         chatManager.lastMessageTimestamp = newestMessage.createdAt;
-                        chatManager.lastProcessedMessageId = newestMessage.id;
-                        console.log(`🕐 Set initial tracking - timestamp: ${chatManager.lastMessageTimestamp}, lastId: ${chatManager.lastProcessedMessageId}`);
+                        console.log(`🕐 Set initial tracking - timestamp: ${chatManager.lastMessageTimestamp}`);
                     } else {
                         chatManager.lastMessageTimestamp = null;
-                        chatManager.lastProcessedMessageId = null;
                         chatManager.processedMessageIds.clear();
+                        chatManager.messageHistory.clear();
                     }
                     
                     console.log('✅ Loaded messages:', chatMessages.length);
                     renderMessages();
                     
-                    // Always scroll to bottom on initial load
                     setTimeout(() => {
                         scrollToBottom();
                     }, 100);
                 } else {
                     console.error('❌ Failed to load messages:', data.error);
-                    chatMessages = [];
+                    chatMessages.length = 0;
                     renderMessages();
                 }
             } catch (error) {
                 console.error('💥 Error loading messages:', error);
-                chatMessages = [];
+                chatMessages.length = 0;
                 renderMessages();
             }
         }
 
-        // Check if user is at bottom of messages
         function isAtBottom() {
             const container = document.getElementById('messagesContainer');
-            const threshold = 100; // pixels from bottom
+            const threshold = 100;
             return container.scrollTop >= (container.scrollHeight - container.clientHeight - threshold);
         }
 
-        // Scroll to bottom of messages
         function scrollToBottom() {
             const container = document.getElementById('messagesContainer');
             container.scrollTop = container.scrollHeight;
         }
 
-        // Render messages (with pending and failed states)
         function renderMessages() {
             const messagesWrapper = document.getElementById('messagesWrapper');
             if (!messagesWrapper) return;
@@ -1946,7 +1874,6 @@
                 return;
             }
             
-            // Sort messages by timestamp (oldest first, newest at bottom)
             const sortedMessages = [...chatMessages].sort((a, b) => {
                 const timeA = new Date(a.createdAt || a.timestamp).getTime();
                 const timeB = new Date(b.createdAt || b.timestamp).getTime();
@@ -1983,7 +1910,6 @@
             }).join('');
         }
 
-        // Format timestamp
         function formatTimestamp(timestamp) {
             const date = new Date(timestamp);
             const now = new Date();
@@ -1999,14 +1925,12 @@
             }
         }
 
-        // Escape HTML to prevent XSS
         function escapeHtml(text) {
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
         }
 
-        // Handle message input
         function handleMessageKeyDown(event) {
             if (event.key === 'Enter' && !event.shiftKey) {
                 event.preventDefault();
@@ -2014,7 +1938,6 @@
             }
         }
 
-        // Send a message (using ultra-fast chat manager)
         async function sendMessage() {
             if (!currentRoom || !currentUser) {
                 console.log('❌ Cannot send message: no room or user');
@@ -2031,19 +1954,17 @@
             
             console.log('📤 Sending message:', content);
             
-            // Clear input immediately
             messageInput.value = '';
             
             try {
                 await chatManager.sendMessage(content);
             } catch (error) {
-                // Restore message on error
                 messageInput.value = content;
                 showErrorMessage('Failed to send message. Please try again.');
             }
         }
 
-        // Browse Servers Modal Functions
+        // Modal Functions
         function openBrowseServersModal() {
             console.log('🌐 Opening browse servers modal...');
             document.getElementById('browseServersModal').style.display = 'flex';
@@ -2055,11 +1976,9 @@
             document.getElementById('browseServersModal').style.display = 'none';
         }
 
-        // Join Server Modal Functions
         function openJoinServerModal() {
             console.log('🔍 Opening join server modal...');
             document.getElementById('joinServerModal').style.display = 'flex';
-            // Focus on the input field
             setTimeout(() => {
                 document.getElementById('serverIdInput').focus();
             }, 100);
@@ -2068,7 +1987,6 @@
         function closeJoinServerModal() {
             console.log('❌ Closing join server modal...');
             document.getElementById('joinServerModal').style.display = 'none';
-            // Clear form
             document.getElementById('serverIdInput').value = '';
         }
 
@@ -2118,10 +2036,8 @@
                     showSuccessMessage('Successfully joined server!');
                     closeJoinServerModal();
                     
-                    // Refresh server list
                     await loadUserServers();
                     
-                    // Try to select the newly joined server by finding it in the list
                     const joinedServer = userServers.find(s => s.id === serverId);
                     if (joinedServer) {
                         selectServer(joinedServer.id);
@@ -2136,7 +2052,6 @@
             }
         }
 
-        // Create Server Modal Functions
         function openCreateServerModal() {
             console.log('🏠 Opening create server modal...');
             document.getElementById('createServerModal').style.display = 'flex';
@@ -2145,7 +2060,6 @@
         function closeCreateServerModal() {
             console.log('❌ Closing create server modal...');
             document.getElementById('createServerModal').style.display = 'none';
-            // Clear form
             document.getElementById('serverNameInput').value = '';
             document.getElementById('serverDescriptionInput').value = '';
             document.getElementById('serverPrivateInput').checked = false;
@@ -2194,7 +2108,6 @@
                     showSuccessMessage(`Server "${name}" created successfully!`);
                     closeCreateServerModal();
                     
-                    // Refresh server list and select the new server
                     await loadUserServers();
                     selectServer(data.server.id);
                 } else {
@@ -2207,7 +2120,6 @@
             }
         }
 
-        // Create room modal
         function openCreateRoomModal() {
             if (!currentServer) {
                 showErrorMessage('Please select a server first');
@@ -2220,7 +2132,6 @@
             }
         }
 
-        // Create a room/channel
         async function createRoom(roomName) {
             if (!currentServer) {
                 showErrorMessage('No server selected');
@@ -2253,7 +2164,6 @@
                     console.log('✅ Room created successfully:', data.room.id);
                     showSuccessMessage(`Channel "${roomName}" created successfully!`);
                     
-                    // Refresh rooms list and select the new room
                     await loadServerRooms(currentServer.id);
                     selectRoom(data.room.id);
                 } else {
@@ -2266,7 +2176,6 @@
             }
         }
 
-        // Share Code Functions
         function showShareCode(event) {
             event.stopPropagation();
             
@@ -2312,22 +2221,19 @@
             
             try {
                 const successful = document.execCommand('copy');
-                const msg = successful ? 'successful' : 'unsuccessful';
-                console.log('Fallback: Copying text command was ' + msg);
                 if (successful) {
                     showSuccessMessage('Server code copied to clipboard!');
                 } else {
                     showErrorMessage('Failed to copy server code');
                 }
             } catch (err) {
-                console.error('Fallback: Oops, unable to copy', err);
+                console.error('Fallback: Unable to copy', err);
                 showErrorMessage('Failed to copy server code');
             }
             
             document.body.removeChild(textArea);
         }
 
-        // Server Info Functions
         function showServerInfo(event) {
             event.stopPropagation();
             
@@ -2348,7 +2254,6 @@ Created: ${currentServer.createdAt ? new Date(currentServer.createdAt).toLocaleD
             alert(info);
         }
 
-        // Mobile channel toggle
         function toggleMobileChannels() {
             const channelsWrapper = document.getElementById('channelsWrapper');
             if (channelsWrapper) {
@@ -2356,7 +2261,6 @@ Created: ${currentServer.createdAt ? new Date(currentServer.createdAt).toLocaleD
             }
         }
 
-        // Show success message
         function showSuccessMessage(message) {
             const messageEl = document.createElement('div');
             messageEl.className = 'message-success';
@@ -2374,7 +2278,6 @@ Created: ${currentServer.createdAt ? new Date(currentServer.createdAt).toLocaleD
             }, 5000);
         }
 
-        // Show error message
         function showErrorMessage(message) {
             const messageEl = document.createElement('div');
             messageEl.className = 'message-error';
@@ -2392,45 +2295,38 @@ Created: ${currentServer.createdAt ? new Date(currentServer.createdAt).toLocaleD
             }, 5000);
         }
 
-        // Activity tracking for ultra-fast polling optimization
         function trackUserActivity() {
             lastActivity = Date.now();
             chatManager.setActive(true);
         }
 
-        // Enhanced visibility change handling
+        // Event Listeners
         document.addEventListener('visibilitychange', function() {
             const isActive = !document.hidden;
             chatManager.setActive(isActive);
             
             if (isActive && currentRoom) {
-                // Force immediate poll when returning to tab
                 console.log('🔄 User returned to tab, forcing immediate poll');
                 chatManager.pollForMessages();
             }
         });
 
-        // Activity event listeners for adaptive polling
         ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'].forEach(event => {
             document.addEventListener(event, trackUserActivity, { passive: true });
         });
 
-        // Initialize app when page loads
         document.addEventListener('DOMContentLoaded', initializeApp);
-        
-        // Handle browser back/forward
+
         window.addEventListener('popstate', function(event) {
             // Handle navigation if needed
         });
 
-        // Monitor localStorage changes from main app
         window.addEventListener('storage', function(e) {
             console.log('🔄 Storage event detected:', e.key, e.newValue ? 'Set' : 'Removed');
             
             if (e.key === 'sessionToken') {
                 if (e.newValue) {
                     console.log('🎉 New session token detected from main app');
-                    // Small delay to let main app finish its setup
                     setTimeout(() => {
                         checkSessionToken();
                     }, 1000);
@@ -2441,7 +2337,6 @@ Created: ${currentServer.createdAt ? new Date(currentServer.createdAt).toLocaleD
             }
         });
 
-        // Debug function to show connection status (optional)
         function showConnectionStatus() {
             const status = chatManager.getConnectionStatus();
             console.log('🔌 Connection Status:', {
@@ -2449,11 +2344,12 @@ Created: ${currentServer.createdAt ? new Date(currentServer.createdAt).toLocaleD
                 delay: `${status.delay}ms`,
                 retries: status.retries,
                 pending: status.pendingCount,
-                emptyPolls: status.emptyPolls
+                emptyPolls: status.emptyPolls,
+                processedCount: status.processedCount
             });
         }
 
-        // Optional: Add to window for debugging
+        // Debug access
         window.chatManager = chatManager;
         window.showConnectionStatus = showConnectionStatus;
     </script>
