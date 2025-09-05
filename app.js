@@ -1,4 +1,4 @@
-// app.js - Main application logic and initialization - Complete Working Version with UI
+// app.js - Main application logic and initialization - Fixed for Your HTML Structure
 
 // App state
 let currentUser = null;
@@ -111,10 +111,10 @@ function renderFeedPage() {
                 <h2>Welcome to AFS</h2>
                 <p>Sign in to view posts and join communities.</p>
                 <div class="login-required-buttons">
-                    <button class="btn" onclick="openModal('authModal'); setAuthMode('signin')">
+                    <button class="btn" onclick="openAuthModal('signin')">
                         Sign In
                     </button>
-                    <button class="btn btn-secondary" onclick="openModal('authModal'); setAuthMode('signup')">
+                    <button class="btn btn-secondary" onclick="openAuthModal('signup')">
                         Sign Up
                     </button>
                 </div>
@@ -272,7 +272,7 @@ function renderPostList(postArray) {
                             </div>
                         ` : `
                             <div style="text-align: center; padding: 16px; color: var(--fg-muted); font-size: 13px;">
-                                <a href="#" onclick="openModal('authModal'); setAuthMode('signin'); return false;">Sign in</a> to reply
+                                <a href="#" onclick="openAuthModal('signin'); return false;">Sign in</a> to reply
                             </div>
                         `}
                     </div>
@@ -406,6 +406,12 @@ function switchFeedTab(tab) {
 function toggleMenu() {
     const menu = document.getElementById('slideMenu');
     const overlay = document.getElementById('menuOverlay');
+    
+    if (!menu || !overlay) {
+        console.warn('Menu elements not found');
+        return;
+    }
+    
     const isOpen = menu.classList.contains('open');
     
     if (isOpen) {
@@ -421,6 +427,11 @@ function toggleMenu() {
 function updateMenuContent() {
     const menuHeader = document.getElementById('menuHeader');
     const menuLogout = document.getElementById('menuLogout');
+    
+    if (!menuHeader) {
+        console.warn('Menu header not found');
+        return;
+    }
     
     if (currentUser) {
         if (currentUser.profile?.profilePicture) {
@@ -450,7 +461,9 @@ function updateMenuContent() {
             `;
         }
         
-        menuLogout.style.display = 'block';
+        if (menuLogout) {
+            menuLogout.style.display = 'block';
+        }
     } else {
         menuHeader.innerHTML = `
             <div class="menu-guest-info">
@@ -461,49 +474,10 @@ function updateMenuContent() {
                 </div>
             </div>
         `;
-        menuLogout.style.display = 'none';
-    }
-}
-
-function showInlineLoginForm() {
-    inlineLoginFormOpen = true;
-    const menuContent = document.getElementById('menuContent');
-    
-    menuContent.innerHTML = `
-        <div class="inline-login-form">
-            <h3>Sign In</h3>
-            <form id="inlineLoginFormElement">
-                <div class="form-group">
-                    <input type="text" id="inlineUsername" placeholder="Username" required>
-                </div>
-                <div class="form-group">
-                    <input type="password" id="inlinePassword" placeholder="Password" required>
-                </div>
-                <div class="form-group">
-                    <button type="submit" id="inlineLoginBtn" class="btn btn-primary">Sign In</button>
-                </div>
-            </form>
-            <div id="inlineLoginError" class="error-message"></div>
-            <div class="form-footer">
-                <p>Don't have an account? <a href="#" onclick="openModal('authModal'); setAuthMode('signup'); toggleMenu();">Sign up</a></p>
-                <p><a href="#" onclick="hideInlineLoginForm()">Cancel</a></p>
-            </div>
-        </div>
-    `;
-    
-    document.getElementById('inlineLoginFormElement').addEventListener('submit', handleInlineLogin);
-}
-
-function hideInlineLoginForm() {
-    inlineLoginFormOpen = false;
-    updateMenuContent();
-}
-
-function showInlineError(message) {
-    const errorDiv = document.getElementById('inlineLoginError');
-    if (errorDiv) {
-        errorDiv.textContent = message;
-        errorDiv.style.display = 'block';
+        
+        if (menuLogout) {
+            menuLogout.style.display = 'none';
+        }
     }
 }
 
@@ -537,17 +511,26 @@ function navigateToAdmin() {
     history.pushState({page: 'admin'}, 'Admin', '/admin');
 }
 
-// Authentication functions
-async function handleAuth(e, mode) {
+// FIXED: Authentication functions to work with your HTML structure
+async function handleAuth(e) {
     e.preventDefault();
     
-    const username = document.getElementById(mode === 'signup' ? 'signupUsername' : 'signinUsername').value.trim();
-    const password = document.getElementById(mode === 'signup' ? 'signupPassword' : 'signinPassword').value;
-    const email = mode === 'signup' ? document.getElementById('signupEmail').value.trim() : '';
-    const submitBtn = e.target.querySelector('button[type="submit"]');
     const form = e.target;
+    const mode = form.dataset.mode || 'signup'; // Default to signup
+    
+    // Get form elements from your HTML structure
+    const username = document.getElementById('username').value.trim();
+    const password = document.getElementById('password').value;
+    const bio = document.getElementById('bio').value.trim();
+    const errorDiv = document.getElementById('authError');
+    const submitBtn = document.getElementById('authSubmitBtn');
 
-    if (!username || !password || (mode === 'signup' && !email)) {
+    // Clear previous errors
+    if (errorDiv) {
+        errorDiv.innerHTML = '';
+    }
+
+    if (!username || !password) {
         showError('authError', 'Please fill in all fields');
         return;
     }
@@ -563,8 +546,10 @@ async function handleAuth(e, mode) {
     }
 
     try {
-        submitBtn.disabled = true;
-        submitBtn.textContent = mode === 'signup' ? 'Creating Account...' : 'Signing In...';
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.textContent = mode === 'signup' ? 'Creating Account...' : 'Signing In...';
+        }
         
         if (mode === 'signup') {
             console.log('🔐 Attempting signup for user:', username);
@@ -576,9 +561,9 @@ async function handleAuth(e, mode) {
                 },
                 body: JSON.stringify({ 
                     username, 
-                    email, 
                     password,
-                    bio: `I'm ${username}` })
+                    bio: bio || `I'm ${username}` 
+                })
             });
 
             const data = await response.json();
@@ -586,7 +571,7 @@ async function handleAuth(e, mode) {
             if (response.ok && data.success) {
                 console.log('✅ Signup successful:', data);
                 closeModal('authModal');
-                showSuccess('authError', 'Registration submitted! Please wait for admin approval.');
+                showSuccessMessage('Registration submitted! Please wait for admin approval.');
             } else {
                 console.error('❌ Signup failed:', data);
                 showError('authError', data.error || 'Signup failed!');
@@ -624,7 +609,7 @@ async function handleAuth(e, mode) {
                 closeModal('authModal');
                 updateUI();
                 await loadData();
-                showSuccess('authError', 'Login successful!');
+                showSuccessMessage('Login successful!');
                 
                 await loadFollowedCommunities();
                 
@@ -644,87 +629,95 @@ async function handleAuth(e, mode) {
         console.error('🚨 Authentication error:', error);
         showError('authError', 'Network error. Please try again.');
     } finally {
-        submitBtn.disabled = false;
-        submitBtn.textContent = mode === 'signup' ? 'Sign Up' : 'Sign In';
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = mode === 'signup' ? 'Sign Up' : 'Sign In';
+        }
     }
 }
 
-async function handleInlineLogin(e) {
-    e.preventDefault();
+// FIXED: Toggle auth mode function to work with your HTML
+function toggleAuthMode() {
+    const form = document.getElementById('authForm');
+    const title = document.getElementById('authTitle');
+    const toggleText = document.getElementById('authToggleText');
+    const toggleBtn = document.getElementById('authToggleBtn');
+    const submitBtn = document.getElementById('authSubmitBtn');
     
-    const username = document.getElementById('inlineUsername').value.trim();
-    const password = document.getElementById('inlinePassword').value;
-    const errorDiv = document.getElementById('inlineLoginError');
-    const submitBtn = document.getElementById('inlineLoginBtn');
-
-    errorDiv.innerHTML = '';
-    
-    if (username.length < 3) {
-        showInlineError('Username must be at least 3 characters long');
+    if (!form || !title) {
+        console.warn('Auth form elements not found');
         return;
     }
     
-    if (password.length < 6) {
-        showInlineError('Password must be at least 6 characters long');
+    const currentMode = form.dataset.mode || 'signup';
+    
+    if (currentMode === 'signup') {
+        // Switch to signin
+        form.dataset.mode = 'signin';
+        title.textContent = 'Sign In';
+        if (toggleText) toggleText.textContent = "Don't have an account?";
+        if (toggleBtn) toggleBtn.textContent = 'Sign Up';
+        if (submitBtn) submitBtn.textContent = 'Sign In';
+    } else {
+        // Switch to signup
+        form.dataset.mode = 'signup';
+        title.textContent = 'Sign Up';
+        if (toggleText) toggleText.textContent = 'Already have an account?';
+        if (toggleBtn) toggleBtn.textContent = 'Sign In';
+        if (submitBtn) submitBtn.textContent = 'Sign Up';
+    }
+    
+    // Clear any errors
+    const errorDiv = document.getElementById('authError');
+    if (errorDiv) {
+        errorDiv.innerHTML = '';
+    }
+}
+
+// FIXED: Open auth modal function
+function openAuthModal(mode) {
+    const modal = document.getElementById('authModal');
+    const form = document.getElementById('authForm');
+    const title = document.getElementById('authTitle');
+    const toggleText = document.getElementById('authToggleText');
+    const toggleBtn = document.getElementById('authToggleBtn');
+    const submitBtn = document.getElementById('authSubmitBtn');
+    
+    if (!modal || !form) {
+        console.warn('Auth modal elements not found');
         return;
     }
-
-    try {
-        submitBtn.disabled = true;
-        submitBtn.textContent = 'Signing in...';
-
-        console.log('🔐 Attempting inline login for user:', username);
-        
-        const response = await fetch('/api/auth/login', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ username, password })
-        });
-
-        const data = await response.json();
-        
-        if (response.ok && data.success) {
-            console.log('✅ Inline login successful:', data);
-            
-            if (data.token) {
-                console.log('💾 Storing session token in localStorage...');
-                localStorage.setItem('sessionToken', data.token);
-                console.log('✅ Session token stored successfully');
-            } else {
-                console.warn('⚠️ No token received from server');
-            }
-            
-            currentUser = data.user;
-            currentUser.profile = data.user;
-            
-            console.log('🎉 User authenticated via inline login:', currentUser.username);
-            
-            await loadFollowedCommunities();
-            
-            document.getElementById('inlineLoginFormElement').reset();
-            
-            toggleMenu();
-            updateUI();
-            showSuccessMessage('Welcome back!');
-            
-            if (currentUser?.profile?.isAdmin) {
-                await loadAdminStats();
-            }
-            
-        } else {
-            console.error('❌ Inline login failed:', data);
-            showInlineError(data.error || 'Login failed!');
+    
+    // Clear any previous errors
+    const errorDiv = document.getElementById('authError');
+    if (errorDiv) {
+        errorDiv.innerHTML = '';
+    }
+    
+    // Set the mode
+    form.dataset.mode = mode;
+    
+    if (mode === 'signup') {
+        if (title) title.textContent = 'Sign Up';
+        if (toggleText) toggleText.textContent = 'Already have an account?';
+        if (toggleBtn) toggleBtn.textContent = 'Sign In';
+        if (submitBtn) submitBtn.textContent = 'Sign Up';
+    } else {
+        if (title) title.textContent = 'Sign In';
+        if (toggleText) toggleText.textContent = "Don't have an account?";
+        if (toggleBtn) toggleBtn.textContent = 'Sign Up';
+        if (submitBtn) submitBtn.textContent = 'Sign In';
+    }
+    
+    modal.style.display = 'block';
+    
+    // Focus on the username field
+    setTimeout(() => {
+        const usernameField = document.getElementById('username');
+        if (usernameField) {
+            usernameField.focus();
         }
-        
-    } catch (error) {
-        console.error('🚨 Inline login error:', error);
-        showError('inlineLoginError', 'Network error. Please try again.');
-    } finally {
-        submitBtn.disabled = false;
-        submitBtn.textContent = 'Sign In';
-    }
+    }, 100);
 }
 
 async function logout() {
@@ -998,35 +991,9 @@ function updateUI() {
 }
 
 function updateHeader() {
-    const signInBtn = document.getElementById('signInBtn');
-    const userMenu = document.getElementById('userMenu');
-    const profileBtn = document.getElementById('profileBtn');
-    
-    if (!signInBtn || !userMenu || !profileBtn) {
-        console.warn('⚠️ Header elements not found, skipping header update');
-        return;
-    }
-    
-    if (currentUser) {
-        signInBtn.style.display = 'none';
-        userMenu.style.display = 'flex';
-        
-        if (currentUser.profile?.profilePicture) {
-            profileBtn.innerHTML = `
-                <img src="${currentUser.profile.profilePicture}" 
-                     alt="Profile" 
-                     class="profile-avatar"
-                     style="border-radius: 50%; object-fit: cover;"
-                     onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
-                <div class="profile-avatar" style="display: none;">${currentUser.username.charAt(0).toUpperCase()}</div>
-            `;
-        } else {
-            profileBtn.innerHTML = `<div class="profile-avatar">${currentUser.username.charAt(0).toUpperCase()}</div>`;
-        }
-    } else {
-        signInBtn.style.display = 'flex';
-        userMenu.style.display = 'none';
-    }
+    // Note: Your HTML doesn't have signInBtn, userMenu, profileBtn elements
+    // so we'll skip the header update to avoid errors
+    console.log('🔄 Updating header (skipped - elements not in HTML)');
 }
 
 function updateMainContent() {
@@ -1072,7 +1039,7 @@ function updateComposeButton() {
 function openModal(modalId) {
     const modal = document.getElementById(modalId);
     if (modal) {
-        modal.style.display = 'flex';
+        modal.style.display = 'block';
         
         const firstInput = modal.querySelector('input[type="text"], input[type="email"], textarea');
         if (firstInput) {
@@ -1091,23 +1058,6 @@ function closeModal(modalId) {
         
         const forms = modal.querySelectorAll('form');
         forms.forEach(form => form.reset());
-    }
-}
-
-function setAuthMode(mode) {
-    const authModal = document.getElementById('authModal');
-    const signupForm = document.getElementById('signupForm');
-    const signinForm = document.getElementById('signinForm');
-    const authTitle = document.getElementById('authTitle');
-    
-    if (mode === 'signup') {
-        authTitle.textContent = 'Sign Up';
-        signupForm.style.display = 'block';
-        signinForm.style.display = 'none';
-    } else {
-        authTitle.textContent = 'Sign In';
-        signupForm.style.display = 'none';
-        signinForm.style.display = 'block';
     }
 }
 
@@ -1181,16 +1131,14 @@ function formatTimeAgo(timestamp) {
 
 // Event listener setup
 function setupEventListeners() {
-    // Auth form event listener - CRITICAL
-    const signupForm = document.getElementById('signupForm');
-    const signinForm = document.getElementById('signinForm');
+    // FIXED: Auth form event listener to work with your HTML structure
+    const authForm = document.getElementById('authForm');
     
-    if (signupForm) {
-        signupForm.addEventListener('submit', (e) => handleAuth(e, 'signup'));
-    }
-    
-    if (signinForm) {
-        signinForm.addEventListener('submit', (e) => handleAuth(e, 'signin'));
+    if (authForm) {
+        authForm.addEventListener('submit', handleAuth);
+        console.log('✅ Auth form event listener attached');
+    } else {
+        console.warn('⚠️ Auth form not found');
     }
 
     // Modal click-outside-to-close
