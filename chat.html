@@ -1025,22 +1025,38 @@
         async function loadUserServers() {
             try {
                 const token = getAuthToken();
-                const response = await fetch('/.netlify/functions/chat-api/servers', {
-                    method: 'GET',
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
-                    }
-                });
-
-                if (!response.ok) {
-                    throw new Error(`Failed to load servers: ${response.status}`);
-                }
-
-                const data = await response.json();
-                userServers = data.servers || [];
                 
-                console.log('Loaded servers:', userServers.length);
+                // Load both user servers AND public servers
+                const [userResponse, publicResponse] = await Promise.all([
+                    fetch('/.netlify/functions/chat-api/servers', {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
+                        }
+                    }),
+                    fetch('/.netlify/functions/chat-api/servers/public', {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
+                        }
+                    })
+                ]);
+
+                const userData = userResponse.ok ? await userResponse.json() : { servers: [] };
+                const publicData = publicResponse.ok ? await publicResponse.json() : { servers: [] };
+                
+                // Combine user servers and public servers, avoiding duplicates
+                const userServerIds = new Set((userData.servers || []).map(s => s.id));
+                const publicServers = (publicData.servers || []).filter(s => !userServerIds.has(s.id));
+                
+                userServers = [
+                    ...(userData.servers || []),
+                    ...publicServers
+                ];
+                
+                console.log('Loaded servers:', userServers.length, '(user:', userData.servers?.length || 0, ', public:', publicServers.length, ')');
                 renderServersList();
                 
             } catch (error) {
