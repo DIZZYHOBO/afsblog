@@ -1,4 +1,4 @@
-// netlify/functions/chat-api.js - Enhanced Chat API with Servers and Management
+// netlify/functions/chat-api.js - Enhanced Chat API with Performance Optimizations
 import { getStore } from "@netlify/blobs";
 
 // Chat API configuration
@@ -169,6 +169,277 @@ export default async (req, context) => {
 };
 
 // ==============================================
+// OPTIMIZED MESSAGE LOADING - Key Performance Improvement
+// ==============================================
+
+// Get room messages with enhanced filtering and caching support
+async function getRoomMessages(roomId, req, chatStore, user, headers) {
+  try {
+    const room = await chatStore.get(`room_${roomId}`, { type: "json" });
+    if (!room) {
+      return new Response(
+        JSON.stringify({ error: "Room not found" }),
+        { status: 404, headers }
+      );
+    }
+
+    if (!room.members.includes(user.username)) {
+      return new Response(
+        JSON.stringify({ error: "Not a member of this room" }),
+        { status: 403, headers }
+      );
+    }
+
+    const url = new URL(req.url);
+    const limit = parseInt(url.searchParams.get('limit') || '50');
+    const before = url.searchParams.get('before');
+    const after = url.searchParams.get('after'); // NEW: For efficient polling
+
+    const { blobs } = await chatStore.list({ prefix: `message_${roomId}_` });
+    
+    // Sort by timestamp (newest first)
+    const sortedBlobs = blobs.sort((a, b) => {
+      const timeA = a.key.split('_')[2];
+      const timeB = b.key.split('_')[2];
+      return timeB.localeCompare(timeA);
+    });
+
+    let filteredBlobs = sortedBlobs;
+
+    // NEW: Efficient filtering for polling (only get messages after timestamp)
+    if (after) {
+      filteredBlobs = sortedBlobs.filter(blob => {
+        const messageTime = blob.key.split('_')[2];
+        return messageTime > after;
+      });
+      // For 'after' queries, we want chronological order
+      filteredBlobs.reverse();
+    } else if (before) {
+      // Existing 'before' logic for pagination
+      filteredBlobs = sortedBlobs.filter(blob => {
+        const messageTime = blob.key.split('_')[2];
+        return messageTime < before;
+      });
+    }
+
+    // Limit results
+    const limitedBlobs = filteredBlobs.slice(0, limit);
+
+    // Batch load messages for better performance
+    const messagePromises = limitedBlobs.map(async (blob) => {
+      try {
+        return await chatStore.get(blob.key, { type: "json" });
+      } catch (error) {
+        console.error(`Error loading message ${blob.key}:`, error);
+        return null;
+      }
+    });
+
+    const messages = await Promise.all(messagePromises);
+    const validMessages = messages.filter(msg => msg !== null);
+
+    // For non-'after' queries, reverse to get chronological order (oldest first)
+    if (!after) {
+      validMessages.reverse();
+    }
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        messages: validMessages,
+        hasMore: filteredBlobs.length > limit,
+        count: validMessages.length
+      }),
+      { status: 200, headers }
+    );
+
+  } catch (error) {
+    console.error("Get room messages error:", error);
+    return new Response(
+      JSON.stringify({ error: "Failed to load messages" }),
+      { status: 500, headers }
+    );
+  }
+}
+
+// ==============================================
+// OPTIMIZED MESSAGE SENDING
+// ==============================================
+
+// Send message with immediate response for optimistic UI updates
+async function sendMessage(roomId, req, chatStore, user, headers) {
+  try {
+    const { content } = await req.json();
+
+    if (!content || content.length > CHAT_CONFIG.MAX_MESSAGE_LENGTH) {
+      return new Response(
+        JSON.stringify({ error: "Invalid message content" }),
+        { status: 400, headers }
+      );
+    }
+
+    const room = await chatStore.get(`room_${roomId}`, { type: "json" });
+    if (!room) {
+      return new Response(
+        JSON.stringify({ error: "Room not found" }),
+        { status: 404, headers }
+      );
+    }
+
+    if (!room.members.includes(user.username)) {
+      return new Response(
+        JSON.stringify({ error: "Not a member of this room" }),
+        { status: 403, headers }
+      );
+    }
+
+    // Create message with precise timestamp
+    const timestamp = new Date().toISOString();
+    const messageId = generateId();
+    const message = {
+      id: messageId,
+      roomId,
+      content,
+      author: user.username,
+      authorDisplayName: user.displayName || user.username,
+      createdAt: timestamp,
+      edited: false
+    };
+
+    // Store message
+    await chatStore.set(`message_${roomId}_${timestamp}_${messageId}`, JSON.stringify(message));
+
+    // Update room's last activity (async, don't wait)
+    room.updatedAt = timestamp;
+    chatStore.set(`room_${roomId}`, JSON.stringify(room)).catch(console.error);
+
+    // Return immediately for fast UI feedback
+    return new Response(
+      JSON.stringify({ 
+        success: true, 
+        message,
+        timestamp: timestamp
+      }),
+      { status: 201, headers }
+    );
+
+  } catch (error) {
+    console.error("Send message error:", error);
+    return new Response(
+      JSON.stringify({ error: "Failed to send message" }),
+      { status: 500, headers }
+    );
+  }
+}
+
+// ==============================================
+// ENHANCED SERVER MANAGEMENT (with caching hints)
+// ==============================================
+
+// Get user's servers with optimizations
+async function getUserServers(chatStore, user, headers) {
+  try {
+    const userServers = await chatStore.get(`user_servers_${user.username}`, { type: "json" }) || [];
+    
+    // Batch load servers for better performance
+    const serverPromises = userServers.map(async (serverId) => {
+      try {
+        const server = await chatStore.get(`server_${serverId}`, { type: "json" });
+        if (!server) return null;
+        
+        // Get room count efficiently
+        const roomCount = server.roomIds ? server.roomIds.length : 0;
+        
+        return {
+          ...server,
+          roomCount,
+          memberCount: server.members ? server.members.length : 0
+        };
+      } catch (error) {
+        console.error(`Error loading server ${serverId}:`, error);
+        return null;
+      }
+    });
+
+    const servers = await Promise.all(serverPromises);
+    const validServers = servers.filter(server => server !== null);
+
+    // Add cache hints for better performance
+    const responseHeaders = {
+      ...headers,
+      'Cache-Control': 'max-age=30, must-revalidate' // Cache for 30 seconds
+    };
+
+    return new Response(
+      JSON.stringify({ 
+        success: true, 
+        servers: validServers 
+      }),
+      { status: 200, headers: responseHeaders }
+    );
+
+  } catch (error) {
+    console.error("Get user servers error:", error);
+    return new Response(
+      JSON.stringify({ error: "Failed to load servers" }),
+      { status: 500, headers }
+    );
+  }
+}
+
+// ==============================================
+// AUTHENTICATION AND UTILITY FUNCTIONS
+// ==============================================
+
+// Validate authentication
+async function validateAuth(req, apiStore, blogStore) {
+  const authHeader = req.headers.get("Authorization");
+  
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return { valid: false, error: "Authentication required", status: 401 };
+  }
+
+  try {
+    const token = authHeader.substring(7);
+    
+    // Get session from API store using the token
+    const session = await apiStore.get(`session_${token}`, { type: "json" });
+    
+    if (!session) {
+      return { valid: false, error: "Invalid session", status: 401 };
+    }
+    
+    // Check if session is expired
+    if (new Date(session.expiresAt) < new Date()) {
+      return { valid: false, error: "Session expired", status: 401 };
+    }
+    
+    // Check if session is active
+    if (!session.active) {
+      return { valid: false, error: "Session inactive", status: 401 };
+    }
+    
+    // Get full user profile from blog store
+    const userProfile = await blogStore.get(`user_${session.username}`, { type: "json" });
+    
+    if (!userProfile) {
+      return { valid: false, error: "User not found", status: 404 };
+    }
+
+    return { valid: true, user: userProfile };
+    
+  } catch (error) {
+    console.error("Auth validation error:", error);
+    return { valid: false, error: "Authentication error", status: 500 };
+  }
+}
+
+// Helper function to generate unique IDs
+function generateId() {
+  return `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+}
+
+// ==============================================
 // SERVER MANAGEMENT FUNCTIONS
 // ==============================================
 
@@ -211,7 +482,7 @@ async function createServer(req, chatStore, user, headers) {
       isPrivate,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      roomIds: [] // Array of room IDs in this server
+      roomIds: []
     };
 
     await chatStore.set(`server_${serverId}`, JSON.stringify(server));
@@ -261,45 +532,6 @@ async function createServer(req, chatStore, user, headers) {
     console.error("Create server error:", error);
     return new Response(
       JSON.stringify({ error: "Failed to create server" }),
-      { status: 500, headers }
-    );
-  }
-}
-
-// Get user's servers
-async function getUserServers(chatStore, user, headers) {
-  try {
-    const userServers = await chatStore.get(`user_servers_${user.username}`, { type: "json" }) || [];
-    
-    const serverPromises = userServers.map(async (serverId) => {
-      const server = await chatStore.get(`server_${serverId}`, { type: "json" });
-      if (!server) return null;
-      
-      // Get room count for this server
-      const roomCount = server.roomIds ? server.roomIds.length : 0;
-      
-      return {
-        ...server,
-        roomCount,
-        memberCount: server.members ? server.members.length : 0
-      };
-    });
-
-    const servers = await Promise.all(serverPromises);
-    const validServers = servers.filter(server => server !== null);
-
-    return new Response(
-      JSON.stringify({ 
-        success: true, 
-        servers: validServers 
-      }),
-      { status: 200, headers }
-    );
-
-  } catch (error) {
-    console.error("Get user servers error:", error);
-    return new Response(
-      JSON.stringify({ error: "Failed to load servers" }),
       { status: 500, headers }
     );
   }
@@ -394,25 +626,8 @@ async function getServerRooms(serverId, chatStore, user, headers) {
       const room = await chatStore.get(`room_${roomId}`, { type: "json" });
       if (!room) return null;
       
-      // Get last message for this room
-      const { blobs } = await chatStore.list({ 
-        prefix: `message_${roomId}_`,
-        limit: 1
-      });
-      
-      let lastMessage = null;
-      if (blobs.length > 0) {
-        const sortedBlobs = blobs.sort((a, b) => {
-          const timeA = a.key.split('_')[2];
-          const timeB = b.key.split('_')[2];
-          return timeB.localeCompare(timeA);
-        });
-        lastMessage = await chatStore.get(sortedBlobs[0].key, { type: "json" });
-      }
-
       return {
         ...room,
-        lastMessage,
         unreadCount: 0 // TODO: Implement read receipts
       };
     });
@@ -500,325 +715,6 @@ async function createServerRoom(serverId, req, chatStore, user, headers) {
     console.error("Create server room error:", error);
     return new Response(
       JSON.stringify({ error: "Failed to create room" }),
-      { status: 500, headers }
-    );
-  }
-}
-
-// ==============================================
-// ENHANCED MESSAGE MANAGEMENT
-// ==============================================
-
-// Delete message (author or room owner only)
-async function deleteMessage(roomId, messageId, chatStore, user, headers) {
-  try {
-    const room = await chatStore.get(`room_${roomId}`, { type: "json" });
-    if (!room) {
-      return new Response(
-        JSON.stringify({ error: "Room not found" }),
-        { status: 404, headers }
-      );
-    }
-
-    if (!room.members.includes(user.username)) {
-      return new Response(
-        JSON.stringify({ error: "Not a member of this room" }),
-        { status: 403, headers }
-      );
-    }
-
-    // Find the message by searching through message keys
-    const { blobs } = await chatStore.list({ prefix: `message_${roomId}_` });
-    let messageKey = null;
-    let message = null;
-
-    for (const blob of blobs) {
-      if (blob.key.endsWith(`_${messageId}`)) {
-        messageKey = blob.key;
-        message = await chatStore.get(blob.key, { type: "json" });
-        break;
-      }
-    }
-
-    if (!message) {
-      return new Response(
-        JSON.stringify({ error: "Message not found" }),
-        { status: 404, headers }
-      );
-    }
-
-    // Check if user can delete (author or room owner)
-    if (message.author !== user.username && room.owner !== user.username) {
-      return new Response(
-        JSON.stringify({ error: "You can only delete your own messages or messages in rooms you own" }),
-        { status: 403, headers }
-      );
-    }
-
-    // Delete the message
-    await chatStore.delete(messageKey);
-
-    return new Response(
-      JSON.stringify({ 
-        success: true,
-        messageId,
-        message: "Message deleted successfully"
-      }),
-      { status: 200, headers }
-    );
-
-  } catch (error) {
-    console.error("Delete message error:", error);
-    return new Response(
-      JSON.stringify({ error: "Failed to delete message" }),
-      { status: 500, headers }
-    );
-  }
-}
-
-// ==============================================
-// ENHANCED ROOM MANAGEMENT
-// ==============================================
-
-// Delete room (owner only)
-async function deleteRoom(roomId, chatStore, user, headers) {
-  try {
-    const room = await chatStore.get(`room_${roomId}`, { type: "json" });
-    if (!room) {
-      return new Response(
-        JSON.stringify({ error: "Room not found" }),
-        { status: 404, headers }
-      );
-    }
-
-    // Only owner can delete
-    if (room.owner !== user.username) {
-      return new Response(
-        JSON.stringify({ error: "Only the room owner can delete this room" }),
-        { status: 403, headers }
-      );
-    }
-
-    // Delete all messages in the room
-    const { blobs } = await chatStore.list({ prefix: `message_${roomId}_` });
-    for (const blob of blobs) {
-      await chatStore.delete(blob.key);
-    }
-
-    // Remove room from server's room list if it belongs to a server
-    if (room.serverId) {
-      const server = await chatStore.get(`server_${room.serverId}`, { type: "json" });
-      if (server && server.roomIds) {
-        server.roomIds = server.roomIds.filter(id => id !== roomId);
-        server.updatedAt = new Date().toISOString();
-        await chatStore.set(`server_${room.serverId}`, JSON.stringify(server));
-      }
-    } else {
-      // For legacy rooms not in servers, remove from user rooms
-      for (const member of room.members) {
-        const userRooms = await chatStore.get(`user_rooms_${member}`, { type: "json" }) || [];
-        const updatedUserRooms = userRooms.filter(id => id !== roomId);
-        await chatStore.set(`user_rooms_${member}`, JSON.stringify(updatedUserRooms));
-      }
-
-      // Remove from public rooms if applicable
-      if (!room.isPrivate) {
-        const publicRooms = await chatStore.get('public_rooms', { type: "json" }) || [];
-        const updatedPublicRooms = publicRooms.filter(id => id !== roomId);
-        await chatStore.set('public_rooms', JSON.stringify(updatedPublicRooms));
-      }
-    }
-
-    // Delete the room
-    await chatStore.delete(`room_${roomId}`);
-
-    return new Response(
-      JSON.stringify({ 
-        success: true,
-        message: "Room deleted successfully"
-      }),
-      { status: 200, headers }
-    );
-
-  } catch (error) {
-    console.error("Delete room error:", error);
-    return new Response(
-      JSON.stringify({ error: "Failed to delete room" }),
-      { status: 500, headers }
-    );
-  }
-}
-
-// ==============================================
-// EXISTING FUNCTIONS (Updated for compatibility)
-// ==============================================
-
-// Validate authentication
-async function validateAuth(req, apiStore, blogStore) {
-  const authHeader = req.headers.get("Authorization");
-  
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    return { valid: false, error: "Authentication required", status: 401 };
-  }
-
-  try {
-    const token = authHeader.substring(7);
-    
-    // Get session from API store using the token
-    const session = await apiStore.get(`session_${token}`, { type: "json" });
-    
-    if (!session) {
-      return { valid: false, error: "Invalid session", status: 401 };
-    }
-    
-    // Check if session is expired
-    if (new Date(session.expiresAt) < new Date()) {
-      return { valid: false, error: "Session expired", status: 401 };
-    }
-    
-    // Check if session is active
-    if (!session.active) {
-      return { valid: false, error: "Session inactive", status: 401 };
-    }
-    
-    // Get full user profile from blog store
-    const userProfile = await blogStore.get(`user_${session.username}`, { type: "json" });
-    
-    if (!userProfile) {
-      return { valid: false, error: "User not found", status: 404 };
-    }
-
-    return { valid: true, user: userProfile };
-    
-  } catch (error) {
-    console.error("Auth validation error:", error);
-    return { valid: false, error: "Authentication error", status: 500 };
-  }
-}
-
-// Helper function to generate unique IDs
-function generateId() {
-  return `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-}
-
-// Get user's rooms (legacy function for backward compatibility)
-async function getUserRooms(chatStore, user, headers) {
-  try {
-    // Get rooms from user's servers
-    const userServers = await chatStore.get(`user_servers_${user.username}`, { type: "json" }) || [];
-    const allRooms = [];
-
-    for (const serverId of userServers) {
-      const server = await chatStore.get(`server_${serverId}`, { type: "json" });
-      if (server && server.roomIds) {
-        for (const roomId of server.roomIds) {
-          const room = await chatStore.get(`room_${roomId}`, { type: "json" });
-          if (room && room.members.includes(user.username)) {
-            allRooms.push({
-              ...room,
-              serverName: server.name,
-              serverId: server.id
-            });
-          }
-        }
-      }
-    }
-
-    // Also get legacy rooms (not in servers)
-    const userRooms = await chatStore.get(`user_rooms_${user.username}`, { type: "json" }) || [];
-    
-    for (const roomId of userRooms) {
-      const room = await chatStore.get(`room_${roomId}`, { type: "json" });
-      if (room && !room.serverId) {
-        allRooms.push(room);
-      }
-    }
-
-    return new Response(
-      JSON.stringify({ 
-        success: true, 
-        rooms: allRooms 
-      }),
-      { status: 200, headers }
-    );
-
-  } catch (error) {
-    console.error("Get user rooms error:", error);
-    return new Response(
-      JSON.stringify({ error: "Failed to load rooms" }),
-      { status: 500, headers }
-    );
-  }
-}
-
-// Get public servers
-async function getPublicServers(chatStore, headers) {
-  try {
-    const publicServerIds = await chatStore.get('public_servers', { type: "json" }) || [];
-    
-    const serverPromises = publicServerIds.map(async (serverId) => {
-      const server = await chatStore.get(`server_${serverId}`, { type: "json" });
-      if (!server) return null;
-      
-      return {
-        ...server,
-        memberCount: server.members ? server.members.length : 0,
-        roomCount: server.roomIds ? server.roomIds.length : 0
-      };
-    });
-
-    const servers = await Promise.all(serverPromises);
-    const validServers = servers.filter(server => server !== null);
-
-    return new Response(
-      JSON.stringify({ 
-        success: true, 
-        servers: validServers 
-      }),
-      { status: 200, headers }
-    );
-
-  } catch (error) {
-    console.error("Get public servers error:", error);
-    return new Response(
-      JSON.stringify({ error: "Failed to load public servers" }),
-      { status: 500, headers }
-    );
-  }
-}
-
-// Get server details
-async function getServerDetails(serverId, chatStore, user, headers) {
-  try {
-    const server = await chatStore.get(`server_${serverId}`, { type: "json" });
-    if (!server) {
-      return new Response(
-        JSON.stringify({ error: "Server not found" }),
-        { status: 404, headers }
-      );
-    }
-
-    // Check if user is a member (unless it's a public server)
-    if (server.isPrivate && !server.members.includes(user.username)) {
-      return new Response(
-        JSON.stringify({ error: "Access denied" }),
-        { status: 403, headers }
-      );
-    }
-
-    return new Response(
-      JSON.stringify({
-        ...server,
-        memberCount: server.members ? server.members.length : 0,
-        roomCount: server.roomIds ? server.roomIds.length : 0
-      }),
-      { status: 200, headers }
-    );
-
-  } catch (error) {
-    console.error("Get server details error:", error);
-    return new Response(
-      JSON.stringify({ error: "Failed to get server details" }),
       { status: 500, headers }
     );
   }
@@ -947,9 +843,87 @@ async function leaveServer(serverId, chatStore, user, headers) {
   }
 }
 
-// Keep existing functions from original API...
-// (createRoom, joinRoom, leaveRoom, getRoomMessages, sendMessage, etc.)
-// I'll include the key ones below:
+// Get server details
+async function getServerDetails(serverId, chatStore, user, headers) {
+  try {
+    const server = await chatStore.get(`server_${serverId}`, { type: "json" });
+    if (!server) {
+      return new Response(
+        JSON.stringify({ error: "Server not found" }),
+        { status: 404, headers }
+      );
+    }
+
+    // Check if user is a member (unless it's a public server)
+    if (server.isPrivate && !server.members.includes(user.username)) {
+      return new Response(
+        JSON.stringify({ error: "Access denied" }),
+        { status: 403, headers }
+      );
+    }
+
+    return new Response(
+      JSON.stringify({
+        ...server,
+        memberCount: server.members ? server.members.length : 0,
+        roomCount: server.roomIds ? server.roomIds.length : 0
+      }),
+      { status: 200, headers }
+    );
+
+  } catch (error) {
+    console.error("Get server details error:", error);
+    return new Response(
+      JSON.stringify({ error: "Failed to get server details" }),
+      { status: 500, headers }
+    );
+  }
+}
+
+// Get public servers
+async function getPublicServers(chatStore, headers) {
+  try {
+    const publicServerIds = await chatStore.get('public_servers', { type: "json" }) || [];
+    
+    const serverPromises = publicServerIds.map(async (serverId) => {
+      const server = await chatStore.get(`server_${serverId}`, { type: "json" });
+      if (!server) return null;
+      
+      return {
+        ...server,
+        memberCount: server.members ? server.members.length : 0,
+        roomCount: server.roomIds ? server.roomIds.length : 0
+      };
+    });
+
+    const servers = await Promise.all(serverPromises);
+    const validServers = servers.filter(server => server !== null);
+
+    const responseHeaders = {
+      ...headers,
+      'Cache-Control': 'max-age=60, public' // Cache public servers for 1 minute
+    };
+
+    return new Response(
+      JSON.stringify({ 
+        success: true, 
+        servers: validServers 
+      }),
+      { status: 200, headers: responseHeaders }
+    );
+
+  } catch (error) {
+    console.error("Get public servers error:", error);
+    return new Response(
+      JSON.stringify({ error: "Failed to load public servers" }),
+      { status: 500, headers }
+    );
+  }
+}
+
+// ==============================================
+// ROOM MANAGEMENT FUNCTIONS
+// ==============================================
 
 // Create room (legacy function, creates room without server)
 async function createRoom(req, chatStore, user, headers) {
@@ -1022,18 +996,9 @@ async function createRoom(req, chatStore, user, headers) {
   }
 }
 
-// Send message
-async function sendMessage(roomId, req, chatStore, user, headers) {
+// Delete room (owner only)
+async function deleteRoom(roomId, chatStore, user, headers) {
   try {
-    const { content } = await req.json();
-
-    if (!content || content.length > CHAT_CONFIG.MAX_MESSAGE_LENGTH) {
-      return new Response(
-        JSON.stringify({ error: "Invalid message content" }),
-        { status: 400, headers }
-      );
-    }
-
     const room = await chatStore.get(`room_${roomId}`, { type: "json" });
     if (!room) {
       return new Response(
@@ -1042,117 +1007,59 @@ async function sendMessage(roomId, req, chatStore, user, headers) {
       );
     }
 
-    if (!room.members.includes(user.username)) {
+    // Only owner can delete
+    if (room.owner !== user.username) {
       return new Response(
-        JSON.stringify({ error: "Not a member of this room" }),
+        JSON.stringify({ error: "Only the room owner can delete this room" }),
         { status: 403, headers }
       );
     }
 
-    // Create message
-    const timestamp = new Date().toISOString();
-    const messageId = generateId();
-    const message = {
-      id: messageId,
-      roomId,
-      content,
-      author: user.username,
-      authorDisplayName: user.displayName || user.username,
-      createdAt: timestamp,
-      edited: false
-    };
+    // Delete all messages in the room
+    const { blobs } = await chatStore.list({ prefix: `message_${roomId}_` });
+    for (const blob of blobs) {
+      await chatStore.delete(blob.key);
+    }
 
-    await chatStore.set(`message_${roomId}_${timestamp}_${messageId}`, JSON.stringify(message));
+    // Remove room from server's room list if it belongs to a server
+    if (room.serverId) {
+      const server = await chatStore.get(`server_${room.serverId}`, { type: "json" });
+      if (server && server.roomIds) {
+        server.roomIds = server.roomIds.filter(id => id !== roomId);
+        server.updatedAt = new Date().toISOString();
+        await chatStore.set(`server_${room.serverId}`, JSON.stringify(server));
+      }
+    } else {
+      // For legacy rooms not in servers, remove from user rooms
+      for (const member of room.members) {
+        const userRooms = await chatStore.get(`user_rooms_${member}`, { type: "json" }) || [];
+        const updatedUserRooms = userRooms.filter(id => id !== roomId);
+        await chatStore.set(`user_rooms_${member}`, JSON.stringify(updatedUserRooms));
+      }
 
-    // Update room's last activity
-    room.updatedAt = timestamp;
-    await chatStore.set(`room_${roomId}`, JSON.stringify(room));
+      // Remove from public rooms if applicable
+      if (!room.isPrivate) {
+        const publicRooms = await chatStore.get('public_rooms', { type: "json" }) || [];
+        const updatedPublicRooms = publicRooms.filter(id => id !== roomId);
+        await chatStore.set('public_rooms', JSON.stringify(updatedPublicRooms));
+      }
+    }
+
+    // Delete the room
+    await chatStore.delete(`room_${roomId}`);
 
     return new Response(
       JSON.stringify({ 
-        success: true, 
-        message,
-        timestamp: timestamp
-      }),
-      { status: 201, headers }
-    );
-
-  } catch (error) {
-    console.error("Send message error:", error);
-    return new Response(
-      JSON.stringify({ error: "Failed to send message" }),
-      { status: 500, headers }
-    );
-  }
-}
-
-// Get room messages
-async function getRoomMessages(roomId, req, chatStore, user, headers) {
-  try {
-    const room = await chatStore.get(`room_${roomId}`, { type: "json" });
-    if (!room) {
-      return new Response(
-        JSON.stringify({ error: "Room not found" }),
-        { status: 404, headers }
-      );
-    }
-
-    if (!room.members.includes(user.username)) {
-      return new Response(
-        JSON.stringify({ error: "Not a member of this room" }),
-        { status: 403, headers }
-      );
-    }
-
-    const url = new URL(req.url);
-    const limit = parseInt(url.searchParams.get('limit') || '50');
-    const before = url.searchParams.get('before');
-
-    const { blobs } = await chatStore.list({ prefix: `message_${roomId}_` });
-    
-    // Sort by timestamp (newest first)
-    const sortedBlobs = blobs.sort((a, b) => {
-      const timeA = a.key.split('_')[2];
-      const timeB = b.key.split('_')[2];
-      return timeB.localeCompare(timeA);
-    });
-
-    // Filter by 'before' parameter if provided
-    const filteredBlobs = before ?
-      sortedBlobs.filter(blob => blob.key.split('_')[2] < before) : 
-      sortedBlobs;
-
-    // Limit results
-    const limitedBlobs = filteredBlobs.slice(0, limit);
-
-    const messagePromises = limitedBlobs.map(async (blob) => {
-      try {
-        return await chatStore.get(blob.key, { type: "json" });
-      } catch (error) {
-        console.error(`Error loading message ${blob.key}:`, error);
-        return null;
-      }
-    });
-
-    const messages = await Promise.all(messagePromises);
-    const validMessages = messages.filter(msg => msg !== null);
-
-    // Reverse to get chronological order (oldest first)
-    validMessages.reverse();
-
-    return new Response(
-      JSON.stringify({
         success: true,
-        messages: validMessages,
-        hasMore: filteredBlobs.length > limit
+        message: "Room deleted successfully"
       }),
       { status: 200, headers }
     );
 
   } catch (error) {
-    console.error("Get room messages error:", error);
+    console.error("Delete room error:", error);
     return new Response(
-      JSON.stringify({ error: "Failed to load messages" }),
+      JSON.stringify({ error: "Failed to delete room" }),
       { status: 500, headers }
     );
   }
@@ -1294,6 +1201,56 @@ async function getRoomDetails(roomId, chatStore, user, headers) {
   }
 }
 
+// Get user's rooms (legacy function for backward compatibility)
+async function getUserRooms(chatStore, user, headers) {
+  try {
+    // Get rooms from user's servers
+    const userServers = await chatStore.get(`user_servers_${user.username}`, { type: "json" }) || [];
+    const allRooms = [];
+
+    for (const serverId of userServers) {
+      const server = await chatStore.get(`server_${serverId}`, { type: "json" });
+      if (server && server.roomIds) {
+        for (const roomId of server.roomIds) {
+          const room = await chatStore.get(`room_${roomId}`, { type: "json" });
+          if (room && room.members.includes(user.username)) {
+            allRooms.push({
+              ...room,
+              serverName: server.name,
+              serverId: server.id
+            });
+          }
+        }
+      }
+    }
+
+    // Also get legacy rooms (not in servers)
+    const userRooms = await chatStore.get(`user_rooms_${user.username}`, { type: "json" }) || [];
+    
+    for (const roomId of userRooms) {
+      const room = await chatStore.get(`room_${roomId}`, { type: "json" });
+      if (room && !room.serverId) {
+        allRooms.push(room);
+      }
+    }
+
+    return new Response(
+      JSON.stringify({ 
+        success: true, 
+        rooms: allRooms 
+      }),
+      { status: 200, headers }
+    );
+
+  } catch (error) {
+    console.error("Get user rooms error:", error);
+    return new Response(
+      JSON.stringify({ error: "Failed to load rooms" }),
+      { status: 500, headers }
+    );
+  }
+}
+
 // Get public rooms
 async function getPublicRooms(chatStore, headers) {
   try {
@@ -1319,6 +1276,77 @@ async function getPublicRooms(chatStore, headers) {
     console.error("Get public rooms error:", error);
     return new Response(
       JSON.stringify({ error: "Failed to load public rooms" }),
+      { status: 500, headers }
+    );
+  }
+}
+
+// ==============================================
+// MESSAGE MANAGEMENT FUNCTIONS
+// ==============================================
+
+// Delete message (author or room owner only)
+async function deleteMessage(roomId, messageId, chatStore, user, headers) {
+  try {
+    const room = await chatStore.get(`room_${roomId}`, { type: "json" });
+    if (!room) {
+      return new Response(
+        JSON.stringify({ error: "Room not found" }),
+        { status: 404, headers }
+      );
+    }
+
+    if (!room.members.includes(user.username)) {
+      return new Response(
+        JSON.stringify({ error: "Not a member of this room" }),
+        { status: 403, headers }
+      );
+    }
+
+    // Find the message by searching through message keys
+    const { blobs } = await chatStore.list({ prefix: `message_${roomId}_` });
+    let messageKey = null;
+    let message = null;
+
+    for (const blob of blobs) {
+      if (blob.key.endsWith(`_${messageId}`)) {
+        messageKey = blob.key;
+        message = await chatStore.get(blob.key, { type: "json" });
+        break;
+      }
+    }
+
+    if (!message) {
+      return new Response(
+        JSON.stringify({ error: "Message not found" }),
+        { status: 404, headers }
+      );
+    }
+
+    // Check if user can delete (author or room owner)
+    if (message.author !== user.username && room.owner !== user.username) {
+      return new Response(
+        JSON.stringify({ error: "You can only delete your own messages or messages in rooms you own" }),
+        { status: 403, headers }
+      );
+    }
+
+    // Delete the message
+    await chatStore.delete(messageKey);
+
+    return new Response(
+      JSON.stringify({ 
+        success: true,
+        messageId,
+        message: "Message deleted successfully"
+      }),
+      { status: 200, headers }
+    );
+
+  } catch (error) {
+    console.error("Delete message error:", error);
+    return new Response(
+      JSON.stringify({ error: "Failed to delete message" }),
       { status: 500, headers }
     );
   }
