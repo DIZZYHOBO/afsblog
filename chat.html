@@ -32,6 +32,7 @@
             background: var(--bg-primary);
             color: var(--text-primary);
             overflow: hidden;
+            height: 100vh;
         }
 
         .auth-required {
@@ -129,6 +130,7 @@
             align-items: center;
             padding: 12px 0;
             overflow-y: auto;
+            flex-shrink: 0;
         }
 
         .guild-item {
@@ -198,6 +200,8 @@
             background: var(--bg-secondary);
             display: flex;
             flex-direction: column;
+            flex-shrink: 0;
+            height: 100vh;
         }
 
         .server-header {
@@ -208,6 +212,7 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
+            flex-shrink: 0;
         }
 
         .server-header:hover {
@@ -309,6 +314,7 @@
             display: flex;
             align-items: center;
             gap: 12px;
+            flex-shrink: 0;
         }
 
         .user-avatar {
@@ -344,6 +350,7 @@
             flex-direction: column;
             background: var(--bg-primary);
             height: 100vh;
+            min-width: 0; /* Allow shrinking */
         }
 
         .chat-header {
@@ -354,6 +361,7 @@
             justify-content: space-between;
             border-bottom: 1px solid var(--border-color);
             flex-shrink: 0;
+            background: var(--bg-primary);
         }
 
         .chat-title {
@@ -392,16 +400,15 @@
             padding: 16px;
             display: flex;
             flex-direction: column;
-            /* Key changes for proper scrolling */
+            justify-content: flex-end;
             min-height: 0;
         }
 
-        .messages-list {
+        .messages-wrapper {
             display: flex;
             flex-direction: column;
-            /* This pushes messages to the bottom */
-            justify-content: flex-end;
             min-height: 100%;
+            justify-content: flex-end;
         }
 
         .message {
@@ -427,6 +434,7 @@
 
         .message-content {
             flex: 1;
+            min-width: 0;
         }
 
         .message-header {
@@ -455,6 +463,7 @@
         .message-input-container {
             padding: 16px;
             flex-shrink: 0;
+            background: var(--bg-primary);
         }
 
         .message-input {
@@ -468,6 +477,7 @@
             resize: none;
             min-height: 44px;
             max-height: 200px;
+            font-family: inherit;
         }
 
         .message-input:focus {
@@ -481,12 +491,8 @@
         .welcome-message {
             text-align: center;
             color: var(--text-muted);
-            margin: auto;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            height: 100%;
+            padding: 40px 20px;
+            flex-shrink: 0;
         }
 
         .welcome-message h3 {
@@ -681,6 +687,32 @@
             background: #2d7d32;
         }
 
+        /* Scrollbar styling */
+        .messages-container::-webkit-scrollbar,
+        .channels-list::-webkit-scrollbar,
+        .guilds-wrapper::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .messages-container::-webkit-scrollbar-track,
+        .channels-list::-webkit-scrollbar-track,
+        .guilds-wrapper::-webkit-scrollbar-track {
+            background: var(--bg-secondary);
+        }
+
+        .messages-container::-webkit-scrollbar-thumb,
+        .channels-list::-webkit-scrollbar-thumb,
+        .guilds-wrapper::-webkit-scrollbar-thumb {
+            background: var(--border-color);
+            border-radius: 4px;
+        }
+
+        .messages-container::-webkit-scrollbar-thumb:hover,
+        .channels-list::-webkit-scrollbar-thumb:hover,
+        .guilds-wrapper::-webkit-scrollbar-thumb:hover {
+            background: var(--text-muted);
+        }
+
         /* Mobile Styles */
         @media (max-width: 768px) {
             .channels-wrapper {
@@ -864,7 +896,7 @@
             </div>
             
             <div class="messages-container" id="messagesContainer">
-                <div class="messages-list" id="messagesList">
+                <div class="messages-wrapper" id="messagesWrapper">
                     <div class="welcome-message">
                         <h3>Welcome to AFS Chat! 💬</h3>
                         <p>Select a server and channel to start chatting.</p>
@@ -878,6 +910,7 @@
                     class="message-input" 
                     placeholder="Type a message..."
                     onkeydown="handleMessageKeyDown(event)"
+                    rows="1"
                 ></textarea>
             </div>
         </div>
@@ -1463,9 +1496,17 @@
                 const data = await response.json();
                 
                 if (data.success) {
+                    const previousScrollHeight = document.getElementById('messagesContainer').scrollHeight;
+                    const isScrolledToBottom = isAtBottom();
+                    
                     chatMessages = data.messages || [];
                     console.log('✅ Loaded messages:', chatMessages.length);
                     renderMessages();
+                    
+                    // Auto-scroll to bottom if user was already at bottom or this is initial load
+                    if (isScrolledToBottom || chatMessages.length <= 50) {
+                        scrollToBottom();
+                    }
                 } else {
                     console.error('❌ Failed to load messages:', data.error);
                     chatMessages = [];
@@ -1478,13 +1519,26 @@
             }
         }
 
+        // Check if user is at bottom of messages
+        function isAtBottom() {
+            const container = document.getElementById('messagesContainer');
+            const threshold = 100; // pixels from bottom
+            return container.scrollTop >= (container.scrollHeight - container.clientHeight - threshold);
+        }
+
+        // Scroll to bottom of messages
+        function scrollToBottom() {
+            const container = document.getElementById('messagesContainer');
+            container.scrollTop = container.scrollHeight;
+        }
+
         // Render messages
         function renderMessages() {
-            const messagesListEl = document.getElementById('messagesList');
-            if (!messagesListEl) return;
+            const messagesWrapper = document.getElementById('messagesWrapper');
+            if (!messagesWrapper) return;
             
             if (chatMessages.length === 0) {
-                messagesListEl.innerHTML = `
+                messagesWrapper.innerHTML = `
                     <div class="welcome-message">
                         <h3>Welcome to #${currentRoom?.name || 'channel'}! 💬</h3>
                         <p>This is the beginning of the conversation.</p>
@@ -1493,7 +1547,7 @@
                 return;
             }
             
-            messagesListEl.innerHTML = chatMessages.map(message => `
+            messagesWrapper.innerHTML = chatMessages.map(message => `
                 <div class="message">
                     <div class="message-avatar">
                         ${message.author.charAt(0).toUpperCase()}
@@ -1507,10 +1561,6 @@
                     </div>
                 </div>
             `).join('');
-            
-            // Scroll to bottom
-            const messagesContainer = document.getElementById('messagesContainer');
-            messagesContainer.scrollTop = messagesContainer.scrollHeight;
         }
 
         // Format timestamp
@@ -1574,6 +1624,9 @@
             
             console.log('📤 Sending message:', content);
             
+            // Clear input immediately for better UX
+            messageInput.value = '';
+            
             try {
                 const response = await fetch(`/.netlify/functions/chat-api/rooms/${currentRoom.id}/messages`, {
                     method: 'POST',
@@ -1594,17 +1647,20 @@
                 
                 if (data.success) {
                     console.log('✅ Message sent successfully');
-                    messageInput.value = '';
                     
                     // Immediately refresh messages
                     await loadRoomMessages(currentRoom.id);
                 } else {
                     console.error('❌ Failed to send message:', data.error);
                     showErrorMessage(data.error || 'Failed to send message');
+                    // Restore message if failed
+                    messageInput.value = content;
                 }
             } catch (error) {
                 console.error('💥 Error sending message:', error);
                 showErrorMessage('Network error. Please try again.');
+                // Restore message if failed
+                messageInput.value = content;
             }
         }
 
@@ -1945,4 +2001,51 @@ Created: ${currentServer.createdAt ? new Date(currentServer.createdAt).toLocaleD
             messageEl.className = 'message-error';
             messageEl.textContent = message;
             messageEl.style.position = 'fixed';
-            messageEl.style.top = '20
+            messageEl.style.top = '20px';
+            messageEl.style.right = '20px';
+            messageEl.style.zIndex = '2000';
+            messageEl.style.borderRadius = '8px';
+            messageEl.style.boxShadow = '0 4px 12px rgba(0,0,0,0.3)';
+            document.body.appendChild(messageEl);
+            
+            setTimeout(() => {
+                messageEl.remove();
+            }, 5000);
+        }
+
+        // Initialize app when page loads
+        document.addEventListener('DOMContentLoaded', initializeApp);
+        
+        // Handle browser back/forward
+        window.addEventListener('popstate', function(event) {
+            // Handle navigation if needed
+        });
+        
+        // Handle page visibility change
+        document.addEventListener('visibilitychange', function() {
+            if (document.visibilityState === 'visible' && currentUser) {
+                // Refresh when page becomes visible
+                checkSessionToken();
+            }
+        });
+
+        // Monitor localStorage changes from main app
+        window.addEventListener('storage', function(e) {
+            console.log('🔄 Storage event detected:', e.key, e.newValue ? 'Set' : 'Removed');
+            
+            if (e.key === 'sessionToken') {
+                if (e.newValue) {
+                    console.log('🎉 New session token detected from main app');
+                    // Small delay to let main app finish its setup
+                    setTimeout(() => {
+                        checkSessionToken();
+                    }, 1000);
+                } else {
+                    console.log('❌ Session token removed, user logged out');
+                    handleLogout();
+                }
+            }
+        });
+    </script>
+</body>
+</html>
