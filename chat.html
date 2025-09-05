@@ -1923,7 +1923,14 @@
                 return;
             }
             
-            messagesWrapper.innerHTML = chatMessages.map(message => {
+            // Sort messages by timestamp (oldest first, newest at bottom)
+            const sortedMessages = [...chatMessages].sort((a, b) => {
+                const timeA = new Date(a.createdAt || a.timestamp).getTime();
+                const timeB = new Date(b.createdAt || b.timestamp).getTime();
+                return timeA - timeB;
+            });
+            
+            messagesWrapper.innerHTML = sortedMessages.map(message => {
                 let messageClass = 'message';
                 let statusText = '';
                 
