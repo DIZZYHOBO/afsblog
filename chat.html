@@ -93,6 +93,19 @@
             color: var(--text-primary);
         }
 
+        .btn-success {
+            background: var(--success-color);
+        }
+
+        .btn-success:hover {
+            background: #2d7d32;
+        }
+
+        .btn-small {
+            padding: 6px 12px;
+            font-size: 12px;
+        }
+
         .session-status {
             margin-top: 1rem;
             padding: 1rem;
@@ -144,6 +157,18 @@
             background: var(--accent-color);
         }
 
+        .guild-item.browse-servers {
+            background: var(--bg-primary);
+            border: 2px dashed var(--warning-color);
+            color: var(--warning-color);
+            font-size: 18px;
+        }
+
+        .guild-item.browse-servers:hover {
+            background: var(--warning-color);
+            color: white;
+        }
+
         .guild-item.join-server {
             background: var(--bg-primary);
             border: 2px dashed var(--border-color);
@@ -187,6 +212,36 @@
 
         .server-header:hover {
             background: var(--bg-primary);
+        }
+
+        .server-actions {
+            display: flex;
+            gap: 4px;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+
+        .server-header:hover .server-actions {
+            opacity: 1;
+        }
+
+        .action-icon {
+            width: 20px;
+            height: 20px;
+            border: none;
+            background: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            border-radius: 3px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+        }
+
+        .action-icon:hover {
+            background: var(--bg-primary);
+            color: var(--text-primary);
         }
 
         .channels-list {
@@ -550,6 +605,61 @@
             border-top: 1px solid var(--border-color);
         }
 
+        .server-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .server-item {
+            padding: 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            margin-bottom: 8px;
+            background: var(--bg-primary);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .server-info h4 {
+            margin: 0 0 4px 0;
+            color: var(--text-primary);
+        }
+
+        .server-info p {
+            margin: 0;
+            color: var(--text-muted);
+            font-size: 12px;
+        }
+
+        .share-code {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            padding: 8px 12px;
+            margin: 8px 0;
+            font-family: monospace;
+            font-size: 14px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .copy-btn {
+            background: var(--success-color);
+            border: none;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 11px;
+        }
+
+        .copy-btn:hover {
+            background: #2d7d32;
+        }
+
         /* Mobile Styles */
         @media (max-width: 768px) {
             .channels-wrapper {
@@ -620,12 +730,16 @@
                 </div>
             </div>
             
-            <div class="guild-item add-server" onclick="openCreateServerModal()" title="Add Server">
-                +
+            <div class="guild-item browse-servers" onclick="openBrowseServersModal()" title="Browse Public Servers">
+                🌐
             </div>
             
-            <div class="guild-item join-server" onclick="openJoinServerModal()" title="Join Server">
+            <div class="guild-item join-server" onclick="openJoinServerModal()" title="Join Server with Code">
                 🔍
+            </div>
+            
+            <div class="guild-item add-server" onclick="openCreateServerModal()" title="Create Server">
+                +
             </div>
         </div>
 
@@ -633,7 +747,10 @@
         <div class="channels-wrapper" id="channelsWrapper">
             <div class="server-header" id="serverHeader" onclick="toggleMobileChannels()">
                 <span id="currentServerName">Select a Server</span>
-                <span>⌄</span>
+                <div class="server-actions" id="serverActions">
+                    <button class="action-icon" onclick="showShareCode(event)" title="Share Server">📋</button>
+                    <button class="action-icon" onclick="showServerInfo(event)" title="Server Info">ℹ️</button>
+                </div>
             </div>
             
             <div class="channels-list">
@@ -690,6 +807,22 @@
         </div>
     </div>
 
+    <!-- Browse Public Servers Modal -->
+    <div class="modal" id="browseServersModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">Browse Public Servers</h3>
+                <button class="close-btn" onclick="closeBrowseServersModal()">&times;</button>
+            </div>
+            
+            <div class="server-list" id="publicServersList">
+                <div class="loading">
+                    <div class="spinner"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Join Server Modal -->
     <div class="modal" id="joinServerModal">
         <div class="modal-content">
@@ -699,10 +832,10 @@
             </div>
             
             <div class="form-group">
-                <label for="serverIdInput">Server ID or Invite Code</label>
-                <input type="text" id="serverIdInput" class="form-control" placeholder="Enter server ID or invite code" maxlength="100" onkeydown="handleJoinServerKeyDown(event)">
+                <label for="serverIdInput">Server Code</label>
+                <input type="text" id="serverIdInput" class="form-control" placeholder="Enter server code (e.g., ABC123)" maxlength="100" onkeydown="handleJoinServerKeyDown(event)">
                 <small style="color: #96989d; margin-top: 4px; display: block;">
-                    Ask a server member for the server ID or invite code.
+                    Ask a server member for the server code or get it from the server's share option.
                 </small>
             </div>
             
@@ -743,13 +876,37 @@
                     <label class="checkbox-label" for="serverPrivateInput">Private Server</label>
                 </div>
                 <small style="color: #96989d; margin-top: 4px; display: block;">
-                    Private servers can only be joined by invitation.
+                    Private servers can only be joined with a share code and won't appear in public listings.
                 </small>
             </div>
             
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" onclick="closeCreateServerModal()">Cancel</button>
                 <button type="button" class="btn btn-primary" onclick="createServerSubmit()">Create Server</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Share Code Modal -->
+    <div class="modal" id="shareCodeModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">Share Server</h3>
+                <button class="close-btn" onclick="closeShareCodeModal()">&times;</button>
+            </div>
+            
+            <div style="text-align: center;">
+                <h4 id="shareServerName" style="margin-bottom: 16px;">Server Name</h4>
+                <p style="color: var(--text-muted); margin-bottom: 16px;">Share this code with others to let them join your server:</p>
+                
+                <div class="share-code">
+                    <span id="shareCodeText">Loading...</span>
+                    <button class="copy-btn" onclick="copyShareCode()">Copy</button>
+                </div>
+                
+                <p style="color: var(--text-muted); font-size: 12px; margin-top: 8px;">
+                    This code never expires and can be used multiple times.
+                </p>
             </div>
         </div>
     </div>
@@ -764,6 +921,7 @@
         let chatMessages = [];
         let refreshInterval = null;
         let sessionCheckInterval = null;
+        let publicServers = [];
 
         // Initialize the chat app
         function initializeApp() {
@@ -782,13 +940,8 @@
 
         // Get session token from localStorage (shared with main app)
         function getSessionToken() {
-            // Try both possible token keys from the main app
             const sessionToken = localStorage.getItem('sessionToken');
-            const currentUserData = localStorage.getItem('current_user');
-            
             console.log('🔑 Getting session token:', sessionToken ? 'Token exists' : 'No token');
-            console.log('👤 Getting current user data:', currentUserData ? 'User data exists' : 'No user data');
-            
             return sessionToken;
         }
 
@@ -857,7 +1010,6 @@
                     statusEl.style.color = 'white';
                 }
                 
-                // Don't remove the token here, let main app handle it
                 showAuthRequired();
             }
         }
@@ -895,6 +1047,7 @@
             userServers = [];
             serverRooms = [];
             chatMessages = [];
+            publicServers = [];
             
             // Stop refresh intervals
             if (refreshInterval) {
@@ -971,6 +1124,41 @@
             }
         }
 
+        // Load public servers
+        async function loadPublicServers() {
+            console.log('🌐 Loading public servers...');
+            
+            try {
+                const response = await fetch('/.netlify/functions/chat-api/servers/public', {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${getSessionToken()}`
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    publicServers = data.servers || [];
+                    console.log('✅ Loaded public servers:', publicServers.length);
+                    renderPublicServersList();
+                } else {
+                    console.error('❌ Failed to load public servers:', data.error);
+                    publicServers = [];
+                    renderPublicServersList();
+                }
+            } catch (error) {
+                console.error('💥 Error loading public servers:', error);
+                publicServers = [];
+                renderPublicServersList();
+            }
+        }
+
         // Render the servers list
         function renderServersList() {
             const serversListEl = document.getElementById('serversList');
@@ -988,10 +1176,44 @@
             serversListEl.innerHTML = userServers.map(server => `
                 <div class="guild-item ${currentServer?.id === server.id ? 'active' : ''}" 
                      onclick="selectServer('${server.id}')" 
-                     title="${server.name}">
+                     title="${server.name}${server.isPrivate ? ' (Private)' : ''}">
                     ${server.name.charAt(0).toUpperCase()}
                 </div>
             `).join('');
+        }
+
+        // Render public servers list
+        function renderPublicServersList() {
+            const publicServersListEl = document.getElementById('publicServersList');
+            if (!publicServersListEl) return;
+            
+            if (publicServers.length === 0) {
+                publicServersListEl.innerHTML = `
+                    <div style="text-align: center; padding: 20px; color: var(--text-muted);">
+                        <p>No public servers available</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            publicServersListEl.innerHTML = publicServers.map(server => {
+                const isJoined = userServers.some(us => us.id === server.id);
+                return `
+                    <div class="server-item">
+                        <div class="server-info">
+                            <h4>${server.name}</h4>
+                            <p>${server.description || 'No description'}</p>
+                            <p>${server.memberCount || 0} members • ${server.roomCount || 0} channels</p>
+                        </div>
+                        <div>
+                            ${isJoined ? 
+                                `<button class="btn btn-secondary btn-small" onclick="selectServerFromBrowse('${server.id}')">Open</button>` :
+                                `<button class="btn btn-success btn-small" onclick="joinPublicServer('${server.id}')">Join</button>`
+                            }
+                        </div>
+                    </div>
+                `;
+            }).join('');
         }
 
         // Select a server
@@ -1011,8 +1233,56 @@
             document.getElementById('currentServerName').textContent = server.name;
             renderServersList(); // Re-render to show active state
             
+            // Show server actions
+            document.getElementById('serverActions').style.display = 'flex';
+            
             // Load server rooms
             await loadServerRooms(serverId);
+        }
+
+        // Select server from browse modal
+        function selectServerFromBrowse(serverId) {
+            closeBrowseServersModal();
+            selectServer(serverId);
+        }
+
+        // Join public server
+        async function joinPublicServer(serverId) {
+            console.log('🚀 Joining public server:', serverId);
+            
+            try {
+                const response = await fetch(`/.netlify/functions/chat-api/servers/${serverId}/join`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${getSessionToken()}`
+                    }
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.error || `Failed to join server (${response.status})`);
+                }
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    console.log('✅ Successfully joined public server');
+                    showSuccessMessage('Successfully joined server!');
+                    
+                    // Refresh both lists
+                    await loadUserServers();
+                    await loadPublicServers();
+                    
+                    // Select the newly joined server
+                    selectServer(serverId);
+                } else {
+                    throw new Error(data.error || 'Failed to join server');
+                }
+            } catch (error) {
+                console.error('💥 Error joining public server:', error);
+                showErrorMessage(error.message || 'Failed to join server');
+            }
         }
 
         // Load rooms for a server
@@ -1261,6 +1531,18 @@
             }
         }
 
+        // Browse Servers Modal Functions
+        function openBrowseServersModal() {
+            console.log('🌐 Opening browse servers modal...');
+            document.getElementById('browseServersModal').style.display = 'flex';
+            loadPublicServers();
+        }
+
+        function closeBrowseServersModal() {
+            console.log('❌ Closing browse servers modal...');
+            document.getElementById('browseServersModal').style.display = 'none';
+        }
+
         // Join Server Modal Functions
         function openJoinServerModal() {
             console.log('🔍 Opening join server modal...');
@@ -1289,10 +1571,10 @@
         }
 
         async function joinServerSubmit() {
-            const serverId = document.getElementById('serverIdInput').value.trim();
+            const serverId = document.getElementById('serverIdInput').value.trim().toUpperCase();
             
             if (!serverId) {
-                showErrorMessage('Please enter a server ID or invite code');
+                showErrorMessage('Please enter a server code');
                 return;
             }
             
@@ -1301,7 +1583,7 @@
                 return;
             }
             
-            console.log('🚀 Attempting to join server:', serverId);
+            console.log('🚀 Attempting to join server with code:', serverId);
             
             try {
                 const response = await fetch(`/.netlify/functions/chat-api/servers/${serverId}/join`, {
@@ -1313,22 +1595,24 @@
                 });
 
                 if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.error || `Server not found or access denied (${response.status})`);
                 }
 
                 const data = await response.json();
                 
                 if (data.success) {
-                    console.log('✅ Successfully joined server:', data.server?.name || serverId);
-                    showSuccessMessage(`Successfully joined server!`);
+                    console.log('✅ Successfully joined server');
+                    showSuccessMessage('Successfully joined server!');
                     closeJoinServerModal();
                     
                     // Refresh server list
                     await loadUserServers();
                     
-                    // Select the newly joined server if we have its data
-                    if (data.server) {
-                        selectServer(data.server.id);
+                    // Try to select the newly joined server by finding it in the list
+                    const joinedServer = userServers.find(s => s.id === serverId);
+                    if (joinedServer) {
+                        selectServer(joinedServer.id);
                     }
                 } else {
                     console.error('❌ Failed to join server:', data.error);
@@ -1336,7 +1620,7 @@
                 }
             } catch (error) {
                 console.error('💥 Error joining server:', error);
-                showErrorMessage('Network error. Please try again.');
+                showErrorMessage(error.message || 'Network error. Please try again.');
             }
         }
 
@@ -1411,7 +1695,7 @@
             }
         }
 
-        // Create room modal (placeholder)
+        // Create room modal
         function openCreateRoomModal() {
             if (!currentServer) {
                 showErrorMessage('Please select a server first');
@@ -1441,33 +1725,115 @@
                         'Authorization': `Bearer ${getSessionToken()}`
                     },
                     body: JSON.stringify({
-                        name: roomName
+                        name: roomName,
+                        description: `Channel for ${roomName} discussions`
                     })
                 });
 
                 if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
                 }
 
                 const data = await response.json();
                 
-                if (data.success) {
-                    console.log('✅ Room created successfully:', data.room?.id);
+                if (data.success && data.room) {
+                    console.log('✅ Room created successfully:', data.room.id);
                     showSuccessMessage(`Channel "${roomName}" created successfully!`);
                     
                     // Refresh rooms list and select the new room
                     await loadServerRooms(currentServer.id);
-                    if (data.room) {
-                        selectRoom(data.room.id);
-                    }
+                    selectRoom(data.room.id);
                 } else {
-                    console.error('❌ Failed to create room:', data.error);
+                    console.error('❌ Failed to create room:', data.error || 'Unknown error');
                     showErrorMessage(data.error || 'Failed to create channel');
                 }
             } catch (error) {
                 console.error('💥 Error creating room:', error);
-                showErrorMessage('Network error. Please try again.');
+                showErrorMessage(error.message || 'Network error. Please try again.');
             }
+        }
+
+        // Share Code Functions
+        function showShareCode(event) {
+            event.stopPropagation();
+            
+            if (!currentServer) {
+                showErrorMessage('No server selected');
+                return;
+            }
+            
+            document.getElementById('shareServerName').textContent = currentServer.name;
+            document.getElementById('shareCodeText').textContent = currentServer.id;
+            document.getElementById('shareCodeModal').style.display = 'flex';
+        }
+
+        function closeShareCodeModal() {
+            document.getElementById('shareCodeModal').style.display = 'none';
+        }
+
+        function copyShareCode() {
+            const shareCodeText = document.getElementById('shareCodeText').textContent;
+            
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(shareCodeText).then(() => {
+                    showSuccessMessage('Server code copied to clipboard!');
+                }).catch(err => {
+                    console.error('Failed to copy: ', err);
+                    fallbackCopyTextToClipboard(shareCodeText);
+                });
+            } else {
+                fallbackCopyTextToClipboard(shareCodeText);
+            }
+        }
+
+        function fallbackCopyTextToClipboard(text) {
+            const textArea = document.createElement("textarea");
+            textArea.value = text;
+            textArea.style.top = "0";
+            textArea.style.left = "0";
+            textArea.style.position = "fixed";
+            
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            
+            try {
+                const successful = document.execCommand('copy');
+                const msg = successful ? 'successful' : 'unsuccessful';
+                console.log('Fallback: Copying text command was ' + msg);
+                if (successful) {
+                    showSuccessMessage('Server code copied to clipboard!');
+                } else {
+                    showErrorMessage('Failed to copy server code');
+                }
+            } catch (err) {
+                console.error('Fallback: Oops, unable to copy', err);
+                showErrorMessage('Failed to copy server code');
+            }
+            
+            document.body.removeChild(textArea);
+        }
+
+        // Server Info Functions
+        function showServerInfo(event) {
+            event.stopPropagation();
+            
+            if (!currentServer) {
+                showErrorMessage('No server selected');
+                return;
+            }
+            
+            const info = `
+Server: ${currentServer.name}
+${currentServer.description ? `Description: ${currentServer.description}` : ''}
+Type: ${currentServer.isPrivate ? 'Private' : 'Public'}
+Members: ${currentServer.memberCount || 'Unknown'}
+Channels: ${serverRooms.length}
+Created: ${currentServer.createdAt ? new Date(currentServer.createdAt).toLocaleDateString() : 'Unknown'}
+            `.trim();
+            
+            alert(info);
         }
 
         // Mobile channel toggle
@@ -1483,6 +1849,12 @@
             const messageEl = document.createElement('div');
             messageEl.className = 'message-success';
             messageEl.textContent = message;
+            messageEl.style.position = 'fixed';
+            messageEl.style.top = '20px';
+            messageEl.style.right = '20px';
+            messageEl.style.zIndex = '2000';
+            messageEl.style.borderRadius = '8px';
+            messageEl.style.boxShadow = '0 4px 12px rgba(0,0,0,0.3)';
             document.body.appendChild(messageEl);
             
             setTimeout(() => {
@@ -1495,6 +1867,12 @@
             const messageEl = document.createElement('div');
             messageEl.className = 'message-error';
             messageEl.textContent = message;
+            messageEl.style.position = 'fixed';
+            messageEl.style.top = '20px';
+            messageEl.style.right = '20px';
+            messageEl.style.zIndex = '2000';
+            messageEl.style.borderRadius = '8px';
+            messageEl.style.boxShadow = '0 4px 12px rgba(0,0,0,0.3)';
             document.body.appendChild(messageEl);
             
             setTimeout(() => {
