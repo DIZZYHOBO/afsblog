@@ -1854,7 +1854,7 @@
 
         // Load messages for a room
         async function loadRoomMessages(roomId, isPolling = false) {
-            console.log('💬 Loading messages for room:', roomId);
+            console.log('💬 Loading initial messages for room:', roomId);
             
             try {
                 const params = new URLSearchParams();
@@ -1875,8 +1875,10 @@
                 const data = await response.json();
                 
                 if (data.success) {
-                    // Replace all messages with fresh data (no duplicates)
+                    // Set initial messages
                     chatMessages = data.messages || [];
+                    console.log(`📝 Loaded ${chatMessages.length} initial messages`);
+                    
                     if (chatMessages.length > 0) {
                         // Find the newest message for timestamp tracking
                         const newestMessage = chatMessages.reduce((newest, current) => {
@@ -1885,12 +1887,12 @@
                             return currentTime > newestTime ? current : newest;
                         });
                         chatManager.lastMessageTimestamp = newestMessage.createdAt;
-                        console.log(`🕐 Set initial last timestamp to: ${chatManager.lastMessageTimestamp}`);
+                        console.log(`🕐 Set baseline timestamp: ${chatManager.lastMessageTimestamp}`);
                     } else {
                         chatManager.lastMessageTimestamp = null;
+                        console.log(`🕐 No messages, no baseline timestamp`);
                     }
                     
-                    console.log('✅ Loaded messages:', chatMessages.length);
                     renderMessages();
                     
                     // Always scroll to bottom on initial load
