@@ -350,7 +350,7 @@
             flex-direction: column;
             background: var(--bg-primary);
             height: 100vh;
-            min-width: 0; /* Allow shrinking */
+            min-width: 0;
         }
 
         .chat-header {
@@ -374,6 +374,7 @@
         .chat-actions {
             display: flex;
             gap: 8px;
+            align-items: center;
         }
 
         .action-btn {
@@ -392,6 +393,32 @@
         .action-btn:hover {
             background: var(--bg-secondary);
             color: var(--text-primary);
+        }
+
+        .connection-status {
+            font-size: 10px;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            margin-right: 8px;
+        }
+
+        .status-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        .status-connected { background: var(--success-color); }
+        .status-connecting { background: var(--warning-color); animation: pulse 1s infinite; }
+        .status-error { background: var(--danger-color); }
+        .status-disconnected { background: var(--text-muted); }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
         }
 
         .messages-container {
@@ -416,6 +443,18 @@
             display: flex;
             gap: 12px;
             flex-shrink: 0;
+        }
+
+        .message-pending {
+            opacity: 0.7;
+        }
+
+        .message-failed {
+            opacity: 0.5;
+            background: rgba(237, 66, 69, 0.1);
+            border-left: 3px solid var(--danger-color);
+            padding-left: 8px;
+            margin-left: -8px;
         }
 
         .message-avatar {
@@ -452,6 +491,17 @@
         .message-timestamp {
             font-size: 12px;
             color: var(--text-muted);
+        }
+
+        .message-status {
+            font-size: 11px;
+            color: var(--warning-color);
+            font-style: italic;
+            margin-left: 8px;
+        }
+
+        .message-status.failed {
+            color: var(--danger-color);
         }
 
         .message-text {
@@ -795,17 +845,7 @@
             }
         }
 
-        /* Pending message styles */
-        .message-pending {
-            opacity: 0.7;
-        }
-
-        .message-status {
-            font-size: 11px;
-            color: var(--warning-color);
-            font-style: italic;
-            margin-left: 8px;
-        }
+        /* Success/Error Messages */
         .message-success {
             background: var(--success-color);
             color: white;
@@ -899,6 +939,10 @@
                     <span id="chatRoomName">Select a channel</span>
                 </div>
                 <div class="chat-actions">
+                    <div class="connection-status" id="connectionStatus">
+                        <span class="status-indicator status-disconnected" id="statusIndicator"></span>
+                        <span id="statusText">Disconnected</span>
+                    </div>
                     <button class="action-btn" onclick="checkSessionToken()" title="Check Session">
                         🔄
                     </button>
@@ -1038,13 +1082,328 @@
         let userServers = [];
         let serverRooms = [];
         let chatMessages = [];
-        let refreshInterval = null;
         let sessionCheckInterval = null;
         let publicServers = [];
+        let lastActivity = Date.now();
+
+        // Ultra-Fast Polling Chat Manager
+        class ChatManager {
+            constructor() {
+                this.lastMessageTimestamp = null;
+                this.pollingInterval = null;
+                this.connectionState = 'disconnected';
+                this.retryCount = 0;
+                this.maxRetries = 5;
+                this.baseDelay = 200; // Ultra-fast base polling
+                this.currentDelay = this.baseDelay;
+                this.isActive = true;
+                this.pendingMessages = new Map();
+                this.roomId = null;
+                this.consecutiveEmptyPolls = 0;
+                this.maxEmptyPolls = 10;
+            }
+
+            startRealTimeUpdates(roomId) {
+                this.stopRealTimeUpdates();
+                this.roomId = roomId;
+                this.connectionState = 'connecting';
+                this.updateConnectionStatus();
+                this.consecutiveEmptyPolls = 0;
+                
+                console.log(`🚀 Starting ultra-fast updates for room ${roomId}`);
+                
+                // Immediate first poll
+                this.pollForMessages();
+                
+                // Start ultra-fast polling
+                this.pollingInterval = setInterval(() => {
+                    this.pollForMessages();
+                }, this.currentDelay);
+            }
+
+            async pollForMessages() {
+                if (!this.roomId || !this.isActive) return;
+
+                try {
+                    const params = new URLSearchParams();
+                    if (this.lastMessageTimestamp) {
+                        params.append('after', this.lastMessageTimestamp);
+                        params.append('limit', '20');
+                    } else {
+                        params.append('limit', '50');
+                    }
+
+                    const response = await fetch(`/.netlify/functions/chat-api/rooms/${this.roomId}/messages?${params}`, {
+                        method: 'GET',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${getSessionToken()}`
+                        }
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}`);
+                    }
+
+                    const data = await response.json();
+                    
+                    if (data.success && data.messages?.length > 0) {
+                        this.handleNewMessages(data.messages);
+                        this.optimizePollingSpeed(true);
+                        this.resetRetryCount();
+                        this.consecutiveEmptyPolls = 0;
+                    } else {
+                        this.consecutiveEmptyPolls++;
+                        this.optimizePollingSpeed(false);
+                    }
+
+                    this.connectionState = 'connected';
+                    this.updateConnectionStatus();
+                    
+                } catch (error) {
+                    console.error('💥 Polling error:', error);
+                    this.handleConnectionError();
+                }
+            }
+
+            handleNewMessages(messages) {
+                const wasAtBottom = isAtBottom();
+                
+                // Update last timestamp
+                this.lastMessageTimestamp = messages[messages.length - 1].createdAt;
+                
+                // Add to global messages array
+                chatMessages = [...chatMessages, ...messages];
+                
+                // Render and handle UI
+                renderMessages();
+                
+                if (wasAtBottom) {
+                    scrollToBottom();
+                }
+                
+                // Flash notification if not active
+                if (!this.isActive) {
+                    this.flashNotification(messages.length);
+                }
+                
+                console.log(`✅ Received ${messages.length} new messages`);
+            }
+
+            optimizePollingSpeed(hasActivity) {
+                const timeSinceActivity = Date.now() - lastActivity;
+                
+                if (hasActivity) {
+                    // Messages flowing - poll ultra-fast
+                    this.currentDelay = 200;
+                } else if (timeSinceActivity < 5000) {
+                    // User very active - poll very fast
+                    this.currentDelay = 300;
+                } else if (timeSinceActivity < 30000) {
+                    // User active recently - poll fast
+                    this.currentDelay = 500;
+                } else if (timeSinceActivity < 120000) {
+                    // User somewhat active - medium polling
+                    this.currentDelay = 1000;
+                } else if (this.consecutiveEmptyPolls > this.maxEmptyPolls) {
+                    // No activity for a while - slow polling
+                    this.currentDelay = 3000;
+                } else {
+                    // Default medium speed
+                    this.currentDelay = 1000;
+                }
+                
+                // Restart interval with new delay if changed
+                if (this.pollingInterval) {
+                    clearInterval(this.pollingInterval);
+                    this.pollingInterval = setInterval(() => {
+                        this.pollForMessages();
+                    }, this.currentDelay);
+                }
+            }
+
+            handleConnectionError() {
+                this.connectionState = 'error';
+                this.updateConnectionStatus();
+                this.retryCount++;
+                
+                if (this.retryCount < this.maxRetries) {
+                    // Exponential backoff
+                    const retryDelay = Math.min(1000 * Math.pow(2, this.retryCount), 10000);
+                    console.log(`🔄 Retrying in ${retryDelay}ms (attempt ${this.retryCount})`);
+                    
+                    setTimeout(() => {
+                        this.connectionState = 'connecting';
+                        this.updateConnectionStatus();
+                        this.pollForMessages();
+                    }, retryDelay);
+                } else {
+                    console.error('❌ Max retries reached, stopping real-time updates');
+                    this.stopRealTimeUpdates();
+                    showErrorMessage('Lost connection to chat. Please refresh to reconnect.');
+                }
+            }
+
+            resetRetryCount() {
+                this.retryCount = 0;
+            }
+
+            setActive(active) {
+                this.isActive = active;
+                if (active) {
+                    lastActivity = Date.now();
+                    this.optimizePollingSpeed(false);
+                    
+                    // Force immediate poll when becoming active
+                    if (this.roomId && this.connectionState === 'connected') {
+                        this.pollForMessages();
+                    }
+                }
+            }
+
+            flashNotification(messageCount) {
+                const originalTitle = document.title;
+                document.title = `💬 ${messageCount} New Messages - AFS Chat`;
+                
+                setTimeout(() => {
+                    document.title = originalTitle;
+                }, 3000);
+                
+                // Browser notification if supported
+                if ('Notification' in window && Notification.permission === 'granted') {
+                    new Notification(`${messageCount} new message${messageCount > 1 ? 's' : ''} in chat`, {
+                        icon: '/favicon.ico',
+                        badge: '/favicon.ico',
+                        tag: 'chat-notification'
+                    });
+                }
+            }
+
+            updateConnectionStatus() {
+                const statusIndicator = document.getElementById('statusIndicator');
+                const statusText = document.getElementById('statusText');
+                
+                if (!statusIndicator || !statusText) return;
+
+                statusIndicator.className = `status-indicator status-${this.connectionState}`;
+                
+                const statusMessages = {
+                    'connecting': 'Connecting...',
+                    'connected': `${this.currentDelay}ms`,
+                    'error': 'Error',
+                    'disconnected': 'Offline'
+                };
+                
+                statusText.textContent = statusMessages[this.connectionState] || 'Unknown';
+            }
+
+            stopRealTimeUpdates() {
+                if (this.pollingInterval) {
+                    clearInterval(this.pollingInterval);
+                    this.pollingInterval = null;
+                }
+                this.connectionState = 'disconnected';
+                this.updateConnectionStatus();
+                this.retryCount = 0;
+                this.consecutiveEmptyPolls = 0;
+                console.log('⏹️ Stopped real-time updates');
+            }
+
+            async sendMessage(content) {
+                const messageId = 'temp_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+                
+                const optimisticMessage = {
+                    id: messageId,
+                    content: content,
+                    author: currentUser.username,
+                    createdAt: new Date().toISOString(),
+                    pending: true
+                };
+
+                // Add to pending messages map
+                this.pendingMessages.set(messageId, optimisticMessage);
+                
+                // Add to UI immediately
+                chatMessages.push(optimisticMessage);
+                renderMessages();
+                scrollToBottom();
+
+                // Track activity
+                lastActivity = Date.now();
+                
+                try {
+                    const response = await fetch(`/.netlify/functions/chat-api/rooms/${this.roomId}/messages`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${getSessionToken()}`
+                        },
+                        body: JSON.stringify({ content })
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}`);
+                    }
+
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        // Remove optimistic message and replace with real one
+                        chatMessages = chatMessages.filter(m => m.id !== messageId);
+                        chatMessages.push(data.message);
+                        this.lastMessageTimestamp = data.message.createdAt;
+                        this.pendingMessages.delete(messageId);
+                        
+                        renderMessages();
+                        scrollToBottom();
+                        
+                        // Speed up polling briefly for rapid responses
+                        this.currentDelay = 200;
+                        this.consecutiveEmptyPolls = 0;
+                        
+                        console.log('✅ Message sent successfully');
+                    } else {
+                        throw new Error(data.error || 'Failed to send message');
+                    }
+                    
+                } catch (error) {
+                    console.error('💥 Error sending message:', error);
+                    
+                    // Mark message as failed instead of removing
+                    const messageIndex = chatMessages.findIndex(m => m.id === messageId);
+                    if (messageIndex !== -1) {
+                        chatMessages[messageIndex].pending = false;
+                        chatMessages[messageIndex].failed = true;
+                    }
+                    this.pendingMessages.delete(messageId);
+                    renderMessages();
+                    
+                    throw error;
+                }
+            }
+
+            getConnectionStatus() {
+                return {
+                    state: this.connectionState,
+                    delay: this.currentDelay,
+                    retries: this.retryCount,
+                    pendingCount: this.pendingMessages.size,
+                    emptyPolls: this.consecutiveEmptyPolls
+                };
+            }
+        }
+
+        // Initialize chat manager
+        const chatManager = new ChatManager();
 
         // Initialize the chat app
         function initializeApp() {
             console.log('🚀 Initializing chat app...');
+            
+            // Request notification permission
+            if ('Notification' in window && Notification.permission === 'default') {
+                Notification.requestPermission();
+            }
             
             // Check for existing session from main app
             const token = getSessionToken();
@@ -1138,6 +1497,7 @@
             console.log('🔒 Showing auth required screen');
             document.getElementById('authRequired').style.display = 'flex';
             document.getElementById('chatApp').style.display = 'none';
+            chatManager.stopRealTimeUpdates();
         }
 
         // Show the main chat application
@@ -1168,11 +1528,9 @@
             chatMessages = [];
             publicServers = [];
             
-            // Stop refresh intervals
-            if (refreshInterval) {
-                clearInterval(refreshInterval);
-                refreshInterval = null;
-            }
+            // Stop chat manager
+            chatManager.stopRealTimeUpdates();
+            
             if (sessionCheckInterval) {
                 clearInterval(sessionCheckInterval);
                 sessionCheckInterval = null;
@@ -1348,6 +1706,9 @@
             currentServer = server;
             currentRoom = null;
             
+            // Stop current chat updates
+            chatManager.stopRealTimeUpdates();
+            
             // Update UI
             document.getElementById('currentServerName').textContent = server.name;
             renderServersList(); // Re-render to show active state
@@ -1463,7 +1824,7 @@
             `).join('');
         }
 
-        // Select a room/channel
+        // Select a room/channel (with ultra-fast polling)
         async function selectRoom(roomId) {
             console.log('📋 Selecting room:', roomId);
             
@@ -1473,25 +1834,33 @@
                 return;
             }
             
+            // Stop current updates
+            chatManager.stopRealTimeUpdates();
+            
+            // Clear previous room data
+            chatMessages = [];
             currentRoom = room;
             
             // Update UI
             document.getElementById('chatRoomName').textContent = room.name;
             renderRoomsList(); // Re-render to show active state
             
-            // Load messages for this room
-            await loadRoomMessages(roomId);
+            // Load initial messages
+            await loadRoomMessages(roomId, false);
             
-            // Start message refresh
-            startMessageRefresh();
+            // Start ultra-fast real-time updates
+            chatManager.startRealTimeUpdates(roomId);
         }
 
         // Load messages for a room
-        async function loadRoomMessages(roomId) {
+        async function loadRoomMessages(roomId, isPolling = false) {
             console.log('💬 Loading messages for room:', roomId);
             
             try {
-                const response = await fetch(`/.netlify/functions/chat-api/rooms/${roomId}/messages`, {
+                const params = new URLSearchParams();
+                params.append('limit', '50');
+                
+                const response = await fetch(`/.netlify/functions/chat-api/rooms/${roomId}/messages?${params}`, {
                     method: 'GET',
                     headers: {
                         'Content-Type': 'application/json',
@@ -1506,17 +1875,14 @@
                 const data = await response.json();
                 
                 if (data.success) {
-                    const previousScrollHeight = document.getElementById('messagesContainer').scrollHeight;
-                    const isScrolledToBottom = isAtBottom();
-                    
                     chatMessages = data.messages || [];
+                    if (chatMessages.length > 0) {
+                        chatManager.lastMessageTimestamp = chatMessages[chatMessages.length - 1].createdAt;
+                    }
+                    
                     console.log('✅ Loaded messages:', chatMessages.length);
                     renderMessages();
-                    
-                    // Auto-scroll to bottom if user was already at bottom or this is initial load
-                    if (isScrolledToBottom || chatMessages.length <= 50) {
-                        scrollToBottom();
-                    }
+                    scrollToBottom();
                 } else {
                     console.error('❌ Failed to load messages:', data.error);
                     chatMessages = [];
@@ -1542,7 +1908,7 @@
             container.scrollTop = container.scrollHeight;
         }
 
-        // Render messages
+        // Render messages (with pending and failed states)
         function renderMessages() {
             const messagesWrapper = document.getElementById('messagesWrapper');
             if (!messagesWrapper) return;
@@ -1557,20 +1923,34 @@
                 return;
             }
             
-            messagesWrapper.innerHTML = chatMessages.map(message => `
-                <div class="message">
-                    <div class="message-avatar">
-                        ${message.author.charAt(0).toUpperCase()}
-                    </div>
-                    <div class="message-content">
-                        <div class="message-header">
-                            <span class="message-author">${message.author}</span>
-                            <span class="message-timestamp">${formatTimestamp(message.createdAt || message.timestamp)}</span>
+            messagesWrapper.innerHTML = chatMessages.map(message => {
+                let messageClass = 'message';
+                let statusText = '';
+                
+                if (message.pending) {
+                    messageClass += ' message-pending';
+                    statusText = '<span class="message-status">Sending...</span>';
+                } else if (message.failed) {
+                    messageClass += ' message-failed';
+                    statusText = '<span class="message-status failed">Failed</span>';
+                }
+                
+                return `
+                    <div class="${messageClass}">
+                        <div class="message-avatar">
+                            ${message.author.charAt(0).toUpperCase()}
                         </div>
-                        <div class="message-text">${escapeHtml(message.content)}</div>
+                        <div class="message-content">
+                            <div class="message-header">
+                                <span class="message-author">${message.author}</span>
+                                <span class="message-timestamp">${formatTimestamp(message.createdAt || message.timestamp)}</span>
+                                ${statusText}
+                            </div>
+                            <div class="message-text">${escapeHtml(message.content)}</div>
+                        </div>
                     </div>
-                </div>
-            `).join('');
+                `;
+            }).join('');
         }
 
         // Format timestamp
@@ -1596,19 +1976,6 @@
             return div.innerHTML;
         }
 
-        // Start message refresh
-        function startMessageRefresh() {
-            if (refreshInterval) {
-                clearInterval(refreshInterval);
-            }
-            
-            refreshInterval = setInterval(() => {
-                if (currentRoom) {
-                    loadRoomMessages(currentRoom.id);
-                }
-            }, 3000); // Refresh every 3 seconds
-        }
-
         // Handle message input
         function handleMessageKeyDown(event) {
             if (event.key === 'Enter' && !event.shiftKey) {
@@ -1617,7 +1984,7 @@
             }
         }
 
-        // Send a message
+        // Send a message (using ultra-fast chat manager)
         async function sendMessage() {
             if (!currentRoom || !currentUser) {
                 console.log('❌ Cannot send message: no room or user');
@@ -1634,43 +2001,15 @@
             
             console.log('📤 Sending message:', content);
             
-            // Clear input immediately for better UX
+            // Clear input immediately
             messageInput.value = '';
             
             try {
-                const response = await fetch(`/.netlify/functions/chat-api/rooms/${currentRoom.id}/messages`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${getSessionToken()}`
-                    },
-                    body: JSON.stringify({
-                        content: content
-                    })
-                });
-
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                }
-
-                const data = await response.json();
-                
-                if (data.success) {
-                    console.log('✅ Message sent successfully');
-                    
-                    // Immediately refresh messages
-                    await loadRoomMessages(currentRoom.id);
-                } else {
-                    console.error('❌ Failed to send message:', data.error);
-                    showErrorMessage(data.error || 'Failed to send message');
-                    // Restore message if failed
-                    messageInput.value = content;
-                }
+                await chatManager.sendMessage(content);
             } catch (error) {
-                console.error('💥 Error sending message:', error);
-                showErrorMessage('Network error. Please try again.');
-                // Restore message if failed
+                // Restore message on error
                 messageInput.value = content;
+                showErrorMessage('Failed to send message. Please try again.');
             }
         }
 
@@ -2023,20 +2362,35 @@ Created: ${currentServer.createdAt ? new Date(currentServer.createdAt).toLocaleD
             }, 5000);
         }
 
+        // Activity tracking for ultra-fast polling optimization
+        function trackUserActivity() {
+            lastActivity = Date.now();
+            chatManager.setActive(true);
+        }
+
+        // Enhanced visibility change handling
+        document.addEventListener('visibilitychange', function() {
+            const isActive = !document.hidden;
+            chatManager.setActive(isActive);
+            
+            if (isActive && currentRoom) {
+                // Force immediate poll when returning to tab
+                console.log('🔄 User returned to tab, forcing immediate poll');
+                chatManager.pollForMessages();
+            }
+        });
+
+        // Activity event listeners for adaptive polling
+        ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'].forEach(event => {
+            document.addEventListener(event, trackUserActivity, { passive: true });
+        });
+
         // Initialize app when page loads
         document.addEventListener('DOMContentLoaded', initializeApp);
         
         // Handle browser back/forward
         window.addEventListener('popstate', function(event) {
             // Handle navigation if needed
-        });
-        
-        // Handle page visibility change
-        document.addEventListener('visibilitychange', function() {
-            if (document.visibilityState === 'visible' && currentUser) {
-                // Refresh when page becomes visible
-                checkSessionToken();
-            }
         });
 
         // Monitor localStorage changes from main app
@@ -2056,6 +2410,22 @@ Created: ${currentServer.createdAt ? new Date(currentServer.createdAt).toLocaleD
                 }
             }
         });
+
+        // Debug function to show connection status (optional)
+        function showConnectionStatus() {
+            const status = chatManager.getConnectionStatus();
+            console.log('🔌 Connection Status:', {
+                state: status.state,
+                delay: `${status.delay}ms`,
+                retries: status.retries,
+                pending: status.pendingCount,
+                emptyPolls: status.emptyPolls
+            });
+        }
+
+        // Optional: Add to window for debugging
+        window.chatManager = chatManager;
+        window.showConnectionStatus = showConnectionStatus;
     </script>
 </body>
 </html>
