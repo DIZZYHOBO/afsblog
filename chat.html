@@ -455,7 +455,7 @@
         .modal-content {
             background: var(--bg-secondary);
             margin: auto;
-        padding: 2rem;
+            padding: 2rem;
             border-radius: 8px;
             width: 90%;
             max-width: 500px;
@@ -765,59 +765,14 @@
         let refreshInterval = null;
         let sessionCheckInterval = null;
 
-        // Add localStorage monitor to see when tokens are set/cleared
-        function setupLocalStorageMonitor() {
-            console.log('🔍 Setting up localStorage monitor for chat app...');
-            
-            const originalSetItem = localStorage.setItem;
-            const originalRemoveItem = localStorage.removeItem;
-            const originalClear = localStorage.clear;
-            
-            localStorage.setItem = function(key, value) {
-                console.log(`📝 CHAT APP localStorage.setItem("${key}", "${value?.substring(0, 50)}${value?.length > 50 ? '...' : ''}")`);
-                
-                if (key === 'sessionToken') {
-                    console.log('🎉 CHAT APP: SESSION TOKEN DETECTED!');
-                    console.log('Token value:', value?.substring(0, 30) + '...');
-                    
-                    // Auto-check session when token is detected
-                    setTimeout(() => {
-                        console.log('🔄 Auto-checking session after token detection...');
-                        checkSessionToken();
-                    }, 1000);
-                }
-                
-                return originalSetItem.apply(this, arguments);
-            };
-            
-            localStorage.removeItem = function(key) {
-                console.log(`🗑️ CHAT APP localStorage.removeItem("${key}")`);
-                
-                if (key === 'sessionToken') {
-                    console.log('❌ CHAT APP: SESSION TOKEN WAS REMOVED!');
-                    // Handle logout
-                    handleLogout();
-                }
-                
-                return originalRemoveItem.apply(this, arguments);
-            };
-            
-            localStorage.clear = function() {
-                console.log('🗑️ CHAT APP localStorage.clear()');
-                handleLogout();
-                return originalClear.apply(this, arguments);
-            };
-        }
-
         // Initialize the chat app
         function initializeApp() {
             console.log('🚀 Initializing chat app...');
-            setupLocalStorageMonitor();
             
-            // Check for existing session
+            // Check for existing session from main app
             const token = getSessionToken();
             if (token) {
-                console.log('📱 Found existing session token, checking validity...');
+                console.log('📱 Found existing session token from main app, checking validity...');
                 checkSessionToken();
             } else {
                 console.log('❌ No session token found, showing auth required screen');
@@ -825,14 +780,19 @@
             }
         }
 
-        // Get session token from localStorage
+        // Get session token from localStorage (shared with main app)
         function getSessionToken() {
-            const token = localStorage.getItem('sessionToken');
-            console.log('🔑 Getting session token:', token ? 'Token exists' : 'No token');
-            return token;
+            // Try both possible token keys from the main app
+            const sessionToken = localStorage.getItem('sessionToken');
+            const currentUserData = localStorage.getItem('current_user');
+            
+            console.log('🔑 Getting session token:', sessionToken ? 'Token exists' : 'No token');
+            console.log('👤 Getting current user data:', currentUserData ? 'User data exists' : 'No user data');
+            
+            return sessionToken;
         }
 
-        // Check if the session token is valid
+        // Check if the session token is valid using the main app's auth endpoint
         async function checkSessionToken() {
             console.log('🔍 Checking session token validity...');
             
@@ -852,26 +812,31 @@
             }
 
             try {
-                const response = await fetch('/.netlify/functions/auth', {
-                    method: 'POST',
+                // Use the main app's auth validation endpoint
+                const response = await fetch('/.netlify/functions/api/profile', {
+                    method: 'GET',
                     headers: {
                         'Content-Type': 'application/json',
                         'Authorization': `Bearer ${token}`
-                    },
-                    body: JSON.stringify({
-                        action: 'verifyToken'
-                    })
+                    }
                 });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
 
                 const data = await response.json();
                 console.log('📝 Session check response:', data);
 
-                if (data.valid && data.user) {
-                    console.log('✅ Valid session for user:', data.user.username);
-                    currentUser = data.user;
+                if (data.success && data.profile) {
+                    console.log('✅ Valid session for user:', data.profile.username);
+                    currentUser = {
+                        username: data.profile.username,
+                        ...data.profile
+                    };
                     
                     if (statusEl) {
-                        statusEl.textContent = `✅ Logged in as ${data.user.username}`;
+                        statusEl.textContent = `✅ Logged in as ${data.profile.username}`;
                         statusEl.style.background = 'var(--success-color)';
                         statusEl.style.color = 'white';
                         setTimeout(() => {
@@ -881,26 +846,18 @@
                     
                     showChatApp();
                 } else {
-                    console.log('❌ Invalid session token');
-                    
-                    if (statusEl) {
-                        statusEl.textContent = '❌ Session expired or invalid';
-                        statusEl.style.background = 'var(--danger-color)';
-                        statusEl.style.color = 'white';
-                    }
-                    
-                    localStorage.removeItem('sessionToken');
-                    showAuthRequired();
+                    throw new Error('Invalid response format');
                 }
             } catch (error) {
                 console.error('💥 Error checking session:', error);
                 
                 if (statusEl) {
-                    statusEl.textContent = '❌ Error checking session';
+                    statusEl.textContent = '❌ Session expired or invalid';
                     statusEl.style.background = 'var(--danger-color)';
                     statusEl.style.color = 'white';
                 }
                 
+                // Don't remove the token here, let main app handle it
                 showAuthRequired();
             }
         }
@@ -984,16 +941,17 @@
             console.log('🏠 Loading user servers...');
             
             try {
-                const response = await fetch('/.netlify/functions/chat-api', {
-                    method: 'POST',
+                const response = await fetch('/.netlify/functions/chat-api/servers', {
+                    method: 'GET',
                     headers: {
                         'Content-Type': 'application/json',
                         'Authorization': `Bearer ${getSessionToken()}`
-                    },
-                    body: JSON.stringify({
-                        action: 'getUserServers'
-                    })
+                    }
                 });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
 
                 const data = await response.json();
                 
@@ -1062,17 +1020,17 @@
             console.log('📋 Loading rooms for server:', serverId);
             
             try {
-                const response = await fetch('/.netlify/functions/chat-api', {
-                    method: 'POST',
+                const response = await fetch(`/.netlify/functions/chat-api/servers/${serverId}/rooms`, {
+                    method: 'GET',
                     headers: {
                         'Content-Type': 'application/json',
                         'Authorization': `Bearer ${getSessionToken()}`
-                    },
-                    body: JSON.stringify({
-                        action: 'getServerRooms',
-                        serverId: serverId
-                    })
+                    }
                 });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
 
                 const data = await response.json();
                 
@@ -1144,17 +1102,17 @@
             console.log('💬 Loading messages for room:', roomId);
             
             try {
-                const response = await fetch('/.netlify/functions/chat-api', {
-                    method: 'POST',
+                const response = await fetch(`/.netlify/functions/chat-api/rooms/${roomId}/messages`, {
+                    method: 'GET',
                     headers: {
                         'Content-Type': 'application/json',
                         'Authorization': `Bearer ${getSessionToken()}`
-                    },
-                    body: JSON.stringify({
-                        action: 'getRoomMessages',
-                        roomId: roomId
-                    })
+                    }
                 });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
 
                 const data = await response.json();
                 
@@ -1197,7 +1155,7 @@
                     <div class="message-content">
                         <div class="message-header">
                             <span class="message-author">${message.author}</span>
-                            <span class="message-timestamp">${formatTimestamp(message.timestamp)}</span>
+                            <span class="message-timestamp">${formatTimestamp(message.createdAt || message.timestamp)}</span>
                         </div>
                         <div class="message-text">${escapeHtml(message.content)}</div>
                     </div>
@@ -1270,18 +1228,20 @@
             console.log('📤 Sending message:', content);
             
             try {
-                const response = await fetch('/.netlify/functions/chat-api', {
+                const response = await fetch(`/.netlify/functions/chat-api/rooms/${currentRoom.id}/messages`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                         'Authorization': `Bearer ${getSessionToken()}`
                     },
                     body: JSON.stringify({
-                        action: 'sendMessage',
-                        roomId: currentRoom.id,
                         content: content
                     })
                 });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
 
                 const data = await response.json();
                 
@@ -1304,7 +1264,7 @@
         // Join Server Modal Functions
         function openJoinServerModal() {
             console.log('🔍 Opening join server modal...');
-            document.getElementById('joinServerModal').style.display = 'block';
+            document.getElementById('joinServerModal').style.display = 'flex';
             // Focus on the input field
             setTimeout(() => {
                 document.getElementById('serverIdInput').focus();
@@ -1344,30 +1304,32 @@
             console.log('🚀 Attempting to join server:', serverId);
             
             try {
-                const response = await fetch('/.netlify/functions/chat-api', {
+                const response = await fetch(`/.netlify/functions/chat-api/servers/${serverId}/join`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                         'Authorization': `Bearer ${getSessionToken()}`
-                    },
-                    body: JSON.stringify({
-                        action: 'joinServer',
-                        serverId: serverId
-                    })
+                    }
                 });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
 
                 const data = await response.json();
                 
                 if (data.success) {
-                    console.log('✅ Successfully joined server:', data.server.name);
-                    showSuccessMessage(`Successfully joined server: ${data.server.name}`);
+                    console.log('✅ Successfully joined server:', data.server?.name || serverId);
+                    showSuccessMessage(`Successfully joined server!`);
                     closeJoinServerModal();
                     
                     // Refresh server list
                     await loadUserServers();
                     
-                    // Select the newly joined server
-                    selectServer(serverId);
+                    // Select the newly joined server if we have its data
+                    if (data.server) {
+                        selectServer(data.server.id);
+                    }
                 } else {
                     console.error('❌ Failed to join server:', data.error);
                     showErrorMessage(data.error || 'Failed to join server');
@@ -1381,7 +1343,7 @@
         // Create Server Modal Functions
         function openCreateServerModal() {
             console.log('🏠 Opening create server modal...');
-            document.getElementById('createServerModal').style.display = 'block';
+            document.getElementById('createServerModal').style.display = 'flex';
         }
 
         function closeCreateServerModal() {
@@ -1411,30 +1373,35 @@
             console.log('🚀 Creating server:', { name, description, isPrivate });
             
             try {
-                const response = await fetch('/.netlify/functions/chat-api', {
+                const response = await fetch('/.netlify/functions/chat-api/servers', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                         'Authorization': `Bearer ${getSessionToken()}`
                     },
                     body: JSON.stringify({
-                        action: 'createServer',
                         name: name,
                         description: description,
                         isPrivate: isPrivate
                     })
                 });
 
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
                 const data = await response.json();
                 
                 if (data.success) {
-                    console.log('✅ Server created successfully:', data.server.id);
+                    console.log('✅ Server created successfully:', data.server?.id);
                     showSuccessMessage(`Server "${name}" created successfully!`);
                     closeCreateServerModal();
                     
                     // Refresh server list and select the new server
                     await loadUserServers();
-                    selectServer(data.server.id);
+                    if (data.server) {
+                        selectServer(data.server.id);
+                    }
                 } else {
                     console.error('❌ Failed to create server:', data.error);
                     showErrorMessage(data.error || 'Failed to create server');
@@ -1468,28 +1435,32 @@
             console.log('📋 Creating room:', roomName, 'in server:', currentServer.id);
             
             try {
-                const response = await fetch('/.netlify/functions/chat-api', {
+                const response = await fetch(`/.netlify/functions/chat-api/servers/${currentServer.id}/rooms`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                         'Authorization': `Bearer ${getSessionToken()}`
                     },
                     body: JSON.stringify({
-                        action: 'createRoom',
-                        name: roomName,
-                        serverId: currentServer.id
+                        name: roomName
                     })
                 });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
 
                 const data = await response.json();
                 
                 if (data.success) {
-                    console.log('✅ Room created successfully:', data.room.id);
+                    console.log('✅ Room created successfully:', data.room?.id);
                     showSuccessMessage(`Channel "${roomName}" created successfully!`);
                     
                     // Refresh rooms list and select the new room
                     await loadServerRooms(currentServer.id);
-                    selectRoom(data.room.id);
+                    if (data.room) {
+                        selectRoom(data.room.id);
+                    }
                 } else {
                     console.error('❌ Failed to create room:', data.error);
                     showErrorMessage(data.error || 'Failed to create channel');
@@ -1545,6 +1516,24 @@
             if (document.visibilityState === 'visible' && currentUser) {
                 // Refresh when page becomes visible
                 checkSessionToken();
+            }
+        });
+
+        // Monitor localStorage changes from main app
+        window.addEventListener('storage', function(e) {
+            console.log('🔄 Storage event detected:', e.key, e.newValue ? 'Set' : 'Removed');
+            
+            if (e.key === 'sessionToken') {
+                if (e.newValue) {
+                    console.log('🎉 New session token detected from main app');
+                    // Small delay to let main app finish its setup
+                    setTimeout(() => {
+                        checkSessionToken();
+                    }, 1000);
+                } else {
+                    console.log('❌ Session token removed, user logged out');
+                    handleLogout();
+                }
             }
         });
     </script>
