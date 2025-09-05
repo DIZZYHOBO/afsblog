@@ -1,4 +1,4 @@
-// app.js - Main application logic and initialization - Complete Working Version
+// app.js - Main application logic and initialization - Complete Working Version with UI
 
 // App state
 let currentUser = null;
@@ -94,6 +94,313 @@ const blobAPI = {
         }
     }
 };
+
+// UI Rendering Functions
+function updateFeedContent(html) {
+    const feedElement = document.getElementById('feed');
+    if (feedElement) {
+        feedElement.innerHTML = html;
+    }
+}
+
+function renderFeedPage() {
+    if (!currentUser) {
+        const loginRequiredHtml = `
+            <div class="login-required">
+                <div class="login-required-icon">🔒</div>
+                <h2>Welcome to AFS</h2>
+                <p>Sign in to view posts and join communities.</p>
+                <div class="login-required-buttons">
+                    <button class="btn" onclick="openModal('authModal'); setAuthMode('signin')">
+                        Sign In
+                    </button>
+                    <button class="btn btn-secondary" onclick="openModal('authModal'); setAuthMode('signup')">
+                        Sign Up
+                    </button>
+                </div>
+            </div>
+        `;
+        updateFeedContent(loginRequiredHtml);
+        return;
+    }
+
+    // User is logged in, show feed with tabs
+    renderFeedWithTabs();
+}
+
+function renderFeedWithTabs() {
+    if (!currentUser) {
+        renderFeedPage();
+        return;
+    }
+
+    // Render based on current tab
+    switch (currentFeedTab) {
+        case 'general':
+            renderGeneralFeed();
+            break;
+        case 'followed':
+            renderFollowedFeed();
+            break;
+        default:
+            renderGeneralFeed();
+    }
+}
+
+function renderGeneralFeed() {
+    const publicPosts = posts.filter(post => !post.isPrivate);
+    
+    if (publicPosts.length === 0) {
+        const emptyHtml = `
+            <div class="feature-placeholder">
+                <h3>📫 No Posts Yet</h3>
+                <p>Be the first to share something with the community!</p>
+                <button class="btn" onclick="openModal('composeModal')">Create First Post</button>
+            </div>
+        `;
+        updateFeedContent(emptyHtml);
+        return;
+    }
+
+    const postsHtml = renderPostList(publicPosts);
+    updateFeedContent(postsHtml);
+}
+
+function renderFollowedFeed() {
+    if (followedCommunities.size === 0) {
+        const emptyFollowedHtml = `
+            <div class="feature-placeholder">
+                <h3>🏘️ No Followed Communities Yet</h3>
+                <p>You're not following any communities yet! Discover and follow communities to see their posts here.</p>
+                <button class="btn" onclick="switchFeedTab('general')">Browse General Feed</button>
+            </div>
+        `;
+        updateFeedContent(emptyFollowedHtml);
+        return;
+    }
+
+    const followedPosts = getFollowedCommunityPosts();
+    
+    if (followedPosts.length === 0) {
+        const noPostsHtml = `
+            <div class="feature-placeholder">
+                <h3>🏘️ No Posts Yet</h3>
+                <p>Your followed communities don't have any posts yet.</p>
+                <button class="btn" onclick="switchFeedTab('general')">Browse General Feed</button>
+            </div>
+        `;
+        updateFeedContent(noPostsHtml);
+        return;
+    }
+
+    const postsHtml = renderPostList(followedPosts);
+    updateFeedContent(postsHtml);
+}
+
+function getFollowedCommunityPosts() {
+    if (!currentUser || followedCommunities.size === 0) {
+        return [];
+    }
+
+    return posts.filter(post => 
+        post.communityName && 
+        followedCommunities.has(post.communityName) && 
+        !post.isPrivate
+    );
+}
+
+function renderPostList(postArray) {
+    if (!postArray || postArray.length === 0) {
+        return `
+            <div class="feature-placeholder">
+                <h3>📫 No Posts</h3>
+                <p>No posts to display.</p>
+            </div>
+        `;
+    }
+
+    return postArray.map(post => {
+        const timeAgo = formatTimeAgo(post.timestamp);
+        const communityLink = post.communityName ? 
+            `<a href="/${post.communityName}" onclick="navigateToCommunity('${post.communityName}'); return false;" class="community-link">${post.communityName}</a>` : 
+            '';
+
+        return `
+            <div class="post-card" id="post-${post.id}">
+                <div class="post-header">
+                    <div class="post-meta">
+                        <span class="post-author">@${escapeHtml(post.author)}</span>
+                        ${communityLink ? `<span class="post-community">in ${communityLink}</span>` : ''}
+                        <span class="post-time">${timeAgo}</span>
+                    </div>
+                </div>
+                
+                <div class="post-content">
+                    ${renderPostContent(post)}
+                </div>
+                
+                <div class="post-actions">
+                    <button class="action-btn" onclick="toggleReplies('${post.id}')">
+                        <span>💬</span>
+                        <span>${post.replies ? post.replies.length : 0}</span>
+                    </button>
+                    ${currentUser && (currentUser.username === post.author || currentUser.profile?.isAdmin) ? `
+                        <button class="action-btn" onclick="deletePost('${post.id}')">
+                            <span>🗑️</span>
+                            <span>Delete</span>
+                        </button>
+                    ` : ''}
+                </div>
+                
+                <div class="replies-section" id="replies-${post.id}" style="display: none;">
+                    <div class="replies-container">
+                        <div class="replies-list" id="replies-list-${post.id}">
+                            ${renderReplies(post.replies || [])}
+                        </div>
+                        
+                        ${currentUser ? `
+                            <div class="reply-form">
+                                <textarea 
+                                    class="reply-input" 
+                                    id="reply-input-${post.id}"
+                                    placeholder="Write a reply..."
+                                    maxlength="2000"></textarea>
+                                <div class="reply-form-buttons">
+                                    <button class="reply-btn-cancel" onclick="toggleReplies('${post.id}')">Cancel</button>
+                                    <button class="reply-btn-submit" onclick="submitReply('${post.id}')">Reply</button>
+                                </div>
+                            </div>
+                        ` : `
+                            <div style="text-align: center; padding: 16px; color: var(--fg-muted); font-size: 13px;">
+                                <a href="#" onclick="openModal('authModal'); setAuthMode('signin'); return false;">Sign in</a> to reply
+                            </div>
+                        `}
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function renderPostContent(post) {
+    let contentHtml = '';
+
+    if (post.type === 'link' && post.url) {
+        contentHtml += `
+            <a href="${post.url}" target="_blank" rel="noopener noreferrer" class="post-link">
+                🔗 ${post.url}
+            </a>
+        `;
+        
+        if (post.description) {
+            contentHtml += `<div class="post-description">${escapeHtml(post.description)}</div>`;
+        }
+    } else if (post.content) {
+        contentHtml += `<div class="post-text">${escapeHtml(post.content)}</div>`;
+    }
+
+    return contentHtml;
+}
+
+function renderReplies(replies) {
+    if (!replies || replies.length === 0) {
+        return '<div class="no-replies">No replies yet. Be the first to reply!</div>';
+    }
+
+    return replies.map(reply => `
+        <div class="reply-item" id="reply-${reply.id}">
+            <div class="reply-header">
+                <span class="reply-author">@${escapeHtml(reply.author)}</span>
+                <span class="reply-time">${formatTimeAgo(reply.timestamp)}</span>
+            </div>
+            <div class="reply-content">${escapeHtml(reply.content)}</div>
+        </div>
+    `).join('');
+}
+
+function renderCommunityPage() {
+    if (!currentCommunity) {
+        updateFeedContent('<div class="feature-placeholder"><h3>Community not found</h3></div>');
+        return;
+    }
+
+    const community = communities.find(c => c.name === currentCommunity);
+    if (!community) {
+        updateFeedContent('<div class="feature-placeholder"><h3>Community not found</h3></div>');
+        return;
+    }
+
+    const communityPosts = posts.filter(post => post.communityName === community.name && !post.isPrivate);
+    
+    const communityHtml = `
+        <div class="community-page">
+            <div class="community-header">
+                <h1>${escapeHtml(community.name)}</h1>
+                <p>${escapeHtml(community.description || 'No description available')}</p>
+                <div class="community-stats">
+                    <span>${community.members ? community.members.length : 0} members</span>
+                    <span>${communityPosts.length} posts</span>
+                </div>
+                ${currentUser ? `
+                    <button class="btn" onclick="followCommunity('${community.name}')">
+                        Follow
+                    </button>
+                ` : ''}
+            </div>
+            <div class="community-posts">
+                ${renderPostList(communityPosts)}
+            </div>
+        </div>
+    `;
+
+    updateFeedContent(communityHtml);
+}
+
+function renderAdminPage() {
+    if (!currentUser?.profile?.isAdmin) {
+        updateFeedContent(`
+            <div class="feature-placeholder">
+                <h3>🚫 Access Denied</h3>
+                <p>You need administrator privileges to access this page.</p>
+                <button class="btn" onclick="navigateToFeed()">Return to Feed</button>
+            </div>
+        `);
+        return;
+    }
+
+    const adminHtml = `
+        <div class="admin-page">
+            <h1>Admin Panel</h1>
+            <div class="admin-stats">
+                <div class="stat-card">
+                    <h3 id="totalUsers">${adminData?.totalUsers || 0}</h3>
+                    <p>Total Users</p>
+                </div>
+                <div class="stat-card">
+                    <h3 id="totalPosts">${adminData?.totalPosts || 0}</h3>
+                    <p>Total Posts</p>
+                </div>
+                <div class="stat-card">
+                    <h3 id="totalCommunities">${adminData?.totalCommunities || 0}</h3>
+                    <p>Total Communities</p>
+                </div>
+            </div>
+            <div class="admin-actions">
+                <button class="btn" onclick="loadPendingUsers()">Manage Pending Users</button>
+                <button class="btn" onclick="loadAllUsers()">Manage All Users</button>
+                <button class="btn" onclick="refreshAdminStats()">Refresh Stats</button>
+            </div>
+        </div>
+    `;
+
+    updateFeedContent(adminHtml);
+}
+
+// Feed tab switching
+function switchFeedTab(tab) {
+    currentFeedTab = tab;
+    renderFeedWithTabs();
+}
 
 // Menu functions
 function toggleMenu() {
@@ -210,7 +517,7 @@ function navigateToFeed() {
 
 function navigateToCommunity(communityName) {
     currentPage = 'community';
-    currentCommunity = communities.find(c => c.name === communityName);
+    currentCommunity = communityName;
     updateUI();
     history.pushState({page: 'community', community: communityName}, `${communityName}`, `/${communityName}`);
 }
@@ -732,28 +1039,16 @@ function updateMainContent() {
     
     switch (currentPage) {
         case 'feed':
-            if (typeof renderFeedPage === 'function') {
-                renderFeedPage();
-            } else {
-                feedElement.innerHTML = '<div class="loading">Loading feed...</div>';
-            }
+            renderFeedPage();
             break;
         case 'community':
-            if (typeof renderCommunityPage === 'function') {
-                renderCommunityPage();
-            } else {
-                feedElement.innerHTML = '<div class="loading">Loading community...</div>';
-            }
+            renderCommunityPage();
             break;
         case 'admin':
-            if (typeof renderAdminPage === 'function') {
-                renderAdminPage();
-            } else {
-                feedElement.innerHTML = '<div class="loading">Loading admin panel...</div>';
-            }
+            renderAdminPage();
             break;
         default:
-            feedElement.innerHTML = '<div class="loading">Loading...</div>';
+            renderFeedPage();
             break;
     }
 }
@@ -841,6 +1136,26 @@ function showSuccess(elementId, message) {
     if (element) {
         element.innerHTML = `<div class="success-message">${message}</div>`;
         element.style.display = 'block';
+    }
+}
+
+// Post interaction functions
+function toggleReplies(postId) {
+    const repliesSection = document.getElementById(`replies-${postId}`);
+    const isOpen = repliesSection.style.display !== 'none';
+    
+    if (isOpen) {
+        repliesSection.style.display = 'none';
+    } else {
+        repliesSection.style.display = 'block';
+        if (currentUser) {
+            setTimeout(() => {
+                const replyInput = document.getElementById(`reply-input-${postId}`);
+                if (replyInput) {
+                    replyInput.focus();
+                }
+            }, 300);
+        }
     }
 }
 
