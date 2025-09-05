@@ -1854,7 +1854,7 @@
 
         // Load messages for a room
         async function loadRoomMessages(roomId, isPolling = false) {
-            console.log('💬 Loading initial messages for room:', roomId);
+            console.log('💬 Loading messages for room:', roomId);
             
             try {
                 const params = new URLSearchParams();
@@ -1875,11 +1875,15 @@
                 const data = await response.json();
                 
                 if (data.success) {
-                    // Set initial messages
+                    // Replace all messages with fresh data (no duplicates)
                     chatMessages = data.messages || [];
-                    console.log(`📝 Loaded ${chatMessages.length} initial messages`);
-                    
                     if (chatMessages.length > 0) {
+                        // Initialize tracking with all existing messages
+                        chatManager.processedMessageIds.clear();
+                        chatMessages.forEach(message => {
+                            chatManager.processedMessageIds.add(message.id);
+                        });
+                        
                         // Find the newest message for timestamp tracking
                         const newestMessage = chatMessages.reduce((newest, current) => {
                             const newestTime = new Date(newest.createdAt).getTime();
@@ -1887,12 +1891,15 @@
                             return currentTime > newestTime ? current : newest;
                         });
                         chatManager.lastMessageTimestamp = newestMessage.createdAt;
-                        console.log(`🕐 Set baseline timestamp: ${chatManager.lastMessageTimestamp}`);
+                        chatManager.lastProcessedMessageId = newestMessage.id;
+                        console.log(`🕐 Set initial tracking - timestamp: ${chatManager.lastMessageTimestamp}, lastId: ${chatManager.lastProcessedMessageId}`);
                     } else {
                         chatManager.lastMessageTimestamp = null;
-                        console.log(`🕐 No messages, no baseline timestamp`);
+                        chatManager.lastProcessedMessageId = null;
+                        chatManager.processedMessageIds.clear();
                     }
                     
+                    console.log('✅ Loaded messages:', chatMessages.length);
                     renderMessages();
                     
                     // Always scroll to bottom on initial load
