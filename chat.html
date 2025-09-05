@@ -343,6 +343,7 @@
             display: flex;
             flex-direction: column;
             background: var(--bg-primary);
+            height: 100vh;
         }
 
         .chat-header {
@@ -352,6 +353,7 @@
             align-items: center;
             justify-content: space-between;
             border-bottom: 1px solid var(--border-color);
+            flex-shrink: 0;
         }
 
         .chat-title {
@@ -388,12 +390,25 @@
             flex: 1;
             overflow-y: auto;
             padding: 16px;
+            display: flex;
+            flex-direction: column;
+            /* Key changes for proper scrolling */
+            min-height: 0;
+        }
+
+        .messages-list {
+            display: flex;
+            flex-direction: column;
+            /* This pushes messages to the bottom */
+            justify-content: flex-end;
+            min-height: 100%;
         }
 
         .message {
             margin-bottom: 16px;
             display: flex;
             gap: 12px;
+            flex-shrink: 0;
         }
 
         .message-avatar {
@@ -439,6 +454,7 @@
 
         .message-input-container {
             padding: 16px;
+            flex-shrink: 0;
         }
 
         .message-input {
@@ -465,7 +481,12 @@
         .welcome-message {
             text-align: center;
             color: var(--text-muted);
-            margin-top: 100px;
+            margin: auto;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100%;
         }
 
         .welcome-message h3 {
@@ -669,7 +690,7 @@
                 height: 100vh;
                 z-index: 100;
                 transition: left 0.3s ease;
-                transform: translateX(0); /* Override the desktop transform */
+                transform: translateX(0);
             }
 
             .channels-wrapper.mobile-open {
@@ -701,11 +722,10 @@
             }
 
             .message-input {
-                font-size: 16px; /* Prevents zoom on iOS */
+                font-size: 16px;
             }
 
             .messages-container {
-                height: calc(100vh - 120px); /* Adjust for mobile keyboard */
                 padding: 12px;
             }
         }
@@ -718,7 +738,6 @@
             }
 
             .messages-container {
-                height: calc(100vh - 108px);
                 padding: 8px;
             }
 
@@ -845,9 +864,11 @@
             </div>
             
             <div class="messages-container" id="messagesContainer">
-                <div class="welcome-message">
-                    <h3>Welcome to AFS Chat! 💬</h3>
-                    <p>Select a server and channel to start chatting.</p>
+                <div class="messages-list" id="messagesList">
+                    <div class="welcome-message">
+                        <h3>Welcome to AFS Chat! 💬</h3>
+                        <p>Select a server and channel to start chatting.</p>
+                    </div>
                 </div>
             </div>
             
@@ -1459,11 +1480,11 @@
 
         // Render messages
         function renderMessages() {
-            const messagesContainer = document.getElementById('messagesContainer');
-            if (!messagesContainer) return;
+            const messagesListEl = document.getElementById('messagesList');
+            if (!messagesListEl) return;
             
             if (chatMessages.length === 0) {
-                messagesContainer.innerHTML = `
+                messagesListEl.innerHTML = `
                     <div class="welcome-message">
                         <h3>Welcome to #${currentRoom?.name || 'channel'}! 💬</h3>
                         <p>This is the beginning of the conversation.</p>
@@ -1472,7 +1493,7 @@
                 return;
             }
             
-            messagesContainer.innerHTML = chatMessages.map(message => `
+            messagesListEl.innerHTML = chatMessages.map(message => `
                 <div class="message">
                     <div class="message-avatar">
                         ${message.author.charAt(0).toUpperCase()}
@@ -1488,6 +1509,7 @@
             `).join('');
             
             // Scroll to bottom
+            const messagesContainer = document.getElementById('messagesContainer');
             messagesContainer.scrollTop = messagesContainer.scrollHeight;
         }
 
@@ -1923,51 +1945,4 @@ Created: ${currentServer.createdAt ? new Date(currentServer.createdAt).toLocaleD
             messageEl.className = 'message-error';
             messageEl.textContent = message;
             messageEl.style.position = 'fixed';
-            messageEl.style.top = '20px';
-            messageEl.style.right = '20px';
-            messageEl.style.zIndex = '2000';
-            messageEl.style.borderRadius = '8px';
-            messageEl.style.boxShadow = '0 4px 12px rgba(0,0,0,0.3)';
-            document.body.appendChild(messageEl);
-            
-            setTimeout(() => {
-                messageEl.remove();
-            }, 5000);
-        }
-
-        // Initialize app when page loads
-        document.addEventListener('DOMContentLoaded', initializeApp);
-        
-        // Handle browser back/forward
-        window.addEventListener('popstate', function(event) {
-            // Handle navigation if needed
-        });
-        
-        // Handle page visibility change
-        document.addEventListener('visibilitychange', function() {
-            if (document.visibilityState === 'visible' && currentUser) {
-                // Refresh when page becomes visible
-                checkSessionToken();
-            }
-        });
-
-        // Monitor localStorage changes from main app
-        window.addEventListener('storage', function(e) {
-            console.log('🔄 Storage event detected:', e.key, e.newValue ? 'Set' : 'Removed');
-            
-            if (e.key === 'sessionToken') {
-                if (e.newValue) {
-                    console.log('🎉 New session token detected from main app');
-                    // Small delay to let main app finish its setup
-                    setTimeout(() => {
-                        checkSessionToken();
-                    }, 1000);
-                } else {
-                    console.log('❌ Session token removed, user logged out');
-                    handleLogout();
-                }
-            }
-        });
-    </script>
-</body>
-</html>
+            messageEl.style.top = '20
