@@ -249,12 +249,6 @@
             // Hardcode the instance URL
             const instanceUrl = 'https://piefed.social';
             
-            const API_ENDPOINTS = {
-               'all': '/api/alpha/feed/list',
-               'subscribed': '/api/alpha/feed/list',
-               'local': '/api/alpha/feed/list'
-            };
-
             let authToken = '';
             let currentUsername = '';
             let activeFeedType = 'all';
@@ -282,17 +276,9 @@
                     return [];
                 }
 
-                const endpoint = `${instanceUrl}${API_ENDPOINTS[feedType]}`;
-                const url = new URL(endpoint);
-
-                if (feedType === 'subscribed') {
-                    url.searchParams.append('mine_only', 'true');
-                } else if (feedType === 'local') {
-                    url.searchParams.append('local_only', 'true');
-                }
-
                 try {
-                    const response = await fetch(url.toString(), {
+                    // Step 1: Fetch list of communities (feeds)
+                    const communitiesResponse = await fetch(`${instanceUrl}/api/alpha/feed/list`, {
                         method: 'GET',
                         headers: {
                             'Authorization': `Bearer ${authToken}`,
@@ -300,27 +286,64 @@
                         }
                     });
 
-                    if (!response.ok) {
-                        throw new Error(`API returned status code ${response.status}`);
+                    if (!communitiesResponse.ok) {
+                        throw new Error(`API returned status code ${communitiesResponse.status} for communities list.`);
+                    }
+                    const communitiesData = await communitiesResponse.json();
+                    
+                    if (!communitiesData.feeds || !Array.isArray(communitiesData.feeds) || communitiesData.feeds.length === 0) {
+                        console.error('No communities found:', communitiesData);
+                        showModal('Error', 'No communities found on this instance.');
+                        return null;
                     }
 
-                    const data = await response.json();
-                    
-                    console.log('Raw API data:', data); 
+                    // Step 2: Select a feedId based on the tab
+                    let feedId;
+                    if (feedType === 'subscribed') {
+                        // Find a subscribed feed, for now we'll just use the first one available
+                        const subscribedFeed = communitiesData.feeds.find(feed => feed.is_subscribed);
+                        feedId = subscribedFeed ? subscribedFeed.id : null;
+                    } else if (feedType === 'local') {
+                        // Find a local feed, for now we'll just use the first one available
+                        const localFeed = communitiesData.feeds.find(feed => feed.is_local);
+                        feedId = localFeed ? localFeed.id : null;
+                    } else { // 'all' feed
+                        // For simplicity, we'll use the ID of the first community in the list
+                        feedId = communitiesData.feeds[0].id;
+                    }
 
-                    // Changed from data.posts to data.feeds
-                    const feedData = data.feeds || [];
+                    if (!feedId) {
+                        showModal('Error', `No ${feedType} feed found.`);
+                        return [];
+                    }
+
+                    // Step 3: Fetch posts for the selected feed
+                    const postsResponse = await fetch(`${instanceUrl}/api/alpha/feed/${feedId}/post/list`, {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': `Bearer ${authToken}`,
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                    
+                    if (!postsResponse.ok) {
+                         throw new Error(`API returned status code ${postsResponse.status} for posts list.`);
+                    }
+
+                    const postsData = await postsResponse.json();
+
+                    const feedData = postsData.posts || [];
                     
                     if (Array.isArray(feedData)) {
                       console.log('Successfully fetched feed data:', feedData);
                       return feedData;
                     } else {
-                      console.error('API response for feed list is not a valid array:', data);
+                      console.error('API response for feed list is not a valid array:', postsData);
                       throw new Error('Invalid feed data received from API.');
                     }
 
                 } catch (error) {
-                    showModal('Network Error', `Failed to fetch feed data from ${url.toString()}. Error: ${error.message}`);
+                    showModal('Network Error', `Failed to fetch feed data from ${instanceUrl}. Error: ${error.message}`);
                     console.error('Fetch Error:', error);
                     return null;
                 }
@@ -338,30 +361,30 @@
                 feedData.sort((a, b) => new Date(b.published) - new Date(a.published));
 
                 feedData.forEach(post => {
-                    // Using the new data structure from the API response
-                    const communityName = post.name || 'Unknown Community';
                     const postTitle = post.title || 'No Title';
                     const publishedDate = post.published ? new Date(post.published).toLocaleString() : 'Unknown Date';
-                    const iconUrl = post.icon;
+                    const communityName = post.community_name || 'Unknown Community';
+                    const authorName = post.author_name || 'Anonymous';
                     
                     const postElement = document.createElement('div');
                     postElement.className = 'feed-card mb-4 p-6 rounded-xl space-y-4';
-                    
-                    // Simple initials for avatar fallback if no icon
-                    const communityInitial = communityName.charAt(0).toUpperCase();
-                    const avatarContent = iconUrl ? `<img src="${iconUrl}" alt="${communityName} icon" class="w-10 h-10 rounded-full object-cover">` : `<div class="flex items-center justify-center w-10 h-10 rounded-full bg-indigo-600 text-white font-bold text-lg">${communityInitial}</div>`;
 
+                    const avatarContent = post.author_avatar ? 
+                                          `<img src="${post.author_avatar}" alt="${authorName} avatar" class="w-10 h-10 rounded-full object-cover">` : 
+                                          `<div class="flex items-center justify-center w-10 h-10 rounded-full bg-indigo-600 text-white font-bold text-lg">${authorName.charAt(0).toUpperCase()}</div>`;
+                    
                     postElement.innerHTML = `
                         <div class="flex items-center space-x-4">
                             ${avatarContent}
                             <div>
-                                <h3 class="font-semibold text-gray-100">${communityName}</h3>
+                                <h3 class="font-semibold text-gray-100">${authorName}</h3>
                                 <p class="text-xs text-gray-400">
+                                    <span class="mr-2">to ${communityName}</span>
                                     <span class="mr-2">&bull; ${publishedDate}</span>
                                 </p>
                             </div>
                         </div>
-                        <p class="text-gray-300 whitespace-pre-wrap">${postTitle}</p>
+                        <p class="text-gray-300 whitespace-pre-wrap font-bold">${postTitle}</p>
                         
                         <!-- Actions Section -->
                         <div class="flex items-center space-x-6 text-gray-400">
