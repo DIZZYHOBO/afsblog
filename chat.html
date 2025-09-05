@@ -1381,34 +1381,33 @@
                     },
                     body: JSON.stringify({
                         name: name,
-                        description: description,
+                        description: description || `${name} server`,
                         isPrivate: isPrivate
                     })
                 });
 
                 if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
                 }
 
                 const data = await response.json();
                 
-                if (data.success) {
-                    console.log('✅ Server created successfully:', data.server?.id);
+                if (data.success && data.server) {
+                    console.log('✅ Server created successfully:', data.server.id);
                     showSuccessMessage(`Server "${name}" created successfully!`);
                     closeCreateServerModal();
                     
                     // Refresh server list and select the new server
                     await loadUserServers();
-                    if (data.server) {
-                        selectServer(data.server.id);
-                    }
+                    selectServer(data.server.id);
                 } else {
-                    console.error('❌ Failed to create server:', data.error);
+                    console.error('❌ Failed to create server:', data.error || data);
                     showErrorMessage(data.error || 'Failed to create server');
                 }
             } catch (error) {
                 console.error('💥 Error creating server:', error);
-                showErrorMessage('Network error. Please try again.');
+                showErrorMessage(error.message || 'Network error. Please try again.');
             }
         }
 
