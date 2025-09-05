@@ -1,5 +1,6 @@
 // ui.js - UI rendering and modal functions - Updated to remove private tab
 
+let markdownRenderer;
 let uploadedMedia = null;
 
 // Modal functions
