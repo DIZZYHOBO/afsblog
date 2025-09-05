@@ -1878,7 +1878,16 @@
                     // Replace all messages with fresh data (no duplicates)
                     chatMessages = data.messages || [];
                     if (chatMessages.length > 0) {
-                        chatManager.lastMessageTimestamp = chatMessages[chatMessages.length - 1].createdAt;
+                        // Find the newest message for timestamp tracking
+                        const newestMessage = chatMessages.reduce((newest, current) => {
+                            const newestTime = new Date(newest.createdAt).getTime();
+                            const currentTime = new Date(current.createdAt).getTime();
+                            return currentTime > newestTime ? current : newest;
+                        });
+                        chatManager.lastMessageTimestamp = newestMessage.createdAt;
+                        console.log(`🕐 Set initial last timestamp to: ${chatManager.lastMessageTimestamp}`);
+                    } else {
+                        chatManager.lastMessageTimestamp = null;
                     }
                     
                     console.log('✅ Loaded messages:', chatMessages.length);
