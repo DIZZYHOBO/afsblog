@@ -389,10 +389,16 @@
                         }
                     });
 
+                    // Log the full response to help debug
+                    console.log('Profile API Response Status:', response.status);
+                    const data = await response.json();
+                    console.log('Profile API Raw Data:', data);
+
+
                     if (!response.ok) {
                         throw new Error(`Profile fetch failed with status ${response.status}`);
                     }
-                    const data = await response.json();
+                    
                     return data; // The profile data is at the root of the JSON object, not nested.
                 } catch (error) {
                     showModal('Profile Error', `Failed to fetch profile data. Error: ${error.message}`);
@@ -419,10 +425,15 @@
                         }
                     });
 
+                    // Log the full response to help debug
+                    console.log('User Content API Response Status:', response.status);
+                    const data = await response.json();
+                    console.log('User Content API Raw Data:', data);
+
+
                     if (!response.ok) {
                         throw new Error(`Content fetch failed with status ${response.status}`);
                     }
-                    const data = await response.json();
                     return data.content || data.posts || data.comments; // Assuming different key names
                 } catch (error) {
                     showModal('Content Error', `Failed to fetch user ${contentType}. Error: ${error.message}`);
@@ -588,4 +599,3 @@
     </script>
 </body>
 </html>
-
