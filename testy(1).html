@@ -63,14 +63,6 @@
 
         <form id="loginForm" class="space-y-6">
             <div>
-                <label for="instanceUrl" class="block text-sm font-medium text-gray-300">Piefed Instance URL</label>
-                <div class="mt-1">
-                    <input type="url" id="instanceUrl" name="instanceUrl" required placeholder="e.g., https://piefed.social"
-                           class="w-full px-4 py-2 mt-1 text-gray-200 bg-gray-700 border border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
-                </div>
-            </div>
-
-            <div>
                 <label for="username" class="block text-sm font-medium text-gray-300">Username</label>
                 <div class="mt-1">
                     <input type="text" id="username" name="username" required placeholder="Your username"
@@ -213,7 +205,6 @@
             const feedsView = document.getElementById('feedsView');
             const profileView = document.getElementById('profileView');
             const loginForm = document.getElementById('loginForm');
-            const instanceUrlInput = document.getElementById('instanceUrl');
             const usernameInput = document.getElementById('username');
             const passwordInput = document.getElementById('password');
             const loginButton = document.getElementById('loginButton');
@@ -255,25 +246,25 @@
 
             modalCloseButton.addEventListener('click', hideModal);
 
+            // Hardcode the instance URL
+            const instanceUrl = 'https://piefed.social';
+            
             const API_ENDPOINTS = {
                'all': '/api/alpha/feed/list',
                'subscribed': '/api/alpha/feed/list',
                'local': '/api/alpha/feed/list'
             };
 
-            let instanceUrl = '';
             let authToken = '';
             let currentUsername = '';
             let activeFeedType = 'all';
 
-            const saveSession = (url, token, username) => {
-                localStorage.setItem('piefed-instance-url', url);
+            const saveSession = (token, username) => {
                 localStorage.setItem('piefed-auth-token', token);
                 localStorage.setItem('piefed-username', username);
             };
 
             const clearSession = () => {
-                localStorage.removeItem('piefed-instance-url');
                 localStorage.removeItem('piefed-auth-token');
                 localStorage.removeItem('piefed-username');
             };
@@ -525,12 +516,10 @@
             };
 
             const checkSession = () => {
-                const storedUrl = localStorage.getItem('piefed-instance-url');
                 const storedToken = localStorage.getItem('piefed-auth-token');
                 const storedUsername = localStorage.getItem('piefed-username');
                 
-                if (storedUrl && storedToken && storedUsername) {
-                    instanceUrl = storedUrl;
+                if (storedToken && storedUsername) {
                     authToken = storedToken;
                     currentUsername = storedUsername;
                     showFeedsView(currentUsername);
@@ -542,7 +531,6 @@
             loginForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
 
-                instanceUrl = instanceUrlInput.value.trim();
                 const username = usernameInput.value.trim();
                 const password = passwordInput.value.trim();
 
@@ -571,7 +559,7 @@
 
                     if (authToken) {
                         currentUsername = username;
-                        saveSession(instanceUrl, authToken, currentUsername);
+                        saveSession(authToken, currentUsername);
                         resultMessage.classList.remove('hidden');
                         resultMessage.innerHTML = `
                             <p class="text-lg font-semibold text-green-400">Connection Successful!</p>
