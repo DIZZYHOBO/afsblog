@@ -1875,6 +1875,7 @@
                 const data = await response.json();
                 
                 if (data.success) {
+                    // Replace all messages with fresh data (no duplicates)
                     chatMessages = data.messages || [];
                     if (chatMessages.length > 0) {
                         chatManager.lastMessageTimestamp = chatMessages[chatMessages.length - 1].createdAt;
@@ -1882,7 +1883,11 @@
                     
                     console.log('✅ Loaded messages:', chatMessages.length);
                     renderMessages();
-                    scrollToBottom();
+                    
+                    // Always scroll to bottom on initial load
+                    setTimeout(() => {
+                        scrollToBottom();
+                    }, 100);
                 } else {
                     console.error('❌ Failed to load messages:', data.error);
                     chatMessages = [];
