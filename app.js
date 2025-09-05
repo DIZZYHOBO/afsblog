@@ -1,4 +1,4 @@
-// app.js - Main application logic and initialization - Updated to remove c/ prefix
+// app.js - Main application logic and initialization - Updated with Session Persistence Fix
 
 // App state
 let currentUser = null;
@@ -11,6 +11,89 @@ let adminData = null;
 let currentPostType = 'text';
 let inlineLoginFormOpen = false;
 let currentFeedTab = 'general'; // Track current feed tab - only 'general' and 'followed' now
+let followedCommunities = new Set(); // Track followed communities
+let markdownRenderer = null;
+let previewTimeout = null;
+
+// blobAPI object for data operations
+const blobAPI = {
+    async get(key) {
+        try {
+            const response = await fetch(`/.netlify/functions/blobs?key=${encodeURIComponent(key)}`, {
+                method: 'GET',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            
+            if (!response.ok) {
+                if (response.status === 404) return null;
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            const result = await response.json();
+            return result.data;
+        } catch (error) {
+            console.error('Error getting blob:', error);
+            return null;
+        }
+    },
+    
+    async set(key, value) {
+        try {
+            const response = await fetch('/.netlify/functions/blobs', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ key, value })
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            return await response.json();
+        } catch (error) {
+            console.error('Error setting blob:', error);
+            throw error;
+        }
+    },
+    
+    async list(prefix = '') {
+        try {
+            const response = await fetch(`/.netlify/functions/blobs?prefix=${encodeURIComponent(prefix)}`, {
+                method: 'GET',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            const result = await response.json();
+            return result.keys || [];
+        } catch (error) {
+            console.error('Error listing blobs:', error);
+            return [];
+        }
+    },
+    
+    async delete(key) {
+        try {
+            const response = await fetch('/.netlify/functions/blobs', {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ key })
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            return await response.json();
+        } catch (error) {
+            console.error('Error deleting blob:', error);
+            throw error;
+        }
+    }
+};
 
 // Menu functions
 function toggleMenu() {
@@ -61,350 +144,121 @@ function updateMenuContent() {
         `;
     }
         
-        // Show/hide menu items based on auth status
-        document.getElementById('menuProfile').style.display = 'flex';
-        document.getElementById('menuCreateCommunity').style.display = 'flex';
-        document.getElementById('menuBrowseCommunities').style.display = 'flex';
-        document.getElementById('menuSettings').style.display = 'flex';
-        
-        // Show admin menu item only for admins
-        const menuAdmin = document.getElementById('menuAdmin');
-        if (currentUser.profile?.isAdmin) {
-            menuAdmin.style.display = 'flex';
-        } else {
-            menuAdmin.style.display = 'none';
-        }
-        
-        menuLogout.style.display = 'flex';
-        
-        // Update communities dropdown
-        updateCommunitiesInMenu();
+        menuLogout.style.display = 'block';
     } else {
         menuHeader.innerHTML = `
-            <div class="login-prompt">
-                <div class="login-prompt-title">Click here to log in</div>
-                <button class="login-toggle-btn" onclick="toggleInlineLoginForm()">Login</button>
-                <div class="inline-login-form" id="inlineLoginForm">
-                    <div id="inlineLoginError"></div>
-                    <form id="inlineLoginFormElement" onsubmit="handleInlineLogin(event)">
-                        <div class="inline-form-group">
-                            <label for="inlineUsername">Username</label>
-                            <input type="text" id="inlineUsername" required minlength="3" maxlength="20">
-                        </div>
-                        <div class="inline-form-group">
-                            <label for="inlinePassword">Password</label>
-                            <input type="password" id="inlinePassword" required minlength="6">
-                        </div>
-                        <div class="inline-form-buttons">
-                            <button type="submit" class="inline-btn-primary" id="inlineLoginBtn">Sign In</button>
-                            <button type="button" class="inline-btn-secondary" onclick="openAuthModal('signup'); toggleMenu();">Sign Up</button>
-                        </div>
-                    </form>
+            <div class="menu-guest-info">
+                <div class="guest-avatar">?</div>
+                <div class="guest-details">
+                    <h4>Guest User</h4>
+                    <p>Sign in to post and join communities</p>
                 </div>
             </div>
         `;
-        
-        // Hide authenticated menu items
-        document.getElementById('menuProfile').style.display = 'none';
-        document.getElementById('menuCreateCommunity').style.display = 'none';
-        document.getElementById('menuBrowseCommunities').style.display = 'none';
-        document.getElementById('menuAdmin').style.display = 'none';
-        document.getElementById('menuSettings').style.display = 'none';
         menuLogout.style.display = 'none';
     }
 }
 
-function toggleInlineLoginForm() {
-    const form = document.getElementById('inlineLoginForm');
-    const isOpen = form.classList.contains('open');
+function showInlineLoginForm() {
+    inlineLoginFormOpen = true;
+    const menuContent = document.getElementById('menuContent');
     
-    if (isOpen) {
-        form.classList.remove('open');
-        inlineLoginFormOpen = false;
-    } else {
-        form.classList.add('open');
-        inlineLoginFormOpen = true;
-        // Focus on username field
-        setTimeout(() => {
-            document.getElementById('inlineUsername').focus();
-        }, 300);
-    }
+    menuContent.innerHTML = `
+        <div class="inline-login-form">
+            <h3>Sign In</h3>
+            <form id="inlineLoginFormElement">
+                <div class="form-group">
+                    <input type="text" id="inlineUsername" placeholder="Username" required>
+                </div>
+                <div class="form-group">
+                    <input type="password" id="inlinePassword" placeholder="Password" required>
+                </div>
+                <div class="form-group">
+                    <button type="submit" id="inlineLoginBtn" class="btn btn-primary">Sign In</button>
+                </div>
+            </form>
+            <div id="inlineLoginError" class="error-message"></div>
+            <div class="form-footer">
+                <p>Don't have an account? <a href="#" onclick="openModal('authModal'); setAuthMode('signup'); toggleMenu();">Sign up</a></p>
+                <p><a href="#" onclick="hideInlineLoginForm()">Cancel</a></p>
+            </div>
+        </div>
+    `;
+    
+    // Add form submission handler
+    document.getElementById('inlineLoginFormElement').addEventListener('submit', handleInlineLogin);
 }
 
-function handleLogout() {
-    logout();
-    toggleMenu();
+function hideInlineLoginForm() {
+    inlineLoginFormOpen = false;
+    updateMenuContent();
 }
 
-function updateCommunitiesInMenu() {
-    const dropdown = document.getElementById('communitiesDropdown');
-    
-    if (communities.length === 0) {
-        dropdown.innerHTML = '<div class="community-item">No communities yet</div>';
-    } else {
-        // UPDATED: Removed "c/" prefix from menu items
-        dropdown.innerHTML = communities.map(community => `
-            <a href="#" class="community-item" onclick="navigateToCommunity('${community.name}'); return false;">
-                ${escapeHtml(community.displayName)}
-            </a>
-        `).join('');
-    }
-}
-
-function toggleCommunitiesDropdown() {
-    const dropdown = document.getElementById('communitiesDropdown');
-    const toggle = document.getElementById('communitiesToggle');
-    const isOpen = dropdown.classList.contains('open');
-    
-    if (isOpen) {
-        dropdown.classList.remove('open');
-        toggle.textContent = '▼';
-    } else {
-        dropdown.classList.add('open');
-        toggle.textContent = '▲';
+function showInlineError(message) {
+    const errorDiv = document.getElementById('inlineLoginError');
+    if (errorDiv) {
+        errorDiv.textContent = message;
+        errorDiv.style.display = 'block';
     }
 }
 
 // Navigation functions
 function navigateToFeed() {
-    toggleMenu();
     currentPage = 'feed';
-    updateActiveMenuItem('menuFeed');
+    currentCommunity = null;
     updateUI();
-}
-
-function navigateToProfile() {
-    toggleMenu();
-    currentPage = 'profile';
-    updateActiveMenuItem('menuProfile');
-    updateUI();
-}
-
-// NEW: Updated navigateToMyShed to show private posts instead of separate page
-function navigateToMyShed() {
-    toggleMenu();
-    currentPage = 'myshed';
-    updateActiveMenuItem('menuMyShed');
-    updateUI();
-}
-
-// Add missing navigation functions
-function navigateToAdmin() {
-    toggleMenu();
-    currentPage = 'admin';
-    updateActiveMenuItem('menuAdmin');
-    updateUI();
-}
-
-function navigateToSettings() {
-    toggleMenu();
-    // For now, just show a placeholder
-    showSuccessMessage('Settings page coming soon!');
+    
+    // Update URL without page reload
+    history.pushState({page: 'feed'}, 'Feed', '/');
 }
 
 function navigateToCommunity(communityName) {
-    console.log('navigateToCommunity called with:', communityName);
-    
-    // Find the community
-    const community = communities.find(c => c.name === communityName);
-    if (!community) {
-        console.error('Community not found:', communityName);
-        showSuccessMessage('Community not found');
-        return;
-    }
-    
-    console.log('Found community, navigating to:', community.displayName);
-    
-    // Close menu if open
-    if (document.getElementById('slideMenu').classList.contains('open')) {
-        toggleMenu();
-    }
-    
-    // Set page state
     currentPage = 'community';
-    currentCommunity = communityName;
-    
-    // Update active menu item - clear all active states for community navigation
-    document.querySelectorAll('.menu-item').forEach(item => {
-        item.classList.remove('active');
-    });
-    
-    // Update UI
+    currentCommunity = communities.find(c => c.name === communityName);
     updateUI();
+    
+    // Update URL without page reload
+    history.pushState({page: 'community', community: communityName}, `${communityName}`, `/${communityName}`);
 }
 
-// FIXED: Add the missing openCreate function
-function openCreate() {
-    openCreateCommunity();
+function navigateToChat() {
+    // Open chat in new tab/window
+    window.open('/chat.html', '_blank');
 }
 
-function openCreateCommunity() {
-    toggleMenu();
-    if (!currentUser) {
-        openAuthModal('signin');
-        return;
-    }
-    openModal('createCommunityModal');
-}
-
-function updateActiveMenuItem(activeId) {
-    document.querySelectorAll('.menu-item').forEach(item => {
-        item.classList.remove('active');
-    });
-    document.getElementById(activeId).classList.add('active');
-}
-
-// Feed Tab Functions - Updated to only handle 'general' and 'followed'
-function switchFeedTab(tabName) {
-    // Only allow 'general' and 'followed' tabs now
-    if (tabName !== 'general' && tabName !== 'followed') {
-        console.warn('Invalid tab name:', tabName);
+function navigateToAdmin() {
+    if (!currentUser?.profile?.isAdmin) {
+        showSuccessMessage('Access denied. Admin privileges required.');
         return;
     }
     
-    currentFeedTab = tabName;
+    currentPage = 'admin';
+    updateUI();
     
-    // Update tab visual states
-    document.querySelectorAll('.feed-tab').forEach(tab => {
-        tab.classList.remove('active');
-    });
-    document.getElementById(`${tabName}Tab`).classList.add('active');
-    
-    // Re-render the current page with new tab
-    renderCurrentPage();
+    // Update URL without page reload
+    history.pushState({page: 'admin'}, 'Admin', '/admin');
 }
 
-function updateFeedTabsVisibility() {
-    const feedTabs = document.getElementById('feedTabs');
-    // Show tabs only on feed page when user is logged in
-    if (currentPage === 'feed' && currentUser) {
-        feedTabs.style.display = 'flex';
-        
-        // Enable followed tab for logged in users
-        const followedTab = document.getElementById('followedTab');
-        followedTab.disabled = false;
-    } else {
-        // Hide tabs for all other pages including My Shed (since My Shed is now its own page)
-        feedTabs.style.display = 'none';
-    }
-}
-
-// FIXED: Improved toggleCommunityFollow function with real follow/unfollow logic
-async function toggleCommunityFollow(communityName) {
-    console.log('toggleCommunityFollow called for:', communityName);
-    console.log('Current user:', currentUser);
-    
-    if (!currentUser) {
-        console.log('Not authenticated, opening auth modal');
-        openAuthModal('signin');
-        return;
-    }
-
-    const followBtn = document.getElementById(`followBtn-${communityName}`);
-    console.log('Follow button found:', followBtn);
-    
-    if (!followBtn) {
-        console.error('Follow button not found for community:', communityName);
-        return;
-    }
-    
-    const originalText = followBtn.textContent;
-    const wasFollowing = followBtn.classList.contains('btn-secondary');
-    
-    try {
-        followBtn.disabled = true;
-        followBtn.textContent = 'Loading...';
-        
-        console.log('Toggling follow status for community:', communityName);
-        console.log('Was following:', wasFollowing, 'Will follow:', !wasFollowing);
-        
-        // Use real follow/unfollow logic
-        const response = await toggleFollowStatus(communityName, !wasFollowing);
-        
-        if (response.success) {
-            // Update button appearance
-            if (response.following) {
-                followBtn.textContent = '✓ Following';
-                followBtn.className = 'btn btn-secondary';
-                followBtn.style.cssText = 'padding: 12px 24px; font-weight: 600; box-shadow: 0 2px 8px rgba(0,0,0,0.15);';
-                showSuccessMessage(`Now following ${communityName}! 🎉`);
-            } else {
-                followBtn.textContent = '+ Follow';
-                followBtn.className = 'btn';
-                followBtn.style.cssText = 'padding: 12px 24px; font-weight: 600; box-shadow: 0 2px 8px rgba(0,0,0,0.15);';
-                showSuccessMessage(`Unfollowed ${communityName}`);
-            }
-            
-            console.log(`Follow toggle successful. New member count: ${response.memberCount}`);
-        } else {
-            throw new Error(response.error || 'Unknown error');
-        }
-        
-    } catch (error) {
-        console.error('Error toggling follow status:', error);
-        followBtn.textContent = originalText;
-        
-        // Restore original button class
-        if (wasFollowing) {
-            followBtn.className = 'btn btn-secondary';
-        } else {
-            followBtn.className = 'btn';
-        }
-        followBtn.style.cssText = 'padding: 12px 24px; font-weight: 600; box-shadow: 0 2px 8px rgba(0,0,0,0.15);';
-        
-        showSuccessMessage(error.message || 'Failed to update follow status. Please try again.');
-    } finally {
-        followBtn.disabled = false;
-    }
-}
-
-function updateUI() {
-    updateComposeButton();
-    updateFeedTabsVisibility();
-    renderCurrentPage();
-}
-
-function updateComposeButton() {
-    const composeBtn = document.getElementById('composeBtn');
-    composeBtn.style.display = currentUser ? 'block' : 'none';
-}
-
-function renderCurrentPage() {
-    if (currentPage === 'feed') {
-        renderFeedWithTabs();
-    } else if (currentPage === 'community') {
-        renderCommunityPage();
-    } else if (currentPage === 'profile') {
-        renderProfilePage();
-    } else if (currentPage === 'myshed') {
-        renderMyShedPage();
-    } else if (currentPage === 'admin') {
-        renderAdminPage();
-    }
-}
-
-// ==============================================
-// 🔧 AUTHENTICATION FUNCTIONS WITH SESSION TOKEN STORAGE
-// ==============================================
-
-// Authentication functions
-async function handleAuth(e) {
+// Authentication functions - UPDATED with session token storage
+async function handleAuth(e, mode) {
     e.preventDefault();
-    const form = e.target;
-    const mode = form.dataset.mode;
-    const username = document.getElementById('username').value.trim();
-    const password = document.getElementById('password').value;
-    const bio = document.getElementById('bio').value.trim();
-    const errorDiv = document.getElementById('authError');
-    const submitBtn = document.getElementById('authSubmitBtn');
-
-    errorDiv.innerHTML = '';
     
+    const username = document.getElementById(mode === 'signup' ? 'signupUsername' : 'signinUsername').value.trim();
+    const password = document.getElementById(mode === 'signup' ? 'signupPassword' : 'signinPassword').value;
+    const email = mode === 'signup' ? document.getElementById('signupEmail').value.trim() : '';
+    const submitBtn = e.target.querySelector('button[type="submit"]');
+    const form = e.target;
+
+    if (!username || !password || (mode === 'signup' && !email)) {
+        showError('authError', 'Please fill in all fields');
+        return;
+    }
+
     if (username.length < 3) {
         showError('authError', 'Username must be at least 3 characters long');
         return;
     }
-    
+
     if (password.length < 6) {
         showError('authError', 'Password must be at least 6 characters long');
         return;
@@ -412,10 +266,10 @@ async function handleAuth(e) {
 
     try {
         submitBtn.disabled = true;
-        submitBtn.textContent = 'Loading...';
-
+        submitBtn.textContent = mode === 'signup' ? 'Creating Account...' : 'Signing In...';
+        
         if (mode === 'signup') {
-            // SIGNUP MODE - uses new API
+            // SIGNUP MODE
             console.log('🔐 Attempting signup for user:', username);
             
             const response = await fetch('/api/auth/register', {
@@ -423,7 +277,11 @@ async function handleAuth(e) {
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ username, password, bio: bio || `Hello! I'm ${username}` })
+                body: JSON.stringify({ 
+                    username, 
+                    email, 
+                    password,
+                    bio: `I'm ${username}` })
             });
 
             const data = await response.json();
@@ -474,6 +332,9 @@ async function handleAuth(e) {
                 await loadData();
                 showSuccess('authError', 'Login successful!');
                 
+                // Load user's followed communities after login
+                await loadFollowedCommunities();
+                
                 // Load admin stats if user is admin
                 if (currentUser?.profile?.isAdmin) {
                     await loadAdminStats();
@@ -496,9 +357,10 @@ async function handleAuth(e) {
     }
 }
 
-// Inline login form handler (used in menu)
+// UPDATED: handleInlineLogin function - now uses ONLY new authentication system
 async function handleInlineLogin(e) {
     e.preventDefault();
+    
     const username = document.getElementById('inlineUsername').value.trim();
     const password = document.getElementById('inlinePassword').value;
     const errorDiv = document.getElementById('inlineLoginError');
@@ -506,14 +368,19 @@ async function handleInlineLogin(e) {
 
     errorDiv.innerHTML = '';
     
-    if (username.length < 3 || password.length < 6) {
-        showError('inlineLoginError', 'Invalid username or password');
+    if (username.length < 3) {
+        showInlineError('Username must be at least 3 characters long');
+        return;
+    }
+    
+    if (password.length < 6) {
+        showInlineError('Password must be at least 6 characters long');
         return;
     }
 
     try {
         submitBtn.disabled = true;
-        submitBtn.textContent = 'Signing In...';
+        submitBtn.textContent = 'Signing in...';
 
         console.log('🔐 Attempting inline login for user:', username);
         
@@ -530,7 +397,7 @@ async function handleInlineLogin(e) {
         if (response.ok && data.success) {
             console.log('✅ Inline login successful:', data);
             
-            // 🚨 CRITICAL FIX: Store the session token in localStorage
+            // 🚨 CRITICAL: Store the session token in localStorage
             if (data.token) {
                 console.log('💾 Storing session token in localStorage...');
                 localStorage.setItem('sessionToken', data.token);
@@ -539,16 +406,22 @@ async function handleInlineLogin(e) {
                 console.warn('⚠️ No token received from server');
             }
             
-            // Set current user
+            // Set current user from API response
             currentUser = data.user;
             currentUser.profile = data.user; // Ensure profile is available
             
             console.log('🎉 User authenticated via inline login:', currentUser.username);
             
+            // Load user's followed communities after login
+            await loadFollowedCommunities();
+            
+            // Clear the form
+            document.getElementById('inlineLoginFormElement').reset();
+            
             // Close menu and update UI
             toggleMenu();
             updateUI();
-            await loadData();
+            showSuccessMessage('Welcome back!');
             
             // Load admin stats if user is admin
             if (currentUser?.profile?.isAdmin) {
@@ -557,7 +430,7 @@ async function handleInlineLogin(e) {
             
         } else {
             console.error('❌ Inline login failed:', data);
-            showError('inlineLoginError', data.error || 'Login failed!');
+            showInlineError(data.error || 'Login failed!');
         }
         
     } catch (error) {
@@ -593,6 +466,7 @@ async function logout() {
     // Clear local session data
     localStorage.removeItem('sessionToken');
     currentUser = null;
+    followedCommunities = new Set();
     
     console.log('✅ User logged out successfully');
     
@@ -626,6 +500,7 @@ async function validateSession() {
             const data = await response.json();
             console.log('✅ Session token is valid');
             
+            // 🚨 CRITICAL: Set the current user from the validated session
             currentUser = data.user;
             currentUser.profile = data.user; // Ensure profile is available
             
@@ -635,12 +510,46 @@ async function validateSession() {
         } else {
             console.log('❌ Session token is invalid, removing...');
             localStorage.removeItem('sessionToken');
+            currentUser = null;
             return false;
         }
     } catch (error) {
         console.error('🚨 Session validation error:', error);
         localStorage.removeItem('sessionToken');
+        currentUser = null;
         return false;
+    }
+}
+
+// Load user's followed communities
+async function loadFollowedCommunities() {
+    if (!currentUser) {
+        followedCommunities = new Set();
+        return;
+    }
+    
+    try {
+        console.log('📋 Loading followed communities for user:', currentUser.username);
+        
+        const response = await fetch('/api/user/followed-communities', {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${localStorage.getItem('sessionToken')}`,
+                'Content-Type': 'application/json'
+            }
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+            followedCommunities = new Set(data.followedCommunities || []);
+            console.log('✅ Loaded followed communities:', followedCommunities.size);
+        } else {
+            console.log('❌ Failed to load followed communities');
+            followedCommunities = new Set();
+        }
+    } catch (error) {
+        console.error('💥 Error loading followed communities:', error);
+        followedCommunities = new Set();
     }
 }
 
@@ -674,9 +583,8 @@ function setupSessionMonitoring() {
     
     console.log('✅ Session monitoring active in main app');
 }
-// Add these missing functions to your app.js file
-// (These are the data loading functions that were in api.js)
 
+// Data loading functions
 async function loadCommunities() {
     try {
         const communityKeys = await blobAPI.list('community_');
@@ -739,102 +647,239 @@ async function loadData() {
     await loadPosts();
 }
 
-// You'll also need the blobAPI object - add this too:
-const blobAPI = {
-    async get(key) {
-        try {
-            const response = await fetch(`/.netlify/functions/blobs?key=${encodeURIComponent(key)}`, {
-                method: 'GET',
-                headers: { 'Content-Type': 'application/json' }
-            });
-            
-            if (!response.ok) {
-                if (response.status === 404) return null;
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-            }
-            
-            const result = await response.json();
-            return result.data;
-        } catch (error) {
-            console.error('Error getting blob:', error);
-            return null;
-        }
-    },
+// Admin stats loading
+async function loadAdminStats() {
+    if (!currentUser?.profile?.isAdmin) return;
     
-    async set(key, value) {
-        try {
-            const response = await fetch('/.netlify/functions/blobs', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ key, value })
-            });
-            
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-            }
-            
-            return await response.json();
-        } catch (error) {
-            console.error('Error setting blob:', error);
-            throw error;
+    try {
+        console.log('📊 Loading admin statistics...');
+        
+        // Load pending users
+        const pendingKeys = await blobAPI.list('pending_user_');
+        const pendingUsers = [];
+        for (const key of pendingKeys) {
+            const user = await blobAPI.get(key);
+            if (user) pendingUsers.push({...user, key});
         }
-    },
-    
-    async list(prefix = '') {
-        try {
-            const response = await fetch(`/.netlify/functions/blobs?list=true&prefix=${encodeURIComponent(prefix)}`, {
-                method: 'GET',
-                headers: { 'Content-Type': 'application/json' }
-            });
-            
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-            }
-            
-            const result = await response.json();
-            return result.keys || [];
-        } catch (error) {
-            console.error('Error listing blobs:', error);
-            return [];
+        
+        // Load all users
+        const userKeys = await blobAPI.list('user_');
+        const allUsers = [];
+        for (const key of userKeys) {
+            const user = await blobAPI.get(key);
+            if (user) allUsers.push(user);
         }
-    },
+        
+        // Calculate stats
+        adminData = {
+            totalUsers: allUsers.length,
+            pendingUsers: pendingUsers.length,
+            totalPosts: posts.length,
+            totalCommunities: communities.length,
+            pendingUsersList: pendingUsers,
+            allUsersList: allUsers
+        };
+        
+        console.log('✅ Admin stats loaded:', adminData);
+        
+        // Update admin UI if on admin page
+        if (currentPage === 'admin') {
+            updateAdminStatsDisplay();
+        }
+        
+    } catch (error) {
+        console.error('💥 Error loading admin stats:', error);
+        adminData = null;
+    }
+}
+
+function updateAdminStatsDisplay() {
+    if (!adminData) return;
     
-    async delete(key) {
-        try {
-            const response = await fetch('/.netlify/functions/blobs', {
-                method: 'DELETE',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ key })
-            });
-            
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-            }
-            
-            return await response.json();
-        } catch (error) {
-            console.error('Error deleting blob:', error);
-            throw error;
+    const totalUsersEl = document.getElementById('totalUsers');
+    const totalPostsEl = document.getElementById('totalPosts');
+    const totalCommunitiesEl = document.getElementById('totalCommunities');
+    
+    if (totalUsersEl) totalUsersEl.textContent = adminData.totalUsers;
+    if (totalPostsEl) totalPostsEl.textContent = adminData.totalPosts;
+    if (totalCommunitiesEl) totalCommunitiesEl.textContent = adminData.totalCommunities;
+}
+
+// UI Update function
+function updateUI() {
+    updateHeader();
+    updateMainContent();
+    updateComposeButton();
+}
+
+function updateHeader() {
+    const signInBtn = document.getElementById('signInBtn');
+    const userMenu = document.getElementById('userMenu');
+    const profileBtn = document.getElementById('profileBtn');
+    
+    if (currentUser) {
+        signInBtn.style.display = 'none';
+        userMenu.style.display = 'flex';
+        
+        // Update profile button with user avatar
+        if (currentUser.profile?.profilePicture) {
+            profileBtn.innerHTML = `
+                <img src="${currentUser.profile.profilePicture}" 
+                     alt="Profile" 
+                     class="profile-avatar"
+                     style="border-radius: 50%; object-fit: cover;"
+                     onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                <div class="profile-avatar" style="display: none;">${currentUser.username.charAt(0).toUpperCase()}</div>
+            `;
+        } else {
+            profileBtn.innerHTML = `<div class="profile-avatar">${currentUser.username.charAt(0).toUpperCase()}</div>`;
+        }
+    } else {
+        signInBtn.style.display = 'flex';
+        userMenu.style.display = 'none';
+    }
+}
+
+function updateMainContent() {
+    const feedElement = document.getElementById('feed');
+    
+    switch (currentPage) {
+        case 'feed':
+            renderFeedPage();
+            break;
+        case 'community':
+            renderCommunityPage();
+            break;
+        case 'admin':
+            renderAdminPage();
+            break;
+        default:
+            renderFeedPage();
+            break;
+    }
+}
+
+function updateComposeButton() {
+    const composeBtn = document.getElementById('composeBtn');
+    
+    if (currentUser && (currentPage === 'feed' || currentPage === 'community')) {
+        composeBtn.style.display = 'flex';
+    } else {
+        composeBtn.style.display = 'none';
+    }
+}
+
+// Modal functions
+function openModal(modalId) {
+    const modal = document.getElementById(modalId);
+    if (modal) {
+        modal.style.display = 'flex';
+        
+        // Auto-focus first input
+        const firstInput = modal.querySelector('input[type="text"], input[type="email"], textarea');
+        if (firstInput) {
+            setTimeout(() => firstInput.focus(), 100);
         }
     }
-};
+}
 
+function closeModal(modalId) {
+    const modal = document.getElementById(modalId);
+    if (modal) {
+        modal.style.display = 'none';
+        
+        // Clear any error messages
+        const errorElements = modal.querySelectorAll('.error-message, .success-message');
+        errorElements.forEach(el => el.innerHTML = '');
+        
+        // Reset forms
+        const forms = modal.querySelectorAll('form');
+        forms.forEach(form => form.reset());
+    }
+}
+
+function setAuthMode(mode) {
+    const authModal = document.getElementById('authModal');
+    const signupForm = document.getElementById('signupForm');
+    const signinForm = document.getElementById('signinForm');
+    const authTitle = document.getElementById('authTitle');
+    
+    if (mode === 'signup') {
+        authTitle.textContent = 'Sign Up';
+        signupForm.style.display = 'block';
+        signinForm.style.display = 'none';
+    } else {
+        authTitle.textContent = 'Sign In';
+        signupForm.style.display = 'none';
+        signinForm.style.display = 'block';
+    }
+}
+
+// Message functions
+function showSuccessMessage(message) {
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'success-message floating-message';
+    messageDiv.textContent = message;
+    document.body.appendChild(messageDiv);
+    
+    setTimeout(() => {
+        messageDiv.remove();
+    }, 5000);
+}
+
+function showError(elementId, message) {
+    const element = document.getElementById(elementId);
+    if (element) {
+        element.innerHTML = `<div class="error-message">${message}</div>`;
+        element.style.display = 'block';
+    }
+}
+
+function showSuccess(elementId, message) {
+    const element = document.getElementById(elementId);
+    if (element) {
+        element.innerHTML = `<div class="success-message">${message}</div>`;
+        element.style.display = 'block';
+    }
+}
+
+// Utility functions
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function formatTimeAgo(timestamp) {
+    const now = new Date();
+    const time = new Date(timestamp);
+    const diffInSeconds = Math.floor((now - time) / 1000);
+    
+    if (diffInSeconds < 60) return 'just now';
+    if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m ago`;
+    if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h ago`;
+    if (diffInSeconds < 604800) return `${Math.floor(diffInSeconds / 86400)}d ago`;
+    
+    return time.toLocaleDateString();
+}
+
+// Event listener setup
 function setupEventListeners() {
-    // Auth form
-    document.getElementById('authForm').addEventListener('submit', handleAuth);
+    // Modal click-outside-to-close
+    document.addEventListener('click', (e) => {
+        if (e.target.classList.contains('modal')) {
+            e.target.style.display = 'none';
+        }
+    });
     
-    // Create community form
-    document.getElementById('createCommunityForm').addEventListener('submit', handleCreateCommunity);
-    
-    // Compose form
-    document.getElementById('composeForm').addEventListener('submit', handleCreatePost);
-    
-    // URL input for media preview
+    // URL preview for compose modal
     const urlInput = document.getElementById('postUrl');
     if (urlInput) {
-        let previewTimeout;
         urlInput.addEventListener('input', (e) => {
-            clearTimeout(previewTimeout);
+            if (previewTimeout) {
+                clearTimeout(previewTimeout);
+            }
+            
             const url = e.target.value.trim();
             
             if (url && url.length > 10) {
@@ -863,8 +908,10 @@ function setupEventListeners() {
     });
 }
 
-// Initialize app
+// Initialize app - FIXED VERSION
 document.addEventListener('DOMContentLoaded', async () => {
+    console.log('🚀 Starting main app initialization...');
+    
     // Set up session monitoring for debugging
     setupSessionMonitoring();
     
@@ -896,22 +943,56 @@ document.addEventListener('DOMContentLoaded', async () => {
         return `<img src="${href}" alt="${text || 'Image'}" ${title ? `title="${title}"` : ''} onclick="openImageModal('${href}')" style="cursor: pointer;">`;
     };
 
-    // Try to restore session on page load
-    const sessionValid = await validateSession();
+    // 🚨 CRITICAL FIX: Properly validate session and restore user state
+    console.log('🔍 Checking for existing session...');
     
-    await loadUser();
+    try {
+        // First check if we have a session token
+        const token = localStorage.getItem('sessionToken');
+        
+        if (token) {
+            console.log('📱 Found session token, validating...');
+            
+            // Validate the session and restore user if valid
+            const sessionValid = await validateSession();
+            
+            if (sessionValid && currentUser) {
+                console.log('✅ Session restored successfully for user:', currentUser.username);
+                
+                // Load user's followed communities after successful session restore
+                await loadFollowedCommunities();
+                
+                showSuccessMessage(`Welcome back, ${currentUser.username}!`);
+            } else {
+                console.log('❌ Session validation failed, user will need to log in');
+                currentUser = null;
+            }
+        } else {
+            console.log('🔍 No session token found, user will need to log in');
+            currentUser = null;
+        }
+    } catch (error) {
+        console.error('💥 Error during session restoration:', error);
+        currentUser = null;
+        // Clear potentially corrupted token
+        localStorage.removeItem('sessionToken');
+    }
+    
+    // Load data regardless of authentication status
+    console.log('📊 Loading application data...');
+    
     await loadCommunities();
     await loadPosts();
+    
+    // Update UI based on current authentication state
     updateUI();
     setupEventListeners();
     
     // Load admin stats if user is admin
     if (currentUser?.profile?.isAdmin) {
+        console.log('👑 Loading admin interface...');
         await loadAdminStats();
     }
     
-    // Show session restoration message if applicable
-    if (sessionValid) {
-        console.log('✅ Session restored successfully on page load');
-    }
+    console.log('✅ Main app initialization complete');
 });
