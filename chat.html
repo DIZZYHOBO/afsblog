@@ -669,9 +669,15 @@
                 height: 100vh;
                 z-index: 100;
                 transition: left 0.3s ease;
+                transform: translateX(0); /* Override the desktop transform */
             }
 
             .channels-wrapper.mobile-open {
+                left: 72px;
+            }
+
+            .channels-wrapper.open {
+                transform: translateX(0);
                 left: 72px;
             }
 
@@ -691,6 +697,7 @@
 
             .guilds-wrapper {
                 width: 72px;
+                z-index: 110;
             }
 
             .message-input {
@@ -729,6 +736,11 @@
                 height: 40px;
                 font-size: 14px;
                 margin-bottom: 6px;
+            }
+
+            .channels-wrapper.mobile-open,
+            .channels-wrapper.open {
+                left: 60px;
             }
         }
 
