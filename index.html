@@ -3,420 +3,2183 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="icon" href="icon.png">
-    <title>The Shed</title>
-  <link rel="stylesheet" href="style.css">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.7/purify.min.js"></script>
+    <title>AFS Chat</title>
+    <style>
+        :root {
+            --bg-primary: #36393f;
+            --bg-secondary: #2f3136;
+            --bg-tertiary: #202225;
+            --bg-chat: #40444b;
+            --text-primary: #dcddde;
+            --text-secondary: #b9bbbe;
+            --text-muted: #72767d;
+            --accent-color: #5865f2;
+            --success-color: #3ba55c;
+            --danger-color: #ed4245;
+            --warning-color: #faa61a;
+            --info-color: #00d4aa;
+            --border-color: #4f545c;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            overflow: hidden;
+            height: 100vh;
+        }
+
+        .auth-required {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            text-align: center;
+            padding: 2rem;
+            background: var(--bg-primary);
+        }
+
+        .auth-required h1 {
+            color: var(--accent-color);
+            margin-bottom: 1rem;
+            font-size: 2.5rem;
+        }
+
+        .auth-required p {
+            color: var(--text-secondary);
+            margin-bottom: 2rem;
+            font-size: 1.1rem;
+            max-width: 600px;
+        }
+
+        .btn {
+            background: var(--accent-color);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.2s ease;
+        }
+
+        .btn:hover {
+            background: #4752c4;
+        }
+
+        .btn-primary {
+            background: var(--accent-color);
+        }
+
+        .btn-primary:hover {
+            background: #4752c4;
+        }
+
+        .btn-secondary {
+            background: transparent;
+            color: var(--text-secondary);
+            border: 1px solid var(--border-color);
+        }
+
+        .btn-secondary:hover {
+            background: var(--bg-chat);
+            color: var(--text-primary);
+        }
+
+        .btn-success {
+            background: var(--success-color);
+        }
+
+        .btn-success:hover {
+            background: #2d7d32;
+        }
+
+        .btn-small {
+            padding: 6px 12px;
+            font-size: 12px;
+        }
+
+        .session-status {
+            margin-top: 1rem;
+            padding: 1rem;
+            border-radius: 8px;
+            font-size: 14px;
+            max-width: 600px;
+            width: 100%;
+        }
+
+        .app {
+            display: flex;
+            height: 100vh;
+            background: var(--bg-primary);
+        }
+
+        .guilds-wrapper {
+            width: 72px;
+            background: var(--bg-tertiary);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 12px 0;
+            overflow-y: auto;
+            flex-shrink: 0;
+        }
+
+        .guild-item {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background: var(--bg-primary);
+            margin-bottom: 8px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-primary);
+            font-weight: 600;
+            transition: all 0.2s ease;
+            position: relative;
+        }
+
+        .guild-item:hover {
+            border-radius: 16px;
+            background: var(--accent-color);
+        }
+
+        .guild-item.active {
+            border-radius: 16px;
+            background: var(--accent-color);
+        }
+
+        .guild-item.browse-servers {
+            background: var(--bg-primary);
+            border: 2px dashed var(--warning-color);
+            color: var(--warning-color);
+            font-size: 18px;
+        }
+
+        .guild-item.browse-servers:hover {
+            background: var(--warning-color);
+            color: white;
+        }
+
+        .guild-item.join-server {
+            background: var(--bg-primary);
+            border: 2px dashed var(--border-color);
+            color: var(--info-color);
+            font-size: 18px;
+        }
+
+        .guild-item.join-server:hover {
+            background: var(--info-color);
+            color: white;
+        }
+
+        .guild-item.add-server {
+            background: var(--bg-primary);
+            border: 2px dashed var(--border-color);
+            color: var(--success-color);
+            font-size: 24px;
+        }
+
+        .guild-item.add-server:hover {
+            background: var(--success-color);
+            color: white;
+        }
+
+        .channels-wrapper {
+            width: 240px;
+            background: var(--bg-secondary);
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0;
+            height: 100vh;
+        }
+
+        .server-header {
+            padding: 16px;
+            border-bottom: 1px solid var(--border-color);
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-shrink: 0;
+        }
+
+        .server-header:hover {
+            background: var(--bg-primary);
+        }
+
+        .server-actions {
+            display: flex;
+            gap: 4px;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+
+        .server-header:hover .server-actions {
+            opacity: 1;
+        }
+
+        .action-icon {
+            width: 20px;
+            height: 20px;
+            border: none;
+            background: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            border-radius: 3px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+        }
+
+        .action-icon:hover {
+            background: var(--bg-primary);
+            color: var(--text-primary);
+        }
+
+        .channels-list {
+            flex: 1;
+            padding: 16px 8px;
+            overflow-y: auto;
+        }
+
+        .channel-category {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+            padding: 8px;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+        }
+
+        .add-channel-btn {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 3px;
+        }
+
+        .add-channel-btn:hover {
+            background: var(--bg-primary);
+            color: var(--text-primary);
+        }
+
+        .channel-item {
+            padding: 8px 12px;
+            margin-bottom: 2px;
+            border-radius: 4px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--text-secondary);
+        }
+
+        .channel-item:hover {
+            background: var(--bg-primary);
+            color: var(--text-primary);
+        }
+
+        .channel-item.active {
+            background: var(--bg-chat);
+            color: var(--text-primary);
+        }
+
+        .channel-prefix {
+            color: var(--text-muted);
+        }
+
+        .user-area {
+            padding: 16px;
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-shrink: 0;
+        }
+
+        .user-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: var(--accent-color);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .user-info {
+            flex: 1;
+        }
+
+        .user-name {
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .user-status {
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .chat-wrapper {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: var(--bg-primary);
+            height: 100vh;
+            min-width: 0;
+        }
+
+        .chat-header {
+            height: 48px;
+            padding: 0 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid var(--border-color);
+            flex-shrink: 0;
+            background: var(--bg-primary);
+        }
+
+        .chat-title {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 600;
+        }
+
+        .chat-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .action-btn {
+            width: 24px;
+            height: 24px;
+            border: none;
+            background: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .action-btn:hover {
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+        }
+
+        .messages-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            min-height: 0;
+        }
+
+        .messages-wrapper {
+            display: flex;
+            flex-direction: column;
+            min-height: 100%;
+            justify-content: flex-end;
+        }
+
+        .message {
+            margin-bottom: 16px;
+            display: flex;
+            gap: 12px;
+            flex-shrink: 0;
+        }
+
+        .message-pending {
+            opacity: 0.7;
+        }
+
+        .message-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: var(--accent-color);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+            font-size: 14px;
+            flex-shrink: 0;
+        }
+
+        .message-content {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .message-header {
+            display: flex;
+            align-items: baseline;
+            gap: 8px;
+            margin-bottom: 4px;
+        }
+
+        .message-author {
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .message-timestamp {
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .message-status {
+            font-size: 11px;
+            color: var(--warning-color);
+            font-style: italic;
+            margin-left: 8px;
+        }
+
+        .message-text {
+            font-size: 14px;
+            line-height: 1.4;
+            word-wrap: break-word;
+        }
+
+        .message-input-container {
+            padding: 16px;
+            flex-shrink: 0;
+            background: var(--bg-primary);
+        }
+
+        .message-input {
+            background: var(--bg-chat);
+            border: none;
+            border-radius: 8px;
+            padding: 12px 16px;
+            color: var(--text-primary);
+            width: 100%;
+            font-size: 14px;
+            resize: none;
+            min-height: 44px;
+            max-height: 200px;
+            font-family: inherit;
+        }
+
+        .message-input:focus {
+            outline: none;
+        }
+
+        .message-input::placeholder {
+            color: var(--text-muted);
+        }
+
+        .welcome-message {
+            text-align: center;
+            color: var(--text-muted);
+            padding: 40px 20px;
+            flex-shrink: 0;
+        }
+
+        .welcome-message h3 {
+            margin-bottom: 8px;
+        }
+
+        .loading {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            color: var(--text-muted);
+        }
+
+        .spinner {
+            width: 20px;
+            height: 20px;
+            border: 2px solid var(--border-color);
+            border-top: 2px solid var(--accent-color);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background: var(--bg-secondary);
+            margin: auto;
+            padding: 2rem;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 500px;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .modal-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            color: var(--text-muted);
+            cursor: pointer;
+            padding: 0;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .close-btn:hover {
+            color: var(--text-primary);
+        }
+
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 0.75rem;
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            color: var(--text-primary);
+            font-size: 14px;
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: var(--accent-color);
+        }
+
+        .form-control::placeholder {
+            color: var(--text-muted);
+        }
+
+        .checkbox-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .checkbox {
+            width: 16px;
+            height: 16px;
+        }
+
+        .checkbox-label {
+            margin: 0;
+            font-weight: normal;
+        }
+
+        .modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+            margin-top: 1.5rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .server-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .server-item {
+            padding: 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            margin-bottom: 8px;
+            background: var(--bg-primary);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .server-info h4 {
+            margin: 0 0 4px 0;
+            color: var(--text-primary);
+        }
+
+        .server-info p {
+            margin: 0;
+            color: var(--text-muted);
+            font-size: 12px;
+        }
+
+        .share-code {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            padding: 8px 12px;
+            margin: 8px 0;
+            font-family: monospace;
+            font-size: 14px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .copy-btn {
+            background: var(--success-color);
+            border: none;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 11px;
+        }
+
+        .copy-btn:hover {
+            background: #2d7d32;
+        }
+
+        /* Scrollbar styling */
+        .messages-container::-webkit-scrollbar,
+        .channels-list::-webkit-scrollbar,
+        .guilds-wrapper::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .messages-container::-webkit-scrollbar-track,
+        .channels-list::-webkit-scrollbar-track,
+        .guilds-wrapper::-webkit-scrollbar-track {
+            background: var(--bg-secondary);
+        }
+
+        .messages-container::-webkit-scrollbar-thumb,
+        .channels-list::-webkit-scrollbar-thumb,
+        .guilds-wrapper::-webkit-scrollbar-thumb {
+            background: var(--border-color);
+            border-radius: 4px;
+        }
+
+        .messages-container::-webkit-scrollbar-thumb:hover,
+        .channels-list::-webkit-scrollbar-thumb:hover,
+        .guilds-wrapper::-webkit-scrollbar-thumb:hover {
+            background: var(--text-muted);
+        }
+
+        /* Mobile Styles */
+        @media (max-width: 768px) {
+            .channels-wrapper {
+                position: fixed;
+                left: -240px;
+                top: 0;
+                height: 100vh;
+                z-index: 100;
+                transition: left 0.3s ease;
+                transform: translateX(0);
+            }
+
+            .channels-wrapper.mobile-open {
+                left: 72px;
+            }
+
+            .channels-wrapper.open {
+                transform: translateX(0);
+                left: 72px;
+            }
+
+            .chat-wrapper {
+                margin-left: 0;
+                width: 100vw;
+            }
+
+            .server-header {
+                display: flex;
+            }
+
+            .chat-header {
+                position: relative;
+                z-index: 50;
+            }
+
+            .guilds-wrapper {
+                width: 72px;
+                z-index: 110;
+            }
+
+            .message-input {
+                font-size: 16px;
+            }
+
+            .messages-container {
+                padding: 12px;
+            }
+        }
+
+        /* Very small screens */
+        @media (max-width: 480px) {
+            .chat-header {
+                padding: 0 12px;
+                height: 44px;
+            }
+
+            .messages-container {
+                padding: 8px;
+            }
+
+            .message-input-container {
+                padding: 12px;
+            }
+
+            .guilds-wrapper {
+                width: 60px;
+                padding: 8px 0;
+            }
+
+            .guild-item {
+                width: 40px;
+                height: 40px;
+                font-size: 14px;
+                margin-bottom: 6px;
+            }
+
+            .channels-wrapper.mobile-open,
+            .channels-wrapper.open {
+                left: 60px;
+            }
+        }
+
+        /* Success/Error Messages */
+        .message-success {
+            background: var(--success-color);
+            color: white;
+            padding: 12px 16px;
+            border-radius: 4px;
+            margin: 16px;
+            font-size: 14px;
+        }
+
+        .message-error {
+            background: var(--danger-color);
+            color: white;
+            padding: 12px 16px;
+            border-radius: 4px;
+            margin: 16px;
+            font-size: 14px;
+        }
+    </style>
 </head>
 <body>
-    <!-- Top Navigation Bar -->
-    <div class="top-nav">
-        <!-- Feed Tabs (centered, only show when on feed page and user is logged in) -->
-        <div id="feedTabs" class="feed-tabs">
-            <button class="feed-tab active" id="generalTab" onclick="switchFeedTab('general')">
-                General
-            </button>
-            <button class="feed-tab" id="followedTab" onclick="switchFeedTab('followed')">
-                Following
-            </button>
+    <div id="authRequired" class="auth-required" style="display: none;">
+        <h1>🔒 Authentication Required</h1>
+        <p>Please log in to your main app account to access the chat system.
+        The chat will automatically detect your login session.</p>
+        <div style="display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;">
+            <button class="btn btn-primary" onclick="redirectToLogin()">Go to Main App</button>
+            <button class="btn btn-secondary" onclick="checkSessionToken()">🔄 Check Session</button>
+        </div>
+        <div id="sessionStatus" class="session-status" style="display: none;"></div>
+    </div>
+
+    <div id="chatApp" class="app" style="display: none;">
+        <!-- Server/Guild List (left sidebar) -->
+        <div class="guilds-wrapper">
+            <div id="serversList">
+                <div class="loading">
+                    <div class="spinner"></div>
+                </div>
+            </div>
+            
+            <div class="guild-item browse-servers" onclick="openBrowseServersModal()" title="Browse Public Servers">
+                🌐
+            </div>
+            
+            <div class="guild-item join-server" onclick="openJoinServerModal()" title="Join Server with Code">
+                🔍
+            </div>
+            
+            <div class="guild-item add-server" onclick="openCreateServerModal()" title="Create Server">
+                +
+            </div>
+        </div>
+
+        <!-- Channels List (middle sidebar) -->
+        <div class="channels-wrapper" id="channelsWrapper">
+            <div class="server-header" id="serverHeader" onclick="toggleMobileChannels()">
+                <span id="currentServerName">Select a Server</span>
+                <div class="server-actions" id="serverActions">
+                    <button class="action-icon" onclick="showShareCode(event)" title="Share Server">📋</button>
+                    <button class="action-icon" onclick="showServerInfo(event)" title="Server Info">ℹ️</button>
+                </div>
+            </div>
+            
+            <div class="channels-list">
+                <div class="channel-category">
+                    <span>Text Channels</span>
+                    <div class="add-channel-btn" onclick="openCreateRoomModal()" title="Create Channel">+</div>
+                </div>
+                
+                <div id="roomsList">
+                    <div class="welcome-message">
+                        <p>Select a server to see channels</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="user-area">
+                <div class="user-avatar" id="userAvatar">?</div>
+                <div class="user-info">
+                    <div class="user-name" id="userName">Loading...</div>
+                    <div class="user-status">Online</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Chat Area -->
+        <div class="chat-wrapper">
+            <div class="chat-header" onclick="toggleMobileChannels()">
+                <div class="chat-title">
+                    <span class="channel-prefix">#</span>
+                    <span id="chatRoomName">Select a channel</span>
+                </div>
+                <div class="chat-actions">
+                    <button class="action-btn" onclick="checkSessionToken()" title="Check Session">
+                        🔄
+                    </button>
+                </div>
+            </div>
+            
+            <div class="messages-container" id="messagesContainer">
+                <div class="messages-wrapper" id="messagesWrapper">
+                    <div class="welcome-message">
+                        <h3>Welcome to AFS Chat! 💬</h3>
+                        <p>Select a server and channel to start chatting.</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="message-input-container">
+                <textarea 
+                    id="messageInput" 
+                    class="message-input" 
+                    placeholder="Type a message..."
+                    onkeydown="handleMessageKeyDown(event)"
+                    rows="1"
+                ></textarea>
+            </div>
         </div>
     </div>
 
-    <!-- Menu Overlay -->
-    <div class="menu-overlay" id="menuOverlay" onclick="toggleMenu()"></div>
-
-    <!-- Sliding Menu -->
-    <div class="slide-menu" id="slideMenu">
-        <div class="menu-header" id="menuHeader">
-            <!-- User info will be inserted here -->
+    <!-- Browse Public Servers Modal -->
+    <div class="modal" id="browseServersModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">Browse Public Servers</h3>
+                <button class="close-btn" onclick="closeBrowseServersModal()">&times;</button>
+            </div>
+            
+            <div class="server-list" id="publicServersList">
+                <div class="loading">
+                    <div class="spinner"></div>
+                </div>
+            </div>
         </div>
+    </div>
+
+    <!-- Join Server Modal -->
+    <div class="modal" id="joinServerModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">Join Server</h3>
+                <button class="close-btn" onclick="closeJoinServerModal()">&times;</button>
+            </div>
+            
+            <div class="form-group">
+                <label for="serverIdInput">Server Code</label>
+                <input type="text" id="serverIdInput" class="form-control" placeholder="Enter server code (e.g., ABC123)" maxlength="100" onkeydown="handleJoinServerKeyDown(event)">
+                <small style="color: #96989d; margin-top: 4px; display: block;">
+                    Ask a server member for the server code or get it from the server's share option.
+                </small>
+            </div>
+            
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeJoinServerModal()">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="joinServerSubmit()">Join Server</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Server Modal -->
+    <div class="modal" id="createServerModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">Create Server</h3>
+                <button class="close-btn" onclick="closeCreateServerModal()">&times;</button>
+            </div>
+            
+            <div class="form-group">
+                <label for="serverNameInput">Server Name</label>
+                <input type="text" id="serverNameInput" class="form-control" placeholder="Enter server name" maxlength="50">
+            </div>
+            
+            <div class="form-group">
+                <label for="serverDescriptionInput">Description</label>
+                <textarea 
+                    id="serverDescriptionInput" 
+                    class="form-control" 
+                    placeholder="Describe your server..."
+                    rows="3"
+                    maxlength="200"
+                ></textarea>
+            </div>
+            
+            <div class="form-group">
+                <div class="checkbox-wrapper">
+                    <input type="checkbox" id="serverPrivateInput" class="checkbox" />
+                    <label class="checkbox-label" for="serverPrivateInput">Private Server</label>
+                </div>
+                <small style="color: #96989d; margin-top: 4px; display: block;">
+                    Private servers can only be joined with a share code and won't appear in public listings.
+                </small>
+            </div>
+            
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeCreateServerModal()">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="createServerSubmit()">Create Server</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Share Code Modal -->
+    <div class="modal" id="shareCodeModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">Share Server</h3>
+                <button class="close-btn" onclick="closeShareCodeModal()">&times;</button>
+            </div>
+            
+            <div style="text-align: center;">
+                <h4 id="shareServerName" style="margin-bottom: 16px;">Server Name</h4>
+                <p style="color: var(--text-muted); margin-bottom: 16px;">Share this code with others to let them join your server:</p>
+                
+                <div class="share-code">
+                    <span id="shareCodeText">Loading...</span>
+                    <button class="copy-btn" onclick="copyShareCode()">Copy</button>
+                </div>
+                
+                <p style="color: var(--text-muted); font-size: 12px; margin-top: 8px;">
+                    This code never expires and can be used multiple times.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global state
+        let currentUser = null;
+        let currentServer = null;
+        let currentRoom = null;
+        let userServers = [];
+        let serverRooms = [];
+        let chatMessages = [];
+        let refreshInterval = null;
+        let sessionCheckInterval = null;
+        let publicServers = [];
         
-        <nav class="menu-nav">
-            <button class="menu-item active" id="menuFeed" onclick="navigateToFeed()">
-                <span class="menu-item-icon">🏠</span>
-                <span>Feed</span>
-            </button>
+        // Performance optimization variables
+        let lastMessageTimestamp = null;
+        let messageCache = new Map();
+        let refreshSpeed = 3000; // Base refresh rate
+        let lastActivity = Date.now();
+        let isUserActive = true;
+
+        // Initialize the chat app
+        function initializeApp() {
+            console.log('🚀 Initializing chat app...');
             
-            <button class="menu-item" id="menuProfile" onclick="navigateToProfile()">
-                <span class="menu-item-icon">👤</span>
-                <span>Profile</span>
-            </button>
+            // Check for existing session from main app
+            const token = getSessionToken();
+            if (token) {
+                console.log('📱 Found existing session token from main app, checking validity...');
+                checkSessionToken();
+            } else {
+                console.log('❌ No session token found, showing auth required screen');
+                showAuthRequired();
+            }
+        }
+
+        // Get session token from localStorage (shared with main app)
+        function getSessionToken() {
+            const sessionToken = localStorage.getItem('sessionToken');
+            console.log('🔑 Getting session token:', sessionToken ? 'Token exists' : 'No token');
+            return sessionToken;
+        }
+
+        // Check if the session token is valid using the main app's auth endpoint
+        async function checkSessionToken() {
+            console.log('🔍 Checking session token validity...');
             
-            <button class="menu-item" id="menuMyShed" onclick="navigateToMyShed()">
-                <span class="menu-item-icon">🏠</span>
-                <span>My Shed</span>
-            </button>
-            
-            <button class="menu-item" id="menuCreateCommunity" onclick="openCreateCommunity()">
-                <span class="menu-item-icon">🔨</span>
-                <span>Build Shed</span>
-            </button>
-            
-            <button class="menu-item" id="menuBrowseCommunities" onclick="toggleCommunitiesDropdown()">
-                <span class="menu-item-icon">🏚️</span>
-                <span>Browse Sheds</span>
-                <span style="margin-left: auto; font-size: 12px;" id="communitiesToggle">▼</span>
-            </button>
-            
-            <div class="communities-dropdown" id="communitiesDropdown">
-                <!-- Sheds will be inserted here -->
-            </div>
-            
-            <div class="menu-divider"></div>
-            
-            <button class="menu-item" id="menuAdmin" onclick="navigateToAdmin()" style="display: none;">
-                <span class="menu-item-icon">🔧</span>
-                <span>Admin Panel</span>
-            </button>
-            
-            <button class="menu-item" id="menuSettings" onclick="navigateToSettings()">
-                <span class="menu-item-icon">⚙️</span>
-                <span>Settings</span>
-            </button>
-            
-            <button class="menu-item" id="menuLogout" onclick="logout()">
-                <span class="menu-item-icon">🚪</span>
-                <span>Logout</span>
-            </button>
-        </nav>
-    </div>
+            const token = getSessionToken();
+            if (!token) {
+                console.log('❌ No token to check');
+                showAuthRequired();
+                return;
+            }
 
-    <!-- Floating Menu Toggle -->
-    <button class="menu-toggle" id="menuToggle" onclick="toggleMenu()">
-        <span>☰</span>
-    </button>
+            const statusEl = document.getElementById('sessionStatus');
+            if (statusEl) {
+                statusEl.style.display = 'block';
+                statusEl.textContent = 'Checking session...';
+                statusEl.style.background = 'var(--warning-color)';
+                statusEl.style.color = 'white';
+            }
 
-    <!-- Admin Panel -->
-    <div id="adminPanel" class="admin-panel" style="display: none;">
-        <div class="admin-panel-header">
-            <span>🔧 Admin Panel</span>
-        </div>
-        
-        <div class="admin-stats" id="adminStats">
-            <div class="admin-stat-card">
-                <div class="admin-stat-number" id="totalUsers">0</div>
-                <div class="admin-stat-label">Total Users</div>
-            </div>
-            <div class="admin-stat-card">
-                <div class="admin-stat-number" id="pendingUsers">0</div>
-                <div class="admin-stat-label">Pending Users</div>
-            </div>
-            <div class="admin-stat-card">
-                <div class="admin-stat-number" id="totalPosts">0</div>
-                <div class="admin-stat-label">Total Posts</div>
-            </div>
-            <div class="admin-stat-card">
-                <div class="admin-stat-number" id="totalCommunities">0</div>
-                <div class="admin-stat-label">Sheds</div>
-            </div>
-        </div>
+            try {
+                // Use the API endpoint to validate the token
+                const response = await fetch('/.netlify/functions/api/profile', {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
 
-        <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px;">
-            <button class="btn btn-danger btn-small" onclick="loadPendingUsers()">Pending Users</button>
-            <button class="btn btn-danger btn-small" onclick="loadAllUsers()">All Users</button>
-            <button class="btn btn-danger btn-small" onclick="loadAdminCommunities()">Manage Sheds</button>
-            <button class="btn btn-danger btn-small" onclick="refreshAdminStats()">Refresh Stats</button>
-        </div>
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
 
-        <!-- Admin sections will be inserted here -->
-        <div id="pendingUsersSection" class="admin-section" style="display: none;">
-            <h4 style="color: var(--danger-fg); margin-bottom: 12px;">Pending User Approvals</h4>
-            <div id="pendingUsersList"></div>
-        </div>
+                const data = await response.json();
+                console.log('📝 Session check response:', data);
 
-        <div id="allUsersSection" class="admin-section" style="display: none;">
-            <h4 style="color: var(--danger-fg); margin-bottom: 12px;">All Users</h4>
-            <div id="allUsersList"></div>
-        </div>
-
-        <div id="adminCommunitiesSection" class="admin-section" style="display: none;">
-            <h4 style="color: var(--danger-fg); margin-bottom: 12px;">Shed Management</h4>
-            <div id="adminCommunitiesList"></div>
-        </div>
-    </div>
-
-    <!-- Main Content -->
-    <main class="main-container">
-        <!-- Feed Content -->
-        <div id="feed">
-            <div class="loading">Loading...</div>
-        </div>
-    </main>
-
-    <button class="compose-btn" id="composeBtn" style="display: none;" onclick="openModal('composeModal')">+</button>
-
-    <!-- Modals (keeping the existing modal structure but with updated styling) -->
-    <!-- Auth Modal -->
-    <div class="modal" id="authModal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3 id="authTitle">Sign Up</h3>
-                <button class="close-btn" onclick="closeModal('authModal')">&times;</button>
-            </div>
-            <div id="authError"></div>
-            <form id="authForm">
-                <div class="form-group">
-                    <label for="username">Username</label>
-                    <input type="text" id="username" required minlength="3" maxlength="20">
-                </div>
-                <div class="form-group">
-                    <label for="password">Password</label>
-                    <input type="password" id="password" required minlength="6">
-                </div>
-                <div class="form-group">
-                    <label for="bio">Bio (Optional)</label>
-                    <textarea id="bio" placeholder="Tell us about yourself..." maxlength="500"></textarea>
-                </div>
-                <button type="submit" class="btn" id="authSubmitBtn">Sign Up</button>
-            </form>
-            <p style="margin-top: 16px; color: var(--fg-muted); font-size: 14px;">
-                <span id="authToggleText">Already have an account?</span>
-                <button type="button" class="btn-secondary btn" id="authToggleBtn" onclick="toggleAuthMode()">Sign In</button>
-            </p>
-        </div>
-    </div>
-
-    <!-- Create Shed Modal -->
-    <div class="modal" id="createCommunityModal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>🔨 Build New Shed</h3>
-                <button class="close-btn" onclick="closeModal('createCommunityModal')">&times;</button>
-            </div>
-            <div id="createCommunityError"></div>
-            <form id="createCommunityForm">
-                <div class="form-group">
-                    <label for="communityName">Shed Name</label>
-                    <input type="text" id="communityName" required minlength="3" maxlength="25" pattern="[a-z0-9_]+" placeholder="woodworking">
-                    <small>3-25 characters, lowercase, letters, numbers, and underscores only</small>
-                </div>
-                <div class="form-group">
-                    <label for="communityDisplayName">Display Name</label>
-                    <input type="text" id="communityDisplayName" required maxlength="50" placeholder="Woodworking">
-                </div>
-                <div class="form-group">
-                    <label for="communityDescription">Description</label>
-                    <textarea id="communityDescription" maxlength="500" placeholder="A shed for woodworking discussions and projects"></textarea>
-                </div>
-                <button type="submit" class="btn" id="createCommunitySubmitBtn">🔨 Build Shed</button>
-            </form>
-        </div>
-    </div>
-
-    <!-- Image Insert Modal -->
-    <div class="modal" id="imageInsertModal">
-        <div class="modal-content" style="max-width: 500px;">
-            <div class="modal-header">
-                <h3>Insert Image</h3>
-                <button class="close-btn" onclick="closeModal('imageInsertModal')">&times;</button>
-            </div>
-            <form id="imageInsertForm" onsubmit="handleImageInsert(event)">
-                <div class="form-group">
-                    <label for="imageUrl">Image URL</label>
-                    <input type="url" id="imageUrl" placeholder="https://example.com/image.jpg" required>
-                    <small>Enter a direct link to an image (jpg, png, gif, webp)</small>
-                </div>
-                <div class="form-group">
-                    <label for="imageAltText">Alt Text (Optional)</label>
-                    <input type="text" id="imageAltText" placeholder="Description of the image" maxlength="200">
-                    <small>Describes the image for accessibility and if the image fails to load</small>
-                </div>
-                <div class="form-group">
-                    <label for="imageTitle">Title (Optional)</label>
-                    <input type="text" id="imageTitle" placeholder="Image title" maxlength="200">
-                    <small>Shows as a tooltip when hovering over the image</small>
-                </div>
-                <button type="submit" class="btn">Insert Image</button>
-            </form>
-        </div>
-    </div>
-
-    <!-- Link Insert Modal -->
-    <div class="modal" id="linkInsertModal">
-        <div class="modal-content" style="max-width: 500px;">
-            <div class="modal-header">
-                <h3>Insert Link</h3>
-                <button class="close-btn" onclick="closeModal('linkInsertModal')">&times;</button>
-            </div>
-            <form id="linkInsertForm" onsubmit="handleLinkInsert(event)">
-                <div class="form-group">
-                    <label for="linkUrl">URL</label>
-                    <input type="url" id="linkUrl" placeholder="https://example.com" required>
-                    <small>The web address you want to link to</small>
-                </div>
-                <div class="form-group">
-                    <label for="linkText">Link Text</label>
-                    <input type="text" id="linkText" placeholder="Click here" maxlength="200" required>
-                    <small>The text that will be clickable</small>
-                </div>
-                <button type="submit" class="btn">Insert Link</button>
-            </form>
-        </div>
-    </div>
-
-    <div class="modal" id="editProfileModal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>Edit Profile</h3>
-                <button class="close-btn" onclick="closeModal('editProfileModal')">&times;</button>
-            </div>
-            <div id="editProfileError"></div>
-            <form id="editProfileForm" onsubmit="handleUpdateProfile(event)">
-                <div class="form-group">
-                    <label for="editProfilePicture">Profile Picture URL</label>
-                    <input type="url" id="editProfilePicture" placeholder="https://example.com/your-picture.jpg">
-                    <small>Enter a URL to an image you'd like to use as your profile picture</small>
-                </div>
-                <div class="form-group">
-                    <label for="editProfileBio">Bio</label>
-                    <textarea id="editProfileBio" placeholder="Tell people about yourself..." maxlength="500"></textarea>
-                    <small>Describe yourself in 500 characters or less</small>
-                </div>
-                <div class="form-group">
-                    <small style="color: var(--fg-subtle);">
-                        <strong>Tip:</strong> For profile pictures, you can use image hosting services like Imgur, or link directly to images from social media profiles.
-                    </small>
-                </div>
-                <button type="submit" class="btn" id="editProfileSubmitBtn">Update Profile</button>
-            </form>
-        </div>
-    </div>
-
-    <div class="modal" id="composeModal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>Create Post</h3>
-                <button class="close-btn" onclick="closeModal('composeModal')">&times;</button>
-            </div>
-            <div id="composeError"></div>
-            <form id="composeForm">
-                <div class="form-group">
-                    <label for="postCommunity">Shed (Optional)</label>
-                    <select id="postCommunity">
-                        <option value="">General Feed</option>
-                    </select>
-                </div>
-
-                <div class="form-group">
-                    <label>Post Type</label>
-                    <div style="display: flex; background: var(--bg-subtle); border-radius: 8px; overflow: hidden; margin-bottom: 16px;">
-                        <button type="button" style="flex: 1; background: var(--btn-primary-bg); color: white; border: none; padding: 8px 16px; cursor: pointer; font-size: 14px;" onclick="setPostType('text')">Text Post</button>
-                        <button type="button" style="flex: 1; background: transparent; color: var(--fg-default); border: none; padding: 8px 16px; cursor: pointer; font-size: 14px;" onclick="setPostType('link')">Link/Media</button>
-                    </div>
-                </div>
-
-                <div class="form-group">
-                    <label for="postTitle">Title</label>
-                    <input type="text" id="postTitle" required maxlength="200">
-                </div>
-
-                <!-- Text Post Fields -->
-                <div id="textPostFields">
-                    <div class="form-group">
-                        <label for="postContent">Content</label>
-                        
-                        <!-- Markdown Toolbar -->
-                        <div class="markdown-toolbar">
-                            <button type="button" class="markdown-btn" onclick="insertMarkdown('**', '**', 'Bold text')" title="Bold">
-                                <strong>B</strong>
-                            </button>
-                            <button type="button" class="markdown-btn" onclick="insertMarkdown('*', '*', 'Italic text')" title="Italic">
-                                <em>I</em>
-                            </button>
-                            <button type="button" class="markdown-btn" onclick="insertMarkdown('`', '`', 'Code')" title="Inline Code">
-                                <code>&lt;/&gt;</code>
-                            </button>
-                            <button type="button" class="markdown-btn" onclick="insertMarkdown('```\n', '\n```', 'Code block')" title="Code Block">
-                                <span>{ }</span>
-                            </button>
-                            <div class="toolbar-divider"></div>
-                            <button type="button" class="markdown-btn" onclick="insertMarkdown('# ', '', 'Heading 1')" title="Heading 1">
-                                H1
-                            </button>
-                            <button type="button" class="markdown-btn" onclick="insertMarkdown('## ', '', 'Heading 2')" title="Heading 2">
-                                H2
-                            </button>
-                            <button type="button" class="markdown-btn" onclick="insertMarkdown('### ', '', 'Heading 3')" title="Heading 3">
-                                H3
-                            </button>
-                            <div class="toolbar-divider"></div>
-                            <button type="button" class="markdown-btn" onclick="insertMarkdown('> ', '', 'Quote text')" title="Quote">
-                                <span>"</span>
-                            </button>
-                            <button type="button" class="markdown-btn" onclick="insertMarkdown('- ', '', 'List item')" title="Bullet List">
-                                •
-                            </button>
-                            <button type="button" class="markdown-btn" onclick="insertMarkdown('1. ', '', 'List item')" title="Numbered List">
-                                1.
-                            </button>
-                            <div class="toolbar-divider"></div>
-                            <button type="button" class="markdown-btn" onclick="insertLink()" title="Add Link">
-                                🔗
-                            </button>
-                            <button type="button" class="markdown-btn" onclick="insertImage()" title="Add Image">
-                                🖼️
-                            </button>
-                            <button type="button" class="markdown-btn" onclick="insertMarkdown('~~', '~~', 'Strikethrough text')" title="Strikethrough">
-                                <s>S</s>
-                            </button>
-                            <div class="toolbar-divider"></div>
-                            <button type="button" class="markdown-btn" onclick="previewMarkdown()" title="Preview" id="previewBtn">
-                                👁️
-                            </button>
-                        </div>
-                        
-                        <textarea id="postContent" required placeholder="Share your thoughts... (Markdown supported)" maxlength="10000"></textarea>
-                        
-                        <!-- Preview Area -->
-                        <div id="markdownPreview" class="markdown-preview" style="display: none;">
-                            <div class="preview-header">
-                                <span>Preview:</span>
-                                <button type="button" class="btn-small" onclick="hidePreview()">Edit</button>
-                            </div>
-                            <div id="previewContent" class="markdown-content"></div>
-                        </div>
-                        
-                        <small>Supports Markdown formatting. Use the toolbar buttons above for quick formatting!</small>
-                    </div>
-                </div>
-
-                <!-- Link Post Fields -->
-                <div id="linkPostFields" style="display: none;">
-                    <div class="form-group">
-                        <label for="postUrl">URL</label>
-                        <input type="url" id="postUrl" placeholder="https://example.com">
-                        <small>YouTube, Dailymotion, Suno, images, videos, audio, and other media will be embedded automatically</small>
-                        
-                        <!-- Media Preview Container -->
-                        <div id="mediaPreview" style="margin-top: 12px; display: none;"></div>
-                    </div>
+                if (data.success && data.profile) {
+                    console.log('✅ Valid session for user:', data.profile.username);
+                    currentUser = {
+                        username: data.profile.username,
+                        ...data.profile
+                    };
                     
-                    <div class="form-group">
-                        <label for="postDescription">Description (Optional)</label>
-                        <textarea id="postDescription" placeholder="Describe this link..." maxlength="2000"></textarea>
+                    if (statusEl) {
+                        statusEl.textContent = `✅ Logged in as ${data.profile.username}`;
+                        statusEl.style.background = 'var(--success-color)';
+                        statusEl.style.color = 'white';
+                        setTimeout(() => {
+                            statusEl.style.display = 'none';
+                        }, 2000);
+                    }
+                    
+                    showChatApp();
+                } else {
+                    throw new Error('Invalid response format');
+                }
+            } catch (error) {
+                console.error('💥 Error checking session:', error);
+                
+                if (statusEl) {
+                    statusEl.textContent = '❌ Session expired or invalid';
+                    statusEl.style.background = 'var(--danger-color)';
+                    statusEl.style.color = 'white';
+                }
+                
+                showAuthRequired();
+            }
+        }
+
+        // Show the auth required screen
+        function showAuthRequired() {
+            console.log('🔒 Showing auth required screen');
+            document.getElementById('authRequired').style.display = 'flex';
+            document.getElementById('chatApp').style.display = 'none';
+        }
+
+        // Show the main chat application
+        function showChatApp() {
+            console.log('💬 Showing chat app');
+            document.getElementById('authRequired').style.display = 'none';
+            document.getElementById('chatApp').style.display = 'flex';
+            
+            // Initialize chat data
+            loadUserProfile();
+            loadUserServers();
+            
+            // Start periodic session check
+            if (sessionCheckInterval) {
+                clearInterval(sessionCheckInterval);
+            }
+            sessionCheckInterval = setInterval(checkSessionToken, 5 * 60 * 1000); // Check every 5 minutes
+        }
+
+        // Handle logout
+        function handleLogout() {
+            console.log('👋 Handling logout');
+            currentUser = null;
+            currentServer = null;
+            currentRoom = null;
+            userServers = [];
+            serverRooms = [];
+            chatMessages = [];
+            publicServers = [];
+            
+            // Stop refresh intervals
+            if (refreshInterval) {
+                clearInterval(refreshInterval);
+                refreshInterval = null;
+            }
+            if (sessionCheckInterval) {
+                clearInterval(sessionCheckInterval);
+                sessionCheckInterval = null;
+            }
+            
+            showAuthRequired();
+        }
+
+        // Redirect to main app login
+        function redirectToLogin() {
+            console.log('🔄 Redirecting to main app');
+            window.location.href = '/';
+        }
+
+        // Load user profile information
+        async function loadUserProfile() {
+            if (!currentUser) return;
+            
+            console.log('👤 Loading user profile for:', currentUser.username);
+            
+            // Update UI with user info
+            const userNameEl = document.getElementById('userName');
+            const userAvatarEl = document.getElementById('userAvatar');
+            
+            if (userNameEl) {
+                userNameEl.textContent = currentUser.username;
+            }
+            
+            if (userAvatarEl) {
+                userAvatarEl.textContent = currentUser.username.charAt(0).toUpperCase();
+            }
+        }
+
+        // Load user's servers
+        async function loadUserServers() {
+            if (!currentUser) return;
+            
+            console.log('🏠 Loading user servers...');
+            
+            try {
+                const response = await fetch('/.netlify/functions/chat-api/servers', {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${getSessionToken()}`
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    userServers = data.servers || [];
+                    console.log('✅ Loaded servers:', userServers.length);
+                    renderServersList();
+                } else {
+                    console.error('❌ Failed to load servers:', data.error);
+                    userServers = [];
+                    renderServersList();
+                }
+            } catch (error) {
+                console.error('💥 Error loading servers:', error);
+                userServers = [];
+                renderServersList();
+            }
+        }
+
+        // Load public servers
+        async function loadPublicServers() {
+            console.log('🌐 Loading public servers...');
+            
+            try {
+                const response = await fetch('/.netlify/functions/chat-api/servers/public', {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${getSessionToken()}`
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    publicServers = data.servers || [];
+                    console.log('✅ Loaded public servers:', publicServers.length);
+                    renderPublicServersList();
+                } else {
+                    console.error('❌ Failed to load public servers:', data.error);
+                    publicServers = [];
+                    renderPublicServersList();
+                }
+            } catch (error) {
+                console.error('💥 Error loading public servers:', error);
+                publicServers = [];
+                renderPublicServersList();
+            }
+        }
+
+        // Render the servers list
+        function renderServersList() {
+            const serversListEl = document.getElementById('serversList');
+            if (!serversListEl) return;
+            
+            if (userServers.length === 0) {
+                serversListEl.innerHTML = `
+                    <div style="color: var(--text-muted); font-size: 12px; text-align: center; padding: 8px;">
+                        No servers
+                    </div>
+                `;
+                return;
+            }
+            
+            serversListEl.innerHTML = userServers.map(server => `
+                <div class="guild-item ${currentServer?.id === server.id ? 'active' : ''}" 
+                     onclick="selectServer('${server.id}')" 
+                     title="${server.name}${server.isPrivate ? ' (Private)' : ''}">
+                    ${server.name.charAt(0).toUpperCase()}
+                </div>
+            `).join('');
+        }
+
+        // Render public servers list
+        function renderPublicServersList() {
+            const publicServersListEl = document.getElementById('publicServersList');
+            if (!publicServersListEl) return;
+            
+            if (publicServers.length === 0) {
+                publicServersListEl.innerHTML = `
+                    <div style="text-align: center; padding: 20px; color: var(--text-muted);">
+                        <p>No public servers available</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            publicServersListEl.innerHTML = publicServers.map(server => {
+                const isJoined = userServers.some(us => us.id === server.id);
+                return `
+                    <div class="server-item">
+                        <div class="server-info">
+                            <h4>${server.name}</h4>
+                            <p>${server.description || 'No description'}</p>
+                            <p>${server.memberCount || 0} members • ${server.roomCount || 0} channels</p>
+                        </div>
+                        <div>
+                            ${isJoined ? 
+                                `<button class="btn btn-secondary btn-small" onclick="selectServerFromBrowse('${server.id}')">Open</button>` :
+                                `<button class="btn btn-success btn-small" onclick="joinPublicServer('${server.id}')">Join</button>`
+                            }
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Select a server
+        async function selectServer(serverId) {
+            console.log('🏠 Selecting server:', serverId);
+            
+            const server = userServers.find(s => s.id === serverId);
+            if (!server) {
+                console.error('❌ Server not found:', serverId);
+                return;
+            }
+            
+            currentServer = server;
+            currentRoom = null;
+            
+            // Update UI
+            document.getElementById('currentServerName').textContent = server.name;
+            renderServersList(); // Re-render to show active state
+            
+            // Show server actions
+            document.getElementById('serverActions').style.display = 'flex';
+            
+            // Load server rooms
+            await loadServerRooms(serverId);
+        }
+
+        // Select server from browse modal
+        function selectServerFromBrowse(serverId) {
+            closeBrowseServersModal();
+            selectServer(serverId);
+        }
+
+        // Join public server
+        async function joinPublicServer(serverId) {
+            console.log('🚀 Joining public server:', serverId);
+            
+            try {
+                const response = await fetch(`/.netlify/functions/chat-api/servers/${serverId}/join`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${getSessionToken()}`
+                    }
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.error || `Failed to join server (${response.status})`);
+                }
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    console.log('✅ Successfully joined public server');
+                    showSuccessMessage('Successfully joined server!');
+                    
+                    // Refresh both lists
+                    await loadUserServers();
+                    await loadPublicServers();
+                    
+                    // Select the newly joined server
+                    selectServer(serverId);
+                } else {
+                    throw new Error(data.error || 'Failed to join server');
+                }
+            } catch (error) {
+                console.error('💥 Error joining public server:', error);
+                showErrorMessage(error.message || 'Failed to join server');
+            }
+        }
+
+        // Load rooms for a server
+        async function loadServerRooms(serverId) {
+            console.log('📋 Loading rooms for server:', serverId);
+            
+            try {
+                const response = await fetch(`/.netlify/functions/chat-api/servers/${serverId}/rooms`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${getSessionToken()}`
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    serverRooms = data.rooms || [];
+                    console.log('✅ Loaded rooms:', serverRooms.length);
+                    renderRoomsList();
+                } else {
+                    console.error('❌ Failed to load rooms:', data.error);
+                    serverRooms = [];
+                    renderRoomsList();
+                }
+            } catch (error) {
+                console.error('💥 Error loading rooms:', error);
+                serverRooms = [];
+                renderRoomsList();
+            }
+        }
+
+        // Render the rooms list
+        function renderRoomsList() {
+            const roomsListEl = document.getElementById('roomsList');
+            if (!roomsListEl) return;
+            
+            if (serverRooms.length === 0) {
+                roomsListEl.innerHTML = `
+                    <div class="welcome-message">
+                        <p>No channels yet</p>
+                        <small style="color: var(--text-muted);">Create the first channel!</small>
+                    </div>
+                `;
+                return;
+            }
+            
+            roomsListEl.innerHTML = serverRooms.map(room => `
+                <div class="channel-item ${currentRoom?.id === room.id ? 'active' : ''}" 
+                     onclick="selectRoom('${room.id}')">
+                    <span class="channel-prefix">#</span>
+                    <span>${room.name}</span>
+                </div>
+            `).join('');
+        }
+
+        // Select a room/channel (optimized)
+        async function selectRoom(roomId) {
+            console.log('📋 Selecting room:', roomId);
+            
+            const room = serverRooms.find(r => r.id === roomId);
+            if (!room) {
+                console.error('❌ Room not found:', roomId);
+                return;
+            }
+            
+            // Stop current refresh
+            if (refreshInterval) {
+                clearInterval(refreshInterval);
+                refreshInterval = null;
+            }
+            
+            // Clear previous room data
+            lastMessageTimestamp = null;
+            chatMessages = [];
+            
+            currentRoom = room;
+            
+            // Update UI
+            document.getElementById('chatRoomName').textContent = room.name;
+            renderRoomsList(); // Re-render to show active state
+            
+            // Load messages for this room (full load)
+            await loadRoomMessages(roomId, false);
+            
+            // Start smart message refresh
+            startMessageRefresh();
+        }
+
+        // Load messages for a room (with caching and optimizations)
+        async function loadRoomMessages(roomId, isPolling = false) {
+            console.log('💬 Loading messages for room:', roomId);
+            
+            try {
+                // Build query parameters for efficient loading
+                const params = new URLSearchParams();
+                
+                // If polling and we have messages, only get new ones
+                if (isPolling && lastMessageTimestamp) {
+                    params.append('after', lastMessageTimestamp);
+                    params.append('limit', '10'); // Smaller limit for polling
+                } else {
+                    params.append('limit', '50'); // Full load
+                }
+                
+                const response = await fetch(`/.netlify/functions/chat-api/rooms/${roomId}/messages?${params}`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${getSessionToken()}`
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    const newMessages = data.messages || [];
+                    
+                    if (isPolling && newMessages.length > 0) {
+                        // Append new messages to existing ones
+                        const wasAtBottom = isAtBottom();
+                        chatMessages = [...chatMessages, ...newMessages];
+                        
+                        // Update last timestamp
+                        lastMessageTimestamp = newMessages[newMessages.length - 1].createdAt;
+                        
+                        console.log('✅ Loaded new messages:', newMessages.length);
+                        renderMessages();
+                        
+                        // Auto-scroll only if user was at bottom
+                        if (wasAtBottom) {
+                            scrollToBottom();
+                        }
+                        
+                        // Flash tab title for new messages if not active
+                        if (!isUserActive && newMessages.length > 0) {
+                            flashTabTitle();
+                        }
+                    } else if (!isPolling) {
+                        // Full load
+                        chatMessages = newMessages;
+                        if (newMessages.length > 0) {
+                            lastMessageTimestamp = newMessages[newMessages.length - 1].createdAt;
+                        }
+                        
+                        console.log('✅ Loaded messages:', chatMessages.length);
+                        renderMessages();
+                        scrollToBottom();
+                    }
+                } else {
+                    console.error('❌ Failed to load messages:', data.error);
+                    if (!isPolling) {
+                        chatMessages = [];
+                        renderMessages();
+                    }
+                }
+            } catch (error) {
+                console.error('💥 Error loading messages:', error);
+                if (!isPolling) {
+                    chatMessages = [];
+                    renderMessages();
+                }
+            }
+        }
+
+        // Check if user is at bottom of messages
+        function isAtBottom() {
+            const container = document.getElementById('messagesContainer');
+            const threshold = 100; // pixels from bottom
+            return container.scrollTop >= (container.scrollHeight - container.clientHeight - threshold);
+        }
+
+        // Scroll to bottom of messages
+        function scrollToBottom() {
+            const container = document.getElementById('messagesContainer');
+            container.scrollTop = container.scrollHeight;
+        }
+
+        // Render messages (optimized with pending state)
+        function renderMessages() {
+            const messagesWrapper = document.getElementById('messagesWrapper');
+            if (!messagesWrapper) return;
+            
+            if (chatMessages.length === 0) {
+                messagesWrapper.innerHTML = `
+                    <div class="welcome-message">
+                        <h3>Welcome to #${currentRoom?.name || 'channel'}! 💬</h3>
+                        <p>This is the beginning of the conversation.</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            messagesWrapper.innerHTML = chatMessages.map(message => `
+                <div class="message ${message.pending ? 'message-pending' : ''}">
+                    <div class="message-avatar">
+                        ${message.author.charAt(0).toUpperCase()}
+                    </div>
+                    <div class="message-content">
+                        <div class="message-header">
+                            <span class="message-author">${message.author}</span>
+                            <span class="message-timestamp">${formatTimestamp(message.createdAt || message.timestamp)}</span>
+                            ${message.pending ? '<span class="message-status">Sending...</span>' : ''}
+                        </div>
+                        <div class="message-text">${escapeHtml(message.content)}</div>
                     </div>
                 </div>
+            `).join('');
+        }
 
-                <div class="form-group">
-                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                        <input type="checkbox" id="isPrivate" style="width: auto;">
-                        <span>Private post (only you can see this)</span>
-                    </label>
-                </div>
-                <button type="submit" class="btn" id="composeSubmitBtn">Post</button>
-            </form>
-        </div>
-    </div>
+        // Format timestamp
+        function formatTimestamp(timestamp) {
+            const date = new Date(timestamp);
+            const now = new Date();
+            const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            const messageDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+            
+            if (messageDate.getTime() === today.getTime()) {
+                return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            } else if (messageDate.getTime() === today.getTime() - 86400000) {
+                return 'Yesterday at ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            } else {
+                return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            }
+        }
 
-    <!-- Load JavaScript files in correct order -->
-    <script src="utils.js"></script>
-    <script src="api.js"></script>
-    <script src="ui.js"></script>
-    <script src="render-admin.js"></script>
-    <script src="admin.js"></script>
-    <script src="app.js"></script>
+        // Escape HTML to prevent XSS
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Smart message refresh with adaptive intervals
+        function startMessageRefresh() {
+            if (refreshInterval) {
+                clearInterval(refreshInterval);
+            }
+            
+            // Reset polling state
+            lastMessageTimestamp = null;
+            if (chatMessages.length > 0) {
+                lastMessageTimestamp = chatMessages[chatMessages.length - 1].createdAt;
+            }
+            
+            refreshInterval = setInterval(() => {
+                if (currentRoom) {
+                    // Adaptive refresh rate based on activity
+                    const timeSinceActivity = Date.now() - lastActivity;
+                    
+                    // Fast polling when active (1s), slower when idle (5s)
+                    if (timeSinceActivity < 30000) { // 30 seconds
+                        refreshSpeed = 1000;
+                    } else if (timeSinceActivity < 300000) { // 5 minutes
+                        refreshSpeed = 3000;
+                    } else {
+                        refreshSpeed = 5000;
+                    }
+                    
+                    loadRoomMessages(currentRoom.id, true); // true = polling mode
+                }
+            }, refreshSpeed);
+        }
+
+        // Handle message input
+        function handleMessageKeyDown(event) {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                sendMessage();
+            }
+        }
+
+        // Send a message (optimized for immediate feedback)
+        async function sendMessage() {
+            if (!currentRoom || !currentUser) {
+                console.log('❌ Cannot send message: no room or user');
+                return;
+            }
+            
+            const messageInput = document.getElementById('messageInput');
+            const content = messageInput.value.trim();
+            
+            if (!content) {
+                console.log('❌ Cannot send empty message');
+                return;
+            }
+            
+            console.log('📤 Sending message:', content);
+            
+            // Create optimistic message for immediate UI feedback
+            const optimisticMessage = {
+                id: 'temp_' + Date.now(),
+                content: content,
+                author: currentUser.username,
+                createdAt: new Date().toISOString(),
+                pending: true
+            };
+            
+            // Clear input immediately for better UX
+            messageInput.value = '';
+            
+            // Add optimistic message to UI immediately
+            chatMessages.push(optimisticMessage);
+            renderMessages();
+            scrollToBottom();
+            
+            // Track activity for adaptive refresh
+            lastActivity = Date.now();
+            
+            try {
+                const response = await fetch(`/.netlify/functions/chat-api/rooms/${currentRoom.id}/messages`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${getSessionToken()}`
+                    },
+                    body: JSON.stringify({
+                        content: content
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    console.log('✅ Message sent successfully');
+                    
+                    // Remove optimistic message and replace with real one
+                    chatMessages = chatMessages.filter(m => m.id !== optimisticMessage.id);
+                    chatMessages.push(data.message);
+                    lastMessageTimestamp = data.message.createdAt;
+                    
+                    renderMessages();
+                    scrollToBottom();
+                } else {
+                    throw new Error(data.error || 'Failed to send message');
+                }
+            } catch (error) {
+                console.error('💥 Error sending message:', error);
+                
+                // Remove failed optimistic message
+                chatMessages = chatMessages.filter(m => m.id !== optimisticMessage.id);
+                renderMessages();
+                
+                showErrorMessage('Failed to send message. Please try again.');
+                // Restore message if failed
+                messageInput.value = content;
+            }
+        }
+
+        // Browse Servers Modal Functions
+        function openBrowseServersModal() {
+            console.log('🌐 Opening browse servers modal...');
+            document.getElementById('browseServersModal').style.display = 'flex';
+            loadPublicServers();
+        }
+
+        function closeBrowseServersModal() {
+            console.log('❌ Closing browse servers modal...');
+            document.getElementById('browseServersModal').style.display = 'none';
+        }
+
+        // Join Server Modal Functions
+        function openJoinServerModal() {
+            console.log('🔍 Opening join server modal...');
+            document.getElementById('joinServerModal').style.display = 'flex';
+            // Focus on the input field
+            setTimeout(() => {
+                document.getElementById('serverIdInput').focus();
+            }, 100);
+        }
+
+        function closeJoinServerModal() {
+            console.log('❌ Closing join server modal...');
+            document.getElementById('joinServerModal').style.display = 'none';
+            // Clear form
+            document.getElementById('serverIdInput').value = '';
+        }
+
+        function handleJoinServerKeyDown(event) {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                joinServerSubmit();
+            } else if (event.key === 'Escape') {
+                event.preventDefault();
+                closeJoinServerModal();
+            }
+        }
+
+        async function joinServerSubmit() {
+            const serverId = document.getElementById('serverIdInput').value.trim().toUpperCase();
+            
+            if (!serverId) {
+                showErrorMessage('Please enter a server code');
+                return;
+            }
+            
+            if (!currentUser) {
+                showErrorMessage('You must be logged in to join a server');
+                return;
+            }
+            
+            console.log('🚀 Attempting to join server with code:', serverId);
+            
+            try {
+                const response = await fetch(`/.netlify/functions/chat-api/servers/${serverId}/join`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${getSessionToken()}`
+                    }
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.error || `Server not found or access denied (${response.status})`);
+                }
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    console.log('✅ Successfully joined server');
+                    showSuccessMessage('Successfully joined server!');
+                    closeJoinServerModal();
+                    
+                    // Refresh server list
+                    await loadUserServers();
+                    
+                    // Try to select the newly joined server by finding it in the list
+                    const joinedServer = userServers.find(s => s.id === serverId);
+                    if (joinedServer) {
+                        selectServer(joinedServer.id);
+                    }
+                } else {
+                    console.error('❌ Failed to join server:', data.error);
+                    showErrorMessage(data.error || 'Failed to join server');
+                }
+            } catch (error) {
+                console.error('💥 Error joining server:', error);
+                showErrorMessage(error.message || 'Network error. Please try again.');
+            }
+        }
+
+        // Create Server Modal Functions
+        function openCreateServerModal() {
+            console.log('🏠 Opening create server modal...');
+            document.getElementById('createServerModal').style.display = 'flex';
+        }
+
+        function closeCreateServerModal() {
+            console.log('❌ Closing create server modal...');
+            document.getElementById('createServerModal').style.display = 'none';
+            // Clear form
+            document.getElementById('serverNameInput').value = '';
+            document.getElementById('serverDescriptionInput').value = '';
+            document.getElementById('serverPrivateInput').checked = false;
+        }
+
+        async function createServerSubmit() {
+            const name = document.getElementById('serverNameInput').value.trim();
+            const description = document.getElementById('serverDescriptionInput').value.trim();
+            const isPrivate = document.getElementById('serverPrivateInput').checked;
+            
+            if (!name) {
+                showErrorMessage('Please enter a server name');
+                return;
+            }
+            
+            if (!currentUser) {
+                showErrorMessage('You must be logged in to create a server');
+                return;
+            }
+            
+            console.log('🚀 Creating server:', { name, description, isPrivate });
+            
+            try {
+                const response = await fetch('/.netlify/functions/chat-api/servers', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${getSessionToken()}`
+                    },
+                    body: JSON.stringify({
+                        name: name,
+                        description: description || `${name} server`,
+                        isPrivate: isPrivate
+                    })
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                
+                if (data.success && data.server) {
+                    console.log('✅ Server created successfully:', data.server.id);
+                    showSuccessMessage(`Server "${name}" created successfully!`);
+                    closeCreateServerModal();
+                    
+                    // Refresh server list and select the new server
+                    await loadUserServers();
+                    selectServer(data.server.id);
+                } else {
+                    console.error('❌ Failed to create server:', data.error || data);
+                    showErrorMessage(data.error || 'Failed to create server');
+                }
+            } catch (error) {
+                console.error('💥 Error creating server:', error);
+                showErrorMessage(error.message || 'Network error. Please try again.');
+            }
+        }
+
+        // Create room modal
+        function openCreateRoomModal() {
+            if (!currentServer) {
+                showErrorMessage('Please select a server first');
+                return;
+            }
+            
+            const roomName = prompt('Enter channel name:');
+            if (roomName && roomName.trim()) {
+                createRoom(roomName.trim());
+            }
+        }
+
+        // Create a room/channel
+        async function createRoom(roomName) {
+            if (!currentServer) {
+                showErrorMessage('No server selected');
+                return;
+            }
+            
+            console.log('📋 Creating room:', roomName, 'in server:', currentServer.id);
+            
+            try {
+                const response = await fetch(`/.netlify/functions/chat-api/servers/${currentServer.id}/rooms`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${getSessionToken()}`
+                    },
+                    body: JSON.stringify({
+                        name: roomName,
+                        description: `Channel for ${roomName} discussions`
+                    })
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                
+                if (data.success && data.room) {
+                    console.log('✅ Room created successfully:', data.room.id);
+                    showSuccessMessage(`Channel "${roomName}" created successfully!`);
+                    
+                    // Refresh rooms list and select the new room
+                    await loadServerRooms(currentServer.id);
+                    selectRoom(data.room.id);
+                } else {
+                    console.error('❌ Failed to create room:', data.error || 'Unknown error');
+                    showErrorMessage(data.error || 'Failed to create channel');
+                }
+            } catch (error) {
+                console.error('💥 Error creating room:', error);
+                showErrorMessage(error.message || 'Network error. Please try again.');
+            }
+        }
+
+        // Share Code Functions
+        function showShareCode(event) {
+            event.stopPropagation();
+            
+            if (!currentServer) {
+                showErrorMessage('No server selected');
+                return;
+            }
+            
+            document.getElementById('shareServerName').textContent = currentServer.name;
+            document.getElementById('shareCodeText').textContent = currentServer.id;
+            document.getElementById('shareCodeModal').style.display = 'flex';
+        }
+
+        function closeShareCodeModal() {
+            document.getElementById('shareCodeModal').style.display = 'none';
+        }
+
+        function copyShareCode() {
+            const shareCodeText = document.getElementById('shareCodeText').textContent;
+            
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(shareCodeText).then(() => {
+                    showSuccessMessage('Server code copied to clipboard!');
+                }).catch(err => {
+                    console.error('Failed to copy: ', err);
+                    fallbackCopyTextToClipboard(shareCodeText);
+                });
+            } else {
+                fallbackCopyTextToClipboard(shareCodeText);
+            }
+        }
+
+        function fallbackCopyTextToClipboard(text) {
+            const textArea = document.createElement("textarea");
+            textArea.value = text;
+            textArea.style.top = "0";
+            textArea.style.left = "0";
+            textArea.style.position = "fixed";
+            
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            
+            try {
+                const successful = document.execCommand('copy');
+                const msg = successful ? 'successful' : 'unsuccessful';
+                console.log('Fallback: Copying text command was ' + msg);
+                if (successful) {
+                    showSuccessMessage('Server code copied to clipboard!');
+                } else {
+                    showErrorMessage('Failed to copy server code');
+                }
+            } catch (err) {
+                console.error('Fallback: Oops, unable to copy', err);
+                showErrorMessage('Failed to copy server code');
+            }
+            
+            document.body.removeChild(textArea);
+        }
+
+        // Server Info Functions
+        function showServerInfo(event) {
+            event.stopPropagation();
+            
+            if (!currentServer) {
+                showErrorMessage('No server selected');
+                return;
+            }
+            
+            const info = `
+Server: ${currentServer.name}
+${currentServer.description ? `Description: ${currentServer.description}` : ''}
+Type: ${currentServer.isPrivate ? 'Private' : 'Public'}
+Members: ${currentServer.memberCount || 'Unknown'}
+Channels: ${serverRooms.length}
+Created: ${currentServer.createdAt ? new Date(currentServer.createdAt).toLocaleDateString() : 'Unknown'}
+            `.trim();
+            
+            alert(info);
+        }
+
+        // Mobile channel toggle
+        function toggleMobileChannels() {
+            const channelsWrapper = document.getElementById('channelsWrapper');
+            if (channelsWrapper) {
+                channelsWrapper.classList.toggle('mobile-open');
+            }
+        }
+
+        // Add activity tracking and tab title flash
+        function trackUserActivity() {
+            lastActivity = Date.now();
+            isUserActive = !document.hidden;
+        }
+
+        function flashTabTitle() {
+            const originalTitle = document.title;
+            document.title = '💬 New Message - AFS Chat';
+            
+            setTimeout(() => {
+                document.title = originalTitle;
+            }, 3000);
+        }
+
+        // Show success message
+        function showSuccessMessage(message) {
+            const messageEl = document.createElement('div');
+            messageEl.className = 'message-success';
+            messageEl.textContent = message;
+            messageEl.style.position = 'fixed';
+            messageEl.style.top = '20px';
+            messageEl.style.right = '20px';
+            messageEl.style.zIndex = '2000';
+            messageEl.style.borderRadius = '8px';
+            messageEl.style.boxShadow = '0 4px 12px rgba(0,0,0,0.3)';
+            document.body.appendChild(messageEl);
+            
+            setTimeout(() => {
+                messageEl.remove();
+            }, 5000);
+        }
+
+        // Show error message
+        function showErrorMessage(message) {
+            const messageEl = document.createElement('div');
+            messageEl.className = 'message-error';
+            messageEl.textContent = message;
+            messageEl.style.position = 'fixed';
+            messageEl.style.top = '20px';
+            messageEl.style.right = '20px';
+            messageEl.style.zIndex = '2000';
+            messageEl.style.borderRadius = '8px';
+            messageEl.style.boxShadow = '0 4px 12px rgba(0,0,0,0.3)';
+            document.body.appendChild(messageEl);
+            
+            setTimeout(() => {
+                messageEl.remove();
+            }, 5000);
+        }
+
+        // Activity event listeners
+        document.addEventListener('mousemove', trackUserActivity);
+        document.addEventListener('keydown', trackUserActivity);
+        document.addEventListener('click', trackUserActivity);
+        document.addEventListener('scroll', trackUserActivity);
+
+        // Initialize app when page loads
+        document.addEventListener('DOMContentLoaded', initializeApp);
+        
+        // Handle browser back/forward
+        window.addEventListener('popstate', function(event) {
+            // Handle navigation if needed
+        });
+        
+        // Visibility change handling
+        document.addEventListener('visibilitychange', function() {
+            isUserActive = !document.hidden;
+            if (isUserActive && currentUser) {
+                lastActivity = Date.now();
+                // Faster refresh when user comes back
+                if (currentRoom && refreshInterval) {
+                    clearInterval(refreshInterval);
+                    startMessageRefresh();
+                }
+            }
+        });
+
+        // Monitor localStorage changes from main app
+        window.addEventListener('storage', function(e) {
+            console.log('🔄 Storage event detected:', e.key, e.newValue ? 'Set' : 'Removed');
+            
+            if (e.key === 'sessionToken') {
+                if (e.newValue) {
+                    console.log('🎉 New session token detected from main app');
+                    // Small delay to let main app finish its setup
+                    setTimeout(() => {
+                        checkSessionToken();
+                    }, 1000);
+                } else {
+                    console.log('❌ Session token removed, user logged out');
+                    handleLogout();
+                }
+            }
+        });
+    </script>
 </body>
 </html>
