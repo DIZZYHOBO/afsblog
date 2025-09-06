@@ -1,34 +1,39 @@
 [build]
-  # Build command (not needed for static site)
-  command = "echo 'Static site - no build required'"
-  # Directory to publish
+  # No build process needed for static files
   publish = "."
+  command = "echo 'No build required'"
 
 [functions]
-  # Directory containing Netlify Functions
-  directory = "netlify/functions"
-
-# Enable Netlify Blobs
-[build.environment]
-  # Netlify Blobs is automatically available in functions
-
-# Headers for security and CORS
+  # Node.js runtime for functions
+  node_bundler = "esbuild"
+  
 [[headers]]
   for = "/*"
   [headers.values]
+    # Security headers
     X-Frame-Options = "DENY"
     X-Content-Type-Options = "nosniff"
     X-XSS-Protection = "1; mode=block"
     Referrer-Policy = "strict-origin-when-cross-origin"
+    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; img-src 'self' data: https:; connect-src 'self' https:; font-src 'self' https://cdnjs.cloudflare.com; media-src 'self' https:; object-src 'none'; base-uri 'self'; form-action 'self';"
+    Strict-Transport-Security = "max-age=31536000; includeSubDomains; preload"
+    Permissions-Policy = "geolocation=(), microphone=(), camera=(), payment=(), usb=(), magnetometer=(), gyroscope=(), accelerometer=()"
 
-# API routes go to the function
 [[redirects]]
-  from = "/api/*"
-  to = "/.netlify/functions/api/:splat"
-  status = 200
-
-# Everything else goes to index.html for SPA
-[[redirects]]
+  # SPA fallback
   from = "/*"
   to = "/index.html"
   status = 200
+  conditions = {Role = ["admin"], Country = ["US"]}
+
+[context.production.environment]
+  # Production optimizations
+  NODE_ENV = "production"
+  
+[context.deploy-preview.environment]
+  # Preview environment
+  NODE_ENV = "preview"
+
+[context.branch-deploy.environment]
+  # Branch deploys
+  NODE_ENV = "development"
