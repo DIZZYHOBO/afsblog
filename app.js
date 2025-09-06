@@ -427,6 +427,18 @@ function setupEventListeners() {
     });
 }
 
+async function loadUser() {
+  try {
+    currentUser = await secureAPI.loadUserData();
+    if (currentUser) {
+      await loadFollowedCommunities();
+    }
+  } catch (error) {
+    console.error('Error loading user:', error);
+    currentUser = null;
+  }
+}
+
 // Initialize app
 document.addEventListener('DOMContentLoaded', async () => {
     // Configure marked.js for markdown rendering
