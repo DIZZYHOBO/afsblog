@@ -438,20 +438,98 @@ async function loadUser() {
     currentUser = null;
   }
 }
+// Add these functions before the DOMContentLoaded event
+
+async function loadUser() {
+  try {
+    // Simple user loading - replace with your actual auth logic
+    const storedUser = localStorage.getItem('currentUser');
+    if (storedUser) {
+      currentUser = JSON.parse(storedUser);
+    }
+  } catch (error) {
+    console.error('Error loading user:', error);
+    currentUser = null;
+  }
+}
+
+async function loadCommunities() {
+  try {
+    // Load communities from your API or storage
+    const response = await fetch('/.netlify/functions/blobs?list=true&prefix=community_');
+    if (response.ok) {
+      const data = await response.json();
+      communities = data.keys.map(key => ({ name: key.replace('community_', '') }));
+    }
+  } catch (error) {
+    console.error('Error loading communities:', error);
+    communities = [];
+  }
+}
+
+async function loadPosts() {
+  try {
+    // Load posts from your API or storage
+    const response = await fetch('/.netlify/functions/blobs?list=true&prefix=post_');
+    if (response.ok) {
+      const data = await response.json();
+      posts = []; // You'll need to implement actual post loading
+    }
+  } catch (error) {
+    console.error('Error loading posts:', error);
+    posts = [];
+  }
+}
+
+async function loadFollowedCommunities() {
+  try {
+    if (currentUser) {
+      followedCommunities = new Set(); // You'll need to implement this
+    }
+  } catch (error) {
+    console.error('Error loading followed communities:', error);
+    followedCommunities = new Set();
+  }
+}
+
+async function loadAdminStats() {
+  try {
+    if (currentUser?.profile?.isAdmin) {
+      // Load admin stats
+      console.log('Loading admin stats...');
+    }
+  } catch (error) {
+    console.error('Error loading admin stats:', error);
+  }
+}
 
 // Initialize app
 document.addEventListener('DOMContentLoaded', async () => {
     // Configure marked.js for markdown rendering
-    marked.setOptions({
-        highlight: function(code, lang) {
-            if (lang && hljs.getLanguage(lang)) {
-                return hljs.highlight(code, { language: lang }).value;
-            }
-            return hljs.highlightAuto(code).value;
-        },
-        breaks: true,
-        gfm: true
-    });
+    if (typeof marked !== 'undefined') {
+        marked.setOptions({
+            highlight: function(code, lang) {
+                if (lang && typeof hljs !== 'undefined' && hljs.getLanguage(lang)) {
+                    return hljs.highlight(code, { language: lang }).value;
+                }
+                return typeof hljs !== 'undefined' ? hljs.highlightAuto(code).value : code;
+            },
+            breaks: true,
+            gfm: true
+        });
+    }
+    
+    await loadUser();
+    await loadCommunities();
+    await loadPosts();
+    updateUI();
+    setupEventListeners();
+    
+    // Load admin stats if user is admin
+    if (currentUser?.profile?.isAdmin) {
+        await loadAdminStats();
+    }
+});
     
     // Custom renderer for enhanced features
     markdownRenderer = new marked.Renderer();
