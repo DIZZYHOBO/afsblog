@@ -1,233 +1,57 @@
-# netlify.toml - Production-ready configuration for The Shed social platform
+# netlify.toml - Simple working configuration
 
 [build]
-  # Static site - no build process needed
   publish = "."
   command = "echo 'Static site - no build required'"
 
 [functions]
-  # Modern Node.js runtime for serverless functions
   node_bundler = "esbuild"
-  # External Node modules for functions
   external_node_modules = ["@netlify/blobs", "bcryptjs", "jsonwebtoken"]
 
-# Security headers for all pages
+# Basic security headers
 [[headers]]
   for = "/*"
   [headers.values]
-    # Core security headers
     X-Frame-Options = "DENY"
-    X-Content-Type-Options = "nosniff" 
+    X-Content-Type-Options = "nosniff"
     X-XSS-Protection = "1; mode=block"
     Referrer-Policy = "strict-origin-when-cross-origin"
-    Strict-Transport-Security = "max-age=31536000; includeSubDomains; preload"
-    
-    # Enhanced Content Security Policy for better security
-    Content-Security-Policy = """
-      default-src 'self';
-      script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://www.youtube.com https://player.dailymotion.com;
-      style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com;
-      img-src 'self' data: https: blob:;
-      media-src 'self' https: blob:;
-      font-src 'self' https://cdnjs.cloudflare.com;
-      connect-src 'self' https:;
-      frame-src 'self' https://www.youtube.com https://www.dailymotion.com https://suno.com;
-      object-src 'none';
-      base-uri 'self';
-      form-action 'self';
-      upgrade-insecure-requests;
-    """
-    
-    # Privacy and permissions
-    Permissions-Policy = "geolocation=(), microphone=(), camera=(), payment=(), usb=(), magnetometer=(), gyroscope=(), accelerometer=()"
-    
-    # Cache control for static assets
-    Cache-Control = "public, max-age=31536000, immutable"
+    Strict-Transport-Security = "max-age=31536000; includeSubDomains"
+    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; img-src 'self' data: https:; connect-src 'self' https:; font-src 'self' https://cdnjs.cloudflare.com; media-src 'self' https:; frame-src 'self' https://www.youtube.com https://www.dailymotion.com; object-src 'none'; base-uri 'self'; form-action 'self';"
 
-# API endpoints - no caching, CORS headers
+# API endpoints
 [[headers]]
   for = "/.netlify/functions/*"
   [headers.values]
-    Cache-Control = "no-cache, no-store, must-revalidate"
-    Pragma = "no-cache"
-    Expires = "0"
+    Cache-Control = "no-cache"
     Access-Control-Allow-Origin = "*"
-    Access-Control-Allow-Headers = "Content-Type, Authorization, X-API-Key, X-Requested-With"
-    Access-Control-Allow-Methods = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
-    Access-Control-Allow-Credentials = "true"
-    Access-Control-Max-Age = "86400"
+    Access-Control-Allow-Headers = "Content-Type, Authorization, X-API-Key"
+    Access-Control-Allow-Methods = "GET, POST, PUT, DELETE, OPTIONS"
 
-# Static assets caching
-[[headers]]
-  for = "*.js"
-  [headers.values]
-    Cache-Control = "public, max-age=31536000, immutable"
-
-[[headers]]
-  for = "*.css"
-  [headers.values]
-    Cache-Control = "public, max-age=31536000, immutable"
-
-[[headers]]
-  for = "*.png"
-  [headers.values]
-    Cache-Control = "public, max-age=31536000, immutable"
-
-[[headers]]
-  for = "*.jpg"
-  [headers.values]
-    Cache-Control = "public, max-age=31536000, immutable"
-
-[[headers]]
-  for = "*.ico"
-  [headers.values]
-    Cache-Control = "public, max-age=31536000, immutable"
-
-# SPA routing - redirect all non-file requests to index.html
+# SPA routing
 [[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
-  # Only apply to requests that don't match files or API routes
   conditions = {Path = "!/.netlify/functions/*"}
 
-# API route optimization
+# API routes
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/api/:splat"
   status = 200
 
-# Chat API route
 [[redirects]]
   from = "/chat-api/*"
   to = "/.netlify/functions/chat-api/:splat"
   status = 200
 
-# Environment-specific configurations
+# Environment settings
 [context.production.environment]
   NODE_ENV = "production"
-  # Set secure defaults for production
-  SECURITY_LEVEL = "high"
 
 [context.deploy-preview.environment]
   NODE_ENV = "preview"
-  # Slightly relaxed for previews
-  SECURITY_LEVEL = "medium"
 
 [context.branch-deploy.environment]
   NODE_ENV = "development"
-  # Development settings
-  SECURITY_LEVEL = "low"
-
-[context.dev.environment]
-  NODE_ENV = "development"
-  # Local development
-  SECURITY_LEVEL = "low"
-
-# Edge functions configuration (if needed in future)
-[edge_functions]
-  # Reserved for potential edge function usage
-
-# Build plugins (optional - for future enhancements)
-[[plugins]]
-  package = "@netlify/plugin-lighthouse"
-  
-  [plugins.inputs.audits]
-    performance = true
-    accessibility = true
-    best-practices = true
-    seo = true
-
-# Form handling (if needed for contact forms, etc.)
-[build.processing]
-  skip_processing = false
-[build.processing.css]
-  bundle = false
-  minify = true
-[build.processing.js]
-  bundle = false
-  minify = true
-[build.processing.html]
-  pretty_urls = true
-
-# Analytics and monitoring
-[template.environment]
-  # Template variables for easier deployment
-  SITE_NAME = "The Shed"
-  SITE_DESCRIPTION = "A secure social platform for communities"
-  SITE_URL = "https://your-site.netlify.app"
-
-# Advanced security configurations
-[context.production]
-  command = "echo 'Production deployment'"
-  
-  [context.production.environment]
-    # Production-specific security settings
-    JWT_EXPIRE_TIME = "15m"
-    REFRESH_TOKEN_EXPIRE_TIME = "7d"
-    RATE_LIMIT_ENABLED = "true"
-    SECURITY_HEADERS_ENABLED = "true"
-
-[context.deploy-preview]
-  command = "echo 'Preview deployment'"
-  
-  [context.deploy-preview.environment]
-    # Preview environment with debugging
-    DEBUG_MODE = "true"
-    RATE_LIMIT_ENABLED = "false"
-
-# Netlify-specific optimizations
-[build.environment]
-  # Build-time environment variables
-  BUILD_TIMESTAMP = "true"
-
-# Branch-specific configurations
-[context."branch-deploy"]
-  command = "echo 'Branch deployment'"
-
-# Function-specific configurations
-[functions]
-  # Directory for functions (default)
-  directory = "netlify/functions/"
-  
-  # Function-specific settings
-  node_bundler = "esbuild"
-  external_node_modules = [
-    "@netlify/blobs",
-    "bcryptjs", 
-    "jsonwebtoken",
-    "crypto"
-  ]
-
-# Custom error pages (optional)
-# Create these files if you want custom error pages
-# [[redirects]]
-#   from = "/404"
-#   to = "/404.html"
-#   status = 404
-# 
-# [[redirects]]
-#   from = "/500" 
-#   to = "/500.html"
-#   status = 500
-
-# Development proxy for local testing
-[dev]
-  framework = "#static"
-  command = "echo 'Development server'"
-  targetPort = 8080
-  port = 8888
-  autoLaunch = true
-
-# Additional security for sensitive routes
-[[headers]]
-  for = "/admin/*"
-  [headers.values]
-    X-Robots-Tag = "noindex, nofollow"
-    Cache-Control = "no-cache, no-store, must-revalidate"
-    
-[[headers]] 
-  for = "/api/admin/*"
-  [headers.values]
-    X-Robots-Tag = "noindex, nofollow"
-    Cache-Control = "no-cache, no-store, must-revalidate"
