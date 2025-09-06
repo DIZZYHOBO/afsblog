@@ -543,12 +543,18 @@ async function handleSecureAuth(e) {
   const bio = document.getElementById('bio')?.value?.trim();
   const email = document.getElementById('email')?.value?.trim();
   const rememberMe = document.getElementById('rememberMe')?.checked || false;
-  
-  // Complete the handleSecureAuth function
+    
+  try {
+    if (mode === 'signup') {
+      console.log('Signup attempt:', { username, bio, email });
+    } else {
+      console.log('Login attempt:', { username });
+    }
   } catch (error) {
     console.error('Auth error:', error);
   }
 }
+
 async function handleSecureAuth(e) {
   e.preventDefault();
   const form = e.target;
