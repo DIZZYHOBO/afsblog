@@ -1611,17 +1611,28 @@
             showProfile() {
                 const content = document.getElementById('content');
                 if (this.client.user) {
-                    const user = this.client.user.local_user_view.person;
+                    let userName = 'User';
+                    let userJoined = '';
+                    
+                    if (this.client.user.local_user_view && this.client.user.local_user_view.person) {
+                        const person = this.client.user.local_user_view.person;
+                        userName = person.name;
+                        userJoined = person.published;
+                    } else if (this.client.user.person) {
+                        userName = this.client.user.person.name;
+                        userJoined = this.client.user.person.published;
+                    }
+                    
                     content.innerHTML = `
                         <div style="padding: 20px;">
                             <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 20px;">
                                 <div class="user-avatar" style="width: 60px; height: 60px; font-size: 24px;">
-                                    ${user.name[0].toUpperCase()}
+                                    ${userName[0].toUpperCase()}
                                 </div>
                                 <div>
-                                    <h2 style="margin: 0;">u/${user.name}</h2>
+                                    <h2 style="margin: 0;">u/${userName}</h2>
                                     <div style="color: var(--text-secondary); font-size: 14px;">
-                                        Joined ${this.formatTime(user.published)}
+                                        Joined ${userJoined ? this.formatTime(userJoined) : 'recently'}
                                     </div>
                                 </div>
                             </div>
