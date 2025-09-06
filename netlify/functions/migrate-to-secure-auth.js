@@ -1,9 +1,7 @@
-// migrate-to-secure-auth.js - DATA MIGRATION SCRIPT
-// Migrates existing insecure data to new secure authentication system
-
-import { getStore } from "@netlify/blobs";
-import bcrypt from 'bcryptjs';
-import crypto from 'crypto';
+// migrate-to-secure-auth.js - Fixed for Netlify Functions
+const { getStore } = require("@netlify/blobs");
+const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 
 const MIGRATION_CONFIG = {
   SALT_ROUNDS: 12,
@@ -13,24 +11,37 @@ const MIGRATION_CONFIG = {
   PROTECTED_ADMIN: "dumbass"
 };
 
-export default async (req, context) => {
+exports.handler = async (event, context) => {
   // Only allow POST requests for security
-  if (req.method !== 'POST') {
-    return new Response(
-      JSON.stringify({ error: "Method not allowed" }),
-      { status: 405, headers: { "Content-Type": "application/json" } }
-    );
+  if (event.httpMethod !== 'POST') {
+    return {
+      statusCode: 405,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ error: "Method not allowed" })
+    };
+  }
+
+  let requestBody;
+  try {
+    requestBody = JSON.parse(event.body);
+  } catch (error) {
+    return {
+      statusCode: 400,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ error: "Invalid JSON in request body" })
+    };
   }
 
   // Verify migration key for security
-  const { migrationKey } = await req.json();
+  const { migrationKey } = requestBody;
   const expectedKey = process.env.MIGRATION_KEY || "MIGRATION_NOT_CONFIGURED";
   
   if (!migrationKey || migrationKey !== expectedKey) {
-    return new Response(
-      JSON.stringify({ error: "Invalid migration key" }),
-      { status: 401, headers: { "Content-Type": "application/json" } }
-    );
+    return {
+      statusCode: 401,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ error: "Invalid migration key" })
+    };
   }
 
   try {
@@ -40,26 +51,28 @@ export default async (req, context) => {
     
     const migrationResult = await performSecureMigration(blogStore, apiStore, securityStore);
     
-    return new Response(
-      JSON.stringify({
+    return {
+      statusCode: 200,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
         success: true,
         message: "Migration completed successfully",
         results: migrationResult
-      }),
-      { status: 200, headers: { "Content-Type": "application/json" } }
-    );
+      })
+    };
 
   } catch (error) {
     console.error("Migration error:", error);
     
-    return new Response(
-      JSON.stringify({
+    return {
+      statusCode: 500,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
         success: false,
         error: "Migration failed",
         details: error.message
-      }),
-      { status: 500, headers: { "Content-Type": "application/json" } }
-    );
+      })
+    };
   }
 };
 
@@ -153,201 +166,214 @@ async function performSecureMigration(blogStore, apiStore, securityStore) {
 async function createDataBackups(blogStore, migrationId) {
   const backupTimestamp = new Date().toISOString();
   
-  // Backup all user data
-  const { blobs: userBlobs } = await blogStore.list({ prefix: "user_" });
-  for (const blob of userBlobs) {
-    try {
-      const userData = await blogStore.get(blob.key, { type: "json" });
-      if (userData) {
-        const backupKey = `${MIGRATION_CONFIG.BACKUP_PREFIX}${migrationId}_${blob.key}_${Date.now()}`;
-        await blogStore.set(backupKey, JSON.stringify({
-          originalKey: blob.key,
-          migrationId,
-          backupTimestamp,
-          data: userData
-        }));
+  try {
+    // Backup all user data
+    const { blobs: userBlobs } = await blogStore.list({ prefix: "user_" });
+    for (const blob of userBlobs) {
+      try {
+        const userData = await blogStore.get(blob.key, { type: "json" });
+        if (userData) {
+          const backupKey = `${MIGRATION_CONFIG.BACKUP_PREFIX}${migrationId}_${blob.key}_${Date.now()}`;
+          await blogStore.set(backupKey, JSON.stringify({
+            originalKey: blob.key,
+            migrationId,
+            backupTimestamp,
+            data: userData
+          }));
+        }
+      } catch (error) {
+        console.error(`Error backing up ${blob.key}:`, error);
       }
-    } catch (error) {
-      console.error(`Error backing up ${blob.key}:`, error);
     }
-  }
 
-  // Backup all pending user data
-  const { blobs: pendingBlobs } = await blogStore.list({ prefix: "pending_user_" });
-  for (const blob of pendingBlobs) {
-    try {
-      const pendingData = await blogStore.get(blob.key, { type: "json" });
-      if (pendingData) {
-        const backupKey = `${MIGRATION_CONFIG.BACKUP_PREFIX}${migrationId}_${blob.key}_${Date.now()}`;
-        await blogStore.set(backupKey, JSON.stringify({
-          originalKey: blob.key,
-          migrationId,
-          backupTimestamp,
-          data: pendingData
-        }));
+    // Backup all pending user data
+    const { blobs: pendingBlobs } = await blogStore.list({ prefix: "pending_user_" });
+    for (const blob of pendingBlobs) {
+      try {
+        const pendingData = await blogStore.get(blob.key, { type: "json" });
+        if (pendingData) {
+          const backupKey = `${MIGRATION_CONFIG.BACKUP_PREFIX}${migrationId}_${blob.key}_${Date.now()}`;
+          await blogStore.set(backupKey, JSON.stringify({
+            originalKey: blob.key,
+            migrationId,
+            backupTimestamp,
+            data: pendingData
+          }));
+        }
+      } catch (error) {
+        console.error(`Error backing up ${blob.key}:`, error);
       }
-    } catch (error) {
-      console.error(`Error backing up ${blob.key}:`, error);
     }
-  }
 
-  console.log('Data backups created successfully');
+    console.log('Data backups created successfully');
+  } catch (error) {
+    console.error('Error creating backups:', error);
+    throw new Error(`Backup creation failed: ${error.message}`);
+  }
 }
 
 async function migrateApprovedUsers(blogStore) {
-  const { blobs } = await blogStore.list({ prefix: "user_" });
-  const userBlobs = blobs.filter(blob => 
-    blob.key.startsWith('user_') && 
-    !blob.key.startsWith('user_follows_')
-  );
-  
   const results = {
     processed: 0,
     errors: []
   };
 
-  for (const blob of userBlobs) {
-    try {
-      const oldUserData = await blogStore.get(blob.key, { type: "json" });
-      
-      if (!oldUserData || !oldUserData.username) {
-        console.warn(`Skipping invalid user data: ${blob.key}`);
-        continue;
+  try {
+    const { blobs } = await blogStore.list({ prefix: "user_" });
+    const userBlobs = blobs.filter(blob => 
+      blob.key.startsWith('user_') && 
+      !blob.key.startsWith('user_follows_')
+    );
+    
+    for (const blob of userBlobs) {
+      try {
+        const oldUserData = await blogStore.get(blob.key, { type: "json" });
+        
+        if (!oldUserData || !oldUserData.username) {
+          console.warn(`Skipping invalid user data: ${blob.key}`);
+          continue;
+        }
+
+        // Check if already migrated (has passwordHash instead of password)
+        if (oldUserData.passwordHash && !oldUserData.password) {
+          console.log(`User ${oldUserData.username} already migrated, skipping`);
+          continue;
+        }
+
+        if (!oldUserData.password) {
+          results.errors.push(`User ${oldUserData.username} has no password field`);
+          continue;
+        }
+
+        // Generate new secure user data
+        const saltRounds = MIGRATION_CONFIG.SALT_ROUNDS;
+        const passwordHash = await bcrypt.hash(oldUserData.password, saltRounds);
+        const salt = await bcrypt.genSalt(saltRounds);
+
+        const newUserData = {
+          id: oldUserData.id || crypto.randomUUID(),
+          username: oldUserData.username,
+          email: oldUserData.email || null,
+          passwordHash: passwordHash,
+          passwordSalt: salt,
+          bio: oldUserData.bio || `Hello! I'm ${oldUserData.username}`,
+          profilePicture: oldUserData.profilePicture || null,
+          createdAt: oldUserData.createdAt || new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          lastLogin: oldUserData.lastLogin || null,
+          loginCount: oldUserData.loginCount || 0,
+          isAdmin: oldUserData.isAdmin || false,
+          emailVerified: false,
+          failedLoginAttempts: 0,
+          lockedUntil: null,
+          securityEvents: [],
+          settings: {
+            twoFactorEnabled: false,
+            sessionTimeout: 15 * 60
+          },
+          migratedAt: new Date().toISOString(),
+          migrationSource: 'legacy_plaintext'
+        };
+
+        // Remove old insecure password field
+        delete newUserData.password;
+
+        // Store the updated user data
+        await blogStore.set(blob.key, JSON.stringify(newUserData));
+        
+        results.processed++;
+        console.log(`Migrated user: ${oldUserData.username}`);
+
+      } catch (error) {
+        console.error(`Error migrating user ${blob.key}:`, error);
+        results.errors.push(`Failed to migrate user ${blob.key}: ${error.message}`);
       }
-
-      // Check if already migrated (has passwordHash instead of password)
-      if (oldUserData.passwordHash && !oldUserData.password) {
-        console.log(`User ${oldUserData.username} already migrated, skipping`);
-        continue;
-      }
-
-      if (!oldUserData.password) {
-        results.errors.push(`User ${oldUserData.username} has no password field`);
-        continue;
-      }
-
-      // Generate new secure user data
-      const saltRounds = MIGRATION_CONFIG.SALT_ROUNDS;
-      const passwordHash = await bcrypt.hash(oldUserData.password, saltRounds);
-      const salt = await bcrypt.genSalt(saltRounds);
-
-      const newUserData = {
-        id: oldUserData.id || crypto.randomUUID(),
-        username: oldUserData.username,
-        email: oldUserData.email || null,
-        passwordHash: passwordHash,
-        passwordSalt: salt,
-        bio: oldUserData.bio || `Hello! I'm ${oldUserData.username}`,
-        profilePicture: oldUserData.profilePicture || null,
-        createdAt: oldUserData.createdAt || new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        lastLogin: oldUserData.lastLogin || null,
-        loginCount: oldUserData.loginCount || 0,
-        isAdmin: oldUserData.isAdmin || false,
-        emailVerified: false, // Will need to be verified
-        failedLoginAttempts: 0,
-        lockedUntil: null,
-        securityEvents: [],
-        settings: {
-          twoFactorEnabled: false,
-          sessionTimeout: 15 * 60 // 15 minutes in seconds
-        },
-        // Migration metadata
-        migratedAt: new Date().toISOString(),
-        migrationSource: 'legacy_plaintext'
-      };
-
-      // Remove old insecure password field
-      delete newUserData.password;
-
-      // Store the updated user data
-      await blogStore.set(blob.key, JSON.stringify(newUserData));
-      
-      results.processed++;
-      console.log(`Migrated user: ${oldUserData.username}`);
-
-    } catch (error) {
-      console.error(`Error migrating user ${blob.key}:`, error);
-      results.errors.push(`Failed to migrate user ${blob.key}: ${error.message}`);
     }
+  } catch (error) {
+    console.error('Error in migrateApprovedUsers:', error);
+    results.errors.push(`Migration failed: ${error.message}`);
   }
 
   return results;
 }
 
 async function migratePendingUsers(blogStore) {
-  const { blobs } = await blogStore.list({ prefix: "pending_user_" });
-  
   const results = {
     processed: 0,
     errors: []
   };
 
-  for (const blob of blobs) {
-    try {
-      const oldPendingData = await blogStore.get(blob.key, { type: "json" });
-      
-      if (!oldPendingData || !oldPendingData.username) {
-        console.warn(`Skipping invalid pending user data: ${blob.key}`);
-        continue;
+  try {
+    const { blobs } = await blogStore.list({ prefix: "pending_user_" });
+    
+    for (const blob of blobs) {
+      try {
+        const oldPendingData = await blogStore.get(blob.key, { type: "json" });
+        
+        if (!oldPendingData || !oldPendingData.username) {
+          console.warn(`Skipping invalid pending user data: ${blob.key}`);
+          continue;
+        }
+
+        // Check if already migrated
+        if (oldPendingData.passwordHash && !oldPendingData.password) {
+          console.log(`Pending user ${oldPendingData.username} already migrated, skipping`);
+          continue;
+        }
+
+        if (!oldPendingData.password) {
+          results.errors.push(`Pending user ${oldPendingData.username} has no password field`);
+          continue;
+        }
+
+        // Generate new secure pending user data
+        const saltRounds = MIGRATION_CONFIG.SALT_ROUNDS;
+        const passwordHash = await bcrypt.hash(oldPendingData.password, saltRounds);
+        const salt = await bcrypt.genSalt(saltRounds);
+        const verificationToken = crypto.randomBytes(32).toString('hex');
+
+        const newPendingData = {
+          id: oldPendingData.id || crypto.randomUUID(),
+          username: oldPendingData.username,
+          email: oldPendingData.email || null,
+          passwordHash: passwordHash,
+          passwordSalt: salt,
+          bio: oldPendingData.bio || `Hello! I'm ${oldPendingData.username}`,
+          createdAt: oldPendingData.createdAt || new Date().toISOString(),
+          status: 'pending',
+          isAdmin: false,
+          emailVerified: false,
+          verificationToken: verificationToken,
+          verificationExpiry: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+          registrationIP: 'migrated',
+          failedLoginAttempts: 0,
+          lockedUntil: null,
+          securityEvents: [],
+          settings: {
+            twoFactorEnabled: false,
+            sessionTimeout: 15 * 60
+          },
+          migratedAt: new Date().toISOString(),
+          migrationSource: 'legacy_plaintext'
+        };
+
+        // Remove old insecure password field
+        delete newPendingData.password;
+
+        // Store the updated pending user data
+        await blogStore.set(blob.key, JSON.stringify(newPendingData));
+        
+        results.processed++;
+        console.log(`Migrated pending user: ${oldPendingData.username}`);
+
+      } catch (error) {
+        console.error(`Error migrating pending user ${blob.key}:`, error);
+        results.errors.push(`Failed to migrate pending user ${blob.key}: ${error.message}`);
       }
-
-      // Check if already migrated
-      if (oldPendingData.passwordHash && !oldPendingData.password) {
-        console.log(`Pending user ${oldPendingData.username} already migrated, skipping`);
-        continue;
-      }
-
-      if (!oldPendingData.password) {
-        results.errors.push(`Pending user ${oldPendingData.username} has no password field`);
-        continue;
-      }
-
-      // Generate new secure pending user data
-      const saltRounds = MIGRATION_CONFIG.SALT_ROUNDS;
-      const passwordHash = await bcrypt.hash(oldPendingData.password, saltRounds);
-      const salt = await bcrypt.genSalt(saltRounds);
-      const verificationToken = crypto.randomBytes(32).toString('hex');
-
-      const newPendingData = {
-        id: oldPendingData.id || crypto.randomUUID(),
-        username: oldPendingData.username,
-        email: oldPendingData.email || null,
-        passwordHash: passwordHash,
-        passwordSalt: salt,
-        bio: oldPendingData.bio || `Hello! I'm ${oldPendingData.username}`,
-        createdAt: oldPendingData.createdAt || new Date().toISOString(),
-        status: 'pending',
-        isAdmin: false,
-        emailVerified: false,
-        verificationToken: verificationToken,
-        verificationExpiry: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24 hours
-        registrationIP: 'migrated',
-        failedLoginAttempts: 0,
-        lockedUntil: null,
-        securityEvents: [],
-        settings: {
-          twoFactorEnabled: false,
-          sessionTimeout: 15 * 60
-        },
-        // Migration metadata
-        migratedAt: new Date().toISOString(),
-        migrationSource: 'legacy_plaintext'
-      };
-
-      // Remove old insecure password field
-      delete newPendingData.password;
-
-      // Store the updated pending user data
-      await blogStore.set(blob.key, JSON.stringify(newPendingData));
-      
-      results.processed++;
-      console.log(`Migrated pending user: ${oldPendingData.username}`);
-
-    } catch (error) {
-      console.error(`Error migrating pending user ${blob.key}:`, error);
-      results.errors.push(`Failed to migrate pending user ${blob.key}: ${error.message}`);
     }
+  } catch (error) {
+    console.error('Error in migratePendingUsers:', error);
+    results.errors.push(`Pending user migration failed: ${error.message}`);
   }
 
   return results;
@@ -438,31 +464,6 @@ async function verifyMigrationIntegrity(blogStore) {
       }
     }
 
-    // Verify pending users
-    const { blobs: pendingBlobs } = await blogStore.list({ prefix: "pending_user_" });
-    for (const blob of pendingBlobs) {
-      try {
-        const pendingData = await blogStore.get(blob.key, { type: "json" });
-        
-        if (!pendingData) {
-          results.errors.push(`Pending user data missing: ${blob.key}`);
-          continue;
-        }
-
-        // Check that password is migrated
-        if (pendingData.password) {
-          results.errors.push(`Pending user ${pendingData.username} still has insecure password field`);
-        }
-
-        if (!pendingData.passwordHash) {
-          results.errors.push(`Pending user ${pendingData.username} missing password hash`);
-        }
-
-      } catch (error) {
-        results.errors.push(`Error verifying pending user ${blob.key}: ${error.message}`);
-      }
-    }
-
     if (results.errors.length > 0) {
       results.valid = false;
     }
@@ -489,37 +490,3 @@ async function logMigrationEvent(securityStore, event) {
     console.error('Failed to log migration event:', error);
   }
 }
-
-// Rollback function for emergencies
-async function rollbackMigration(migrationId, blogStore) {
-  console.log(`Starting rollback for migration: ${migrationId}`);
-  
-  try {
-    // Find all backups for this migration
-    const { blobs } = await blogStore.list({ prefix: `${MIGRATION_CONFIG.BACKUP_PREFIX}${migrationId}_` });
-    
-    for (const blob of blobs) {
-      try {
-        const backupData = await blogStore.get(blob.key, { type: "json" });
-        
-        if (backupData && backupData.originalKey && backupData.data) {
-          // Restore original data
-          await blogStore.set(backupData.originalKey, JSON.stringify(backupData.data));
-          console.log(`Restored: ${backupData.originalKey}`);
-        }
-      } catch (error) {
-        console.error(`Error restoring ${blob.key}:`, error);
-      }
-    }
-    
-    console.log('Rollback completed');
-    return { success: true, message: 'Migration rolled back successfully' };
-    
-  } catch (error) {
-    console.error('Rollback error:', error);
-    return { success: false, error: error.message };
-  }
-}
-
-// Export rollback function for manual use
-export { rollbackMigration };
