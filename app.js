@@ -12,7 +12,7 @@ let currentPostType = 'text';
 let inlineLoginFormOpen = false;
 let currentFeedTab = 'general';
 let followedCommunities = new Set();
-var markdownRenderer = null;
+let markdownRenderer = null;
 
 // Menu functions
 function toggleMenu() {
@@ -551,8 +551,32 @@ function renderAdminPage() {
     }
 }
 
+// Utility functions for the app
+function deletePost(postId) {
+    if (!currentUser) return;
+    
+    const postIndex = posts.findIndex(post => post.id === postId);
+    if (postIndex === -1) return;
+    
+    const post = posts[postIndex];
+    
+    // Check if user can delete (author or admin)
+    if (post.author !== currentUser.username && !currentUser.profile?.isAdmin) {
+        showSuccessMessage('You can only delete your own posts');
+        return;
+    }
+    
+    if (confirm('Are you sure you want to delete this post?')) {
+        posts.splice(postIndex, 1);
+        localStorage.setItem('posts', JSON.stringify(posts));
+        showSuccessMessage('Post deleted successfully');
+        updateUI();
+    }
+}
+
 function previewMedia(url) {
     console.log('Preview media:', url);
+    // Placeholder for media preview functionality
 }
 
 // Initialize app
@@ -582,7 +606,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             return `<a href="${href}" target="_blank" rel="noopener noreferrer" ${title ? `title="${title}"` : ''}>${text}</a>`;
         };
         
-        markdownRenderer.image = function(href, title, text) {
+        window.markdownRenderer.image = function(href, title, text) {
             return `<img src="${href}" alt="${text || 'Image'}" ${title ? `title="${title}"` : ''} onclick="openImageModal('${href}')" style="cursor: pointer;">`;
         };
     }
