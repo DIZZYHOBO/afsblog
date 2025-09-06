@@ -1,8 +1,6 @@
 // admin.js - COMPLETELY REWRITTEN SECURE ADMIN SYSTEM
 // Enhanced admin functionality with modern security
 
-// Protected admin constant
-const PROTECTED_ADMIN = "dumbass";
 
 // Admin security configuration
 const ADMIN_CONFIG = {
