@@ -1834,9 +1834,10 @@
                     console.log('✅ Loaded messages:', chatMessages.length);
                     renderMessages();
                     
-                    setTimeout(() => {
+                    // Ensure scroll to bottom after render
+                    requestAnimationFrame(() => {
                         scrollToBottom();
-                    }, 100);
+                    });
                 } else {
                     console.error('❌ Failed to load messages:', data.error);
                     chatMessages.length = 0;
