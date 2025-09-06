@@ -31,16 +31,6 @@
     "reddit-style",
     "blog"
   ],
-  "author": "Your Name",
-  "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/yourusername/the-shed.git"
-  },
-  "bugs": {
-    "url": "https://github.com/yourusername/the-shed/issues"
-  },
-  "homepage": "https://your-shed.netlify.app",
   "engines": {
     "node": ">=18.0.0",
     "npm": ">=8.0.0"
