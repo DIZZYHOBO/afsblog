@@ -427,8 +427,9 @@
             padding: 16px;
             display: flex;
             flex-direction: column;
-            justify-content: flex-end;
+            justify-content: flex-start;
             min-height: 0;
+            scroll-behavior: smooth;
         }
 
         .messages-wrapper {
@@ -737,7 +738,7 @@
             background: #2d7d32;
         }
 
-        /* Scrollbar styling */
+        /* Improved Scrollbar styling */
         .messages-container::-webkit-scrollbar,
         .channels-list::-webkit-scrollbar,
         .guilds-wrapper::-webkit-scrollbar {
@@ -748,6 +749,7 @@
         .channels-list::-webkit-scrollbar-track,
         .guilds-wrapper::-webkit-scrollbar-track {
             background: var(--bg-secondary);
+            border-radius: 4px;
         }
 
         .messages-container::-webkit-scrollbar-thumb,
@@ -761,6 +763,14 @@
         .channels-list::-webkit-scrollbar-thumb:hover,
         .guilds-wrapper::-webkit-scrollbar-thumb:hover {
             background: var(--text-muted);
+        }
+
+        /* Firefox scrollbar support */
+        .messages-container,
+        .channels-list,
+        .guilds-wrapper {
+            scrollbar-width: thin;
+            scrollbar-color: var(--border-color) var(--bg-secondary);
         }
 
         /* Mobile Styles */
@@ -1664,6 +1674,12 @@
             document.getElementById('serverActions').style.display = 'flex';
             
             await loadServerRooms(serverId);
+            
+            // Auto-select the first room if available
+            if (serverRooms.length > 0) {
+                console.log('🔄 Auto-selecting first room:', serverRooms[0].name);
+                selectRoom(serverRooms[0].id);
+            }
         }
 
         function selectServerFromBrowse(serverId) {
