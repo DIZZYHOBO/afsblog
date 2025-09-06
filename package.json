@@ -1,50 +1,48 @@
 {
-  "name": "netlify-blog-system",
-  "version": "1.0.0",
-  "description": "A Reddit-style blog system using Netlify Blobs",
-  "type": "module",
-  "scripts": {
-    "dev": "netlify dev",
-    "build": "echo 'No build step required'",
-    "deploy": "netlify deploy --prod"
-  },
-  "dependencies": {
-    "@netlify/blobs": "^8.1.0"
-  },
-  "devDependencies": {
-    "netlify-cli": "^17.0.0"
-  },
-  "keywords": [
-    "netlify",
-    "blog",
-    "blobs",
-    "reddit",
-    "social"
-  ],
-  "author": "Your Name",
-  "license": "MIT"
-}
-
-{
   "name": "the-shed-secure",
   "version": "2.0.0",
   "description": "Secure social platform with modern authentication",
   "main": "index.html",
+  "type": "module",
   "scripts": {
     "dev": "netlify dev",
     "build": "echo 'No build step required'",
     "test": "echo 'Tests not configured'",
-    "migrate": "node scripts/migrate.js"
+    "migrate": "node scripts/migrate.js",
+    "deploy": "netlify deploy --prod",
+    "preview": "netlify deploy",
+    "functions:serve": "netlify functions:serve"
   },
   "dependencies": {
-    "@netlify/blobs": "^6.5.0",
+    "@netlify/blobs": "^8.1.0",
     "bcryptjs": "^2.4.3",
     "jsonwebtoken": "^9.0.2"
   },
   "devDependencies": {
     "netlify-cli": "^17.0.0"
   },
-  "keywords": ["social", "secure", "authentication", "netlify"],
+  "keywords": [
+    "social",
+    "secure", 
+    "authentication",
+    "netlify",
+    "community",
+    "platform",
+    "reddit-style",
+    "blog"
+  ],
   "author": "Your Name",
-  "license": "MIT"
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/the-shed.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yourusername/the-shed/issues"
+  },
+  "homepage": "https://your-shed.netlify.app",
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  }
 }
