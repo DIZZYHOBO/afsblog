@@ -543,3 +543,9 @@ async function handleSecureAuth(e) {
   const bio = document.getElementById('bio')?.value?.trim();
   const email = document.getElementById('email')?.value?.trim();
   const rememberMe = document.getElementById('rememberMe')?.checked || false;
+  
+  // Complete the handleSecureAuth function
+  } catch (error) {
+    console.error('Auth error:', error);
+  }
+}
