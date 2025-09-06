@@ -1866,15 +1866,18 @@
             }
         }
 
-        function isAtBottom() {
-            const container = document.getElementById('messagesContainer');
-            const threshold = 100;
-            return container.scrollTop >= (container.scrollHeight - container.clientHeight - threshold);
-        }
-
         function scrollToBottom() {
             const container = document.getElementById('messagesContainer');
-            container.scrollTop = container.scrollHeight;
+            if (container) {
+                container.scrollTop = container.scrollHeight;
+            }
+        }
+
+        function isAtBottom() {
+            const container = document.getElementById('messagesContainer');
+            if (!container) return true;
+            const threshold = 100;
+            return container.scrollTop >= (container.scrollHeight - container.clientHeight - threshold);
         }
 
         function renderMessages() {
