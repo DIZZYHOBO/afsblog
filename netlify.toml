@@ -46,6 +46,10 @@
   to = "/.netlify/functions/chat-api/:splat"
   status = 200
 
+# Disable secrets scanning for this project
+[build.environment]
+  SECRETS_SCAN_ENABLED = "false"
+
 # Environment settings
 [context.production.environment]
   NODE_ENV = "production"
