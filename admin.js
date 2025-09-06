@@ -146,3 +146,19 @@ async function approveUser(username, pendingKey) {
   
   try {
     const response = await tokenManager.makeRequest('/.netlify/functions/api/admin/approve-user', {
+      method: 'POST',
+      body: JSON.stringify({ username, pendingKey })
+    });
+    
+    if (response.success) {
+      showSuccessMessage('User approved successfully');
+      // Reload pending users list
+      loadPendingUsers();
+    } else {
+      showSuccessMessage(response.error || 'Failed to approve user');
+    }
+  } catch (error) {
+    console.error('Error approving user:', error);
+    showSuccessMessage('Failed to approve user');
+  }
+}
