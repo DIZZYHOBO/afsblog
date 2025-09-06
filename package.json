@@ -24,3 +24,27 @@
   "author": "Your Name",
   "license": "MIT"
 }
+
+{
+  "name": "the-shed-secure",
+  "version": "2.0.0",
+  "description": "Secure social platform with modern authentication",
+  "main": "index.html",
+  "scripts": {
+    "dev": "netlify dev",
+    "build": "echo 'No build step required'",
+    "test": "echo 'Tests not configured'",
+    "migrate": "node scripts/migrate.js"
+  },
+  "dependencies": {
+    "@netlify/blobs": "^6.5.0",
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.2"
+  },
+  "devDependencies": {
+    "netlify-cli": "^17.0.0"
+  },
+  "keywords": ["social", "secure", "authentication", "netlify"],
+  "author": "Your Name",
+  "license": "MIT"
+}
