@@ -2,641 +2,1812 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Piefed Feeds App</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Lemmy - Dive into anything</title>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --reddit-orange: #FF4500;
+            --reddit-blue: #0079D3;
+            --bg-primary: #FFFFFF;
+            --bg-secondary: #F6F7F8;
+            --bg-tertiary: #DAE0E6;
+            --text-primary: #1C1C1C;
+            --text-secondary: #7C7C7C;
+            --border-color: #EDEFF1;
+            --upvote: #FF4500;
+            --downvote: #7193FF;
+            --card-shadow: 0 1px 2px rgba(0,0,0,0.1);
+        }
+
+        [data-theme="dark"] {
+            --bg-primary: #1A1A1B;
+            --bg-secondary: #272729;
+            --bg-tertiary: #000000;
+            --text-primary: #D7DADC;
+            --text-secondary: #818384;
+            --border-color: #343536;
+            --card-shadow: 0 1px 2px rgba(0,0,0,0.3);
+        }
+
         body {
-            font-family: 'Inter', sans-serif;
-            background-color: #121212;
-            color: #e0e0e0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
         }
-        .container {
-            max-width: 28rem;
+
+        .app-container {
+            max-width: 100vw;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
         }
-        .login-card {
-            background-color: #1f1f1f;
-            padding: 2.5rem;
-            border-radius: 1rem;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2), 0 10px 15px rgba(0, 0, 0, 0.2);
+
+        /* Header */
+        .header {
+            background: var(--bg-primary);
+            border-bottom: 1px solid var(--border-color);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
         }
-        .feed-container {
-            max-width: 48rem;
+
+        .header-content {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 16px;
+            height: 48px;
         }
-        .feed-card {
-            background-color: #1f1f1f;
-            padding: 1.5rem;
-            border-radius: 1rem;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2), 0 10px 15px rgba(0, 0, 0, 0.2);
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
         }
-        .feed-post {
-            border-bottom: 1px solid #e5e7eb;
+
+        .menu-btn, .user-avatar-btn {
+            background: none;
+            border: none;
+            padding: 4px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
-        .tab-button.active {
-            border-bottom-width: 2px;
-            border-bottom-color: #818cf8;
-            color: #818cf8;
+
+        .logo {
+            font-size: 20px;
+            font-weight: bold;
+            color: var(--reddit-orange);
         }
-        .spinner {
-            border: 4px solid rgba(255, 255, 255, 0.2);
-            border-top: 4px solid #fff;
+
+        .search-bar {
+            flex: 1;
+            margin: 0 12px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 20px;
+            padding: 6px 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .search-bar input {
+            flex: 1;
+            background: none;
+            border: none;
+            outline: none;
+            color: var(--text-primary);
+            font-size: 14px;
+        }
+
+        .user-avatar {
+            width: 32px;
+            height: 32px;
             border-radius: 50%;
-            width: 1.5rem;
-            height: 1.5rem;
-            animation: spin 1s linear infinite;
+            background: var(--reddit-orange);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
         }
+
+        /* Navigation Tabs */
+        .nav-tabs {
+            background: var(--bg-primary);
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            overflow-x: auto;
+            scrollbar-width: none;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .nav-tabs::-webkit-scrollbar {
+            display: none;
+        }
+
+        .nav-tab {
+            padding: 12px 20px;
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            white-space: nowrap;
+            position: relative;
+            transition: color 0.2s;
+        }
+
+        .nav-tab.active {
+            color: var(--text-primary);
+        }
+
+        .nav-tab.active::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: var(--reddit-blue);
+        }
+
+        /* Sort Bar */
+        .sort-bar {
+            background: var(--bg-primary);
+            padding: 8px 16px;
+            display: flex;
+            gap: 8px;
+            overflow-x: auto;
+            scrollbar-width: none;
+        }
+
+        .sort-bar::-webkit-scrollbar {
+            display: none;
+        }
+
+        .sort-pill {
+            padding: 6px 12px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            cursor: pointer;
+            white-space: nowrap;
+            transition: all 0.2s;
+        }
+
+        .sort-pill.active {
+            background: var(--reddit-blue);
+            color: white;
+            border-color: var(--reddit-blue);
+        }
+
+        /* Content Area */
+        .content {
+            flex: 1;
+            padding-bottom: 56px;
+        }
+
+        /* Post Card */
+        .post-card {
+            background: var(--bg-primary);
+            margin-bottom: 8px;
+            border-top: 1px solid var(--border-color);
+            border-bottom: 1px solid var(--border-color);
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .post-card:active {
+            background: var(--bg-secondary);
+        }
+
+        .post-content {
+            padding: 12px 16px;
+        }
+
+        .post-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .community-icon {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: var(--reddit-blue);
+        }
+
+        .post-title {
+            font-size: 16px;
+            font-weight: 500;
+            color: var(--text-primary);
+            margin-bottom: 8px;
+            line-height: 1.4;
+        }
+
+        .post-body {
+            font-size: 14px;
+            color: var(--text-secondary);
+            line-height: 1.5;
+            margin-bottom: 8px;
+            max-height: 200px;
+            overflow: hidden;
+        }
+
+        .post-image {
+            width: 100%;
+            margin: 8px 0;
+            border-radius: 8px;
+            max-height: 400px;
+            object-fit: cover;
+        }
+
+        .post-footer {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 8px 16px;
+        }
+
+        .vote-buttons {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .vote-btn {
+            background: none;
+            border: none;
+            padding: 4px;
+            cursor: pointer;
+            color: var(--text-secondary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: color 0.2s;
+        }
+
+        .vote-btn.upvoted {
+            color: var(--upvote);
+        }
+
+        .vote-btn.downvoted {
+            color: var(--downvote);
+        }
+
+        .vote-count {
+            font-size: 12px;
+            font-weight: bold;
+            color: var(--text-primary);
+            min-width: 40px;
+            text-align: center;
+        }
+
+        .post-action {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            color: var(--text-secondary);
+            font-size: 12px;
+            font-weight: 500;
+            background: none;
+            border: none;
+            padding: 4px 8px;
+            cursor: pointer;
+        }
+
+        /* Bottom Navigation */
+        .bottom-nav {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: var(--bg-primary);
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-around;
+            padding: 8px 0;
+            z-index: 1000;
+        }
+
+        .nav-item {
+            flex: 1;
+            background: none;
+            border: none;
+            padding: 4px;
+            color: var(--text-secondary);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+
+        .nav-item.active {
+            color: var(--text-primary);
+        }
+
+        .nav-item-icon {
+            font-size: 20px;
+        }
+
+        .nav-item-label {
+            font-size: 10px;
+        }
+
+        /* Loading Spinner */
+        .loading {
+            display: flex;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .spinner {
+            width: 32px;
+            height: 32px;
+            border: 3px solid var(--border-color);
+            border-top-color: var(--reddit-orange);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
         @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 2000;
+            animation: fadeIn 0.2s;
+        }
+
+        .modal.active {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .modal-content {
+            background: var(--bg-primary);
+            border-radius: 12px;
+            width: 90%;
+            max-width: 400px;
+            max-height: 80vh;
+            overflow-y: auto;
+            animation: slideUp 0.3s;
+        }
+
+        @keyframes slideUp {
+            from { transform: translateY(20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        .modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .modal-title {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 24px;
+            color: var(--text-secondary);
+            cursor: pointer;
+        }
+
+        .modal-body {
+            padding: 16px;
+        }
+
+        /* Forms */
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+
+        .form-input, .form-textarea {
+            width: 100%;
+            padding: 10px 12px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .form-input:focus, .form-textarea:focus {
+            border-color: var(--reddit-blue);
+        }
+
+        .form-textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 12px;
+            background: var(--reddit-orange);
+            color: white;
+            border: none;
+            border-radius: 24px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+
+        .btn:hover {
+            opacity: 0.9;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-secondary {
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+        }
+
+        /* Drawer Menu */
+        .drawer {
+            position: fixed;
+            top: 0;
+            left: -280px;
+            width: 280px;
+            height: 100%;
+            background: var(--bg-primary);
+            box-shadow: 2px 0 8px rgba(0,0,0,0.1);
+            transition: left 0.3s;
+            z-index: 2001;
+            overflow-y: auto;
+        }
+
+        .drawer.active {
+            left: 0;
+        }
+
+        .drawer-header {
+            padding: 20px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .drawer-user {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .drawer-user-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: var(--reddit-orange);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+        }
+
+        .drawer-username {
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .drawer-karma {
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .drawer-menu {
+            padding: 8px 0;
+        }
+
+        .drawer-item {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 12px 20px;
+            color: var(--text-primary);
+            text-decoration: none;
+            transition: background 0.2s;
+            cursor: pointer;
+            background: none;
+            border: none;
+            width: 100%;
+            text-align: left;
+        }
+
+        .drawer-item:hover {
+            background: var(--bg-secondary);
+        }
+
+        .drawer-item-icon {
+            font-size: 20px;
+            width: 24px;
+        }
+
+        .drawer-divider {
+            height: 1px;
+            background: var(--border-color);
+            margin: 8px 0;
+        }
+
+        /* Community List */
+        .community-list {
+            padding: 8px 0;
+        }
+
+        .community-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .community-item:hover {
+            background: var(--bg-secondary);
+        }
+
+        .community-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: var(--reddit-blue);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 14px;
+        }
+
+        .community-info {
+            flex: 1;
+        }
+
+        .community-name {
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+
+        .community-members {
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        /* Post Detail */
+        .post-detail {
+            background: var(--bg-primary);
+            min-height: 100vh;
+        }
+
+        .post-detail-content {
+            padding: 16px;
+        }
+
+        .post-detail-title {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 12px;
+            line-height: 1.3;
+        }
+
+        .post-detail-body {
+            font-size: 14px;
+            line-height: 1.6;
+            color: var(--text-primary);
+            margin-bottom: 16px;
+        }
+
+        /* Comments */
+        .comments-section {
+            padding: 16px;
+        }
+
+        .comments-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+        }
+
+        .comments-title {
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .comment-sort {
+            display: flex;
+            gap: 8px;
+        }
+
+        .comment {
+            margin-bottom: 16px;
+            padding-left: 16px;
+            border-left: 2px solid var(--border-color);
+        }
+
+        .comment-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .comment-author {
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+
+        .comment-body {
+            font-size: 14px;
+            line-height: 1.5;
+            color: var(--text-primary);
+            margin-bottom: 8px;
+        }
+
+        .comment-actions {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .comment-reply {
+            margin-top: 12px;
+            margin-left: 16px;
+        }
+
+        /* Create Post */
+        .create-post-btn {
+            position: fixed;
+            bottom: 70px;
+            right: 16px;
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            background: var(--reddit-orange);
+            color: white;
+            border: none;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            font-size: 24px;
+            cursor: pointer;
+            z-index: 999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.2s;
+        }
+
+        .create-post-btn:active {
+            transform: scale(0.95);
+        }
+
+        /* Error Message */
+        .error-message {
+            background: #ffebee;
+            color: #c62828;
+            padding: 12px;
+            border-radius: 8px;
+            margin: 16px;
+            font-size: 14px;
+        }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: var(--text-secondary);
+        }
+
+        .empty-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }
+
+        .empty-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: var(--text-primary);
+        }
+
+        .empty-message {
+            font-size: 14px;
+        }
+
+        /* Toast Notification */
+        .toast {
+            position: fixed;
+            bottom: 80px;
+            left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            padding: 12px 20px;
+            border-radius: 24px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            font-size: 14px;
+            z-index: 3000;
+            opacity: 0;
+            transition: all 0.3s;
+        }
+
+        .toast.show {
+            transform: translateX(-50%) translateY(0);
+            opacity: 1;
+        }
+
+        /* Responsive */
+        @media (min-width: 768px) {
+            .app-container {
+                max-width: 768px;
+                margin: 0 auto;
+                box-shadow: 0 0 20px rgba(0,0,0,0.1);
+            }
         }
     </style>
 </head>
-<body class="flex flex-col items-center p-4 min-h-screen bg-gray-900">
-
-    <!-- Login View -->
-    <div id="loginView" class="container mx-auto login-card">
-        <div class="text-center mb-8">
-            <h1 class="text-3xl font-bold text-gray-100 mb-2">Piefed Login</h1>
-            <p class="text-gray-400">Connect to your Piefed instance.</p>
-        </div>
-
-        <form id="loginForm" class="space-y-6">
-            <div>
-                <label for="username" class="block text-sm font-medium text-gray-300">Username</label>
-                <div class="mt-1">
-                    <input type="text" id="username" name="username" required placeholder="Your username"
-                           class="w-full px-4 py-2 mt-1 text-gray-200 bg-gray-700 border border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+<body>
+    <div id="app" class="app-container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <div class="header-left">
+                    <button class="menu-btn" onclick="app.toggleDrawer()">☰</button>
+                    <div class="logo">Lemmy</div>
                 </div>
-            </div>
-
-            <div>
-                <label for="password" class="block text-sm font-medium text-gray-300">Password</label>
-                <div class="mt-1">
-                    <input type="password" id="password" name="password" required placeholder="Your password"
-                           class="w-full px-4 py-2 mt-1 text-gray-200 bg-gray-700 border border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                <div class="search-bar">
+                    <span>🔍</span>
+                    <input type="text" placeholder="Search Lemmy" id="searchInput">
                 </div>
-            </div>
-
-            <div>
-                <button type="submit" id="loginButton"
-                        class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition ease-in-out duration-150">
-                    Log In
+                <button class="user-avatar-btn" onclick="app.toggleUserMenu()">
+                    <div class="user-avatar" id="userAvatar">?</div>
                 </button>
             </div>
-        </form>
+        </header>
 
-        <div id="loadingMessage" class="mt-6 text-center text-indigo-400 hidden">
-            <p>Connecting to instance...</p>
+        <!-- Navigation Tabs -->
+        <div class="nav-tabs" id="navTabs">
+            <button class="nav-tab active" data-feed="home">Home</button>
+            <button class="nav-tab" data-feed="local">Local</button>
+            <button class="nav-tab" data-feed="all">All</button>
+            <button class="nav-tab" data-feed="subscribed">Subscribed</button>
         </div>
 
-        <div id="resultMessage" class="mt-6 text-center hidden">
-            <!-- Message will be displayed here -->
+        <!-- Sort Bar -->
+        <div class="sort-bar" id="sortBar">
+            <button class="sort-pill active" data-sort="Hot">🔥 Hot</button>
+            <button class="sort-pill" data-sort="Active">⚡ Active</button>
+            <button class="sort-pill" data-sort="New">🆕 New</button>
+            <button class="sort-pill" data-sort="Top">📈 Top</button>
+            <button class="sort-pill" data-sort="MostComments">💬 Most Comments</button>
         </div>
 
-        <!-- Custom Modal for Alerts -->
-        <div id="custom-modal" class="fixed inset-0 z-50 overflow-y-auto hidden">
-            <div class="flex items-center justify-center min-h-screen px-4 text-center">
-                <div class="fixed inset-0 transition-opacity" aria-hidden="true">
-                    <div class="absolute inset-0 bg-gray-500 opacity-75"></div>
-                </div>
-
-                <div class="inline-block p-6 my-8 overflow-hidden text-left align-middle transition-all transform bg-white shadow-xl rounded-2xl">
-                    <h3 id="modal-title" class="text-lg font-medium leading-6 text-gray-900"></h3>
-                    <div class="mt-2">
-                        <p id="modal-body" class="text-sm text-gray-500"></p>
-                    </div>
-                    <div class="mt-4">
-                        <button type="button" id="modal-close" class="inline-flex justify-center rounded-md border border-transparent bg-indigo-100 px-4 py-2 text-sm font-medium text-indigo-900 hover:bg-indigo-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2">
-                            Close
-                        </button>
-                    </div>
-                </div>
+        <!-- Main Content -->
+        <main class="content" id="content">
+            <div class="loading">
+                <div class="spinner"></div>
             </div>
-        </div>
-    </div>
+        </main>
 
-    <!-- Feeds View -->
-    <div id="feedsView" class="w-full feed-container mx-auto hidden">
-        <div class="flex items-center justify-between mb-8">
-            <div class="flex-1">
-                <h1 id="feedsHeader" class="text-3xl font-bold text-gray-100">Welcome!</h1>
-                <p class="text-gray-400">Explore your feeds below.</p>
-            </div>
-            <div class="flex space-x-2">
-                <button id="refreshButton" class="py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition ease-in-out duration-150">
-                    Refresh
-                </button>
-                <button id="profileButton" class="py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition ease-in-out duration-150">
-                    Profile
-                </button>
-                <button id="logoutButton" class="py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition ease-in-out duration-150">
-                    Log Out
-                </button>
-            </div>
-        </div>
+        <!-- Create Post Button -->
+        <button class="create-post-btn" onclick="app.showCreatePost()">+</button>
 
-        <!-- Tabs -->
-        <div class="flex border-b border-gray-600 mb-6">
-            <button id="allFeedTab" class="tab-button flex-1 py-4 text-center font-medium text-gray-400 hover:text-indigo-400 transition-colors duration-200 active">All Feed</button>
-            <button id="subscribedFeedTab" class="tab-button flex-1 py-4 text-center font-medium text-gray-400 hover:text-indigo-400 transition-colors duration-200">Subscribed Feed</button>
-            <button id="localFeedTab" class="tab-button flex-1 py-4 text-center font-medium text-gray-400 hover:text-indigo-400 transition-colors duration-200">Local Feed</button>
-        </div>
-
-        <!-- Feed Content -->
-        <div id="feedContent" class="space-y-4">
-            <!-- Feed posts will be dynamically injected here -->
-        </div>
-        <div id="feedLoadingSpinner" class="hidden flex justify-center py-4">
-            <div class="spinner"></div>
-        </div>
-    </div>
-
-    <!-- Profile View -->
-    <div id="profileView" class="w-full feed-container mx-auto hidden">
-        <div class="flex items-center justify-between mb-8">
-            <div class="flex items-center space-x-2">
-                <button id="backToFeedsButton" class="py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-gray-600 hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition ease-in-out duration-150">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                        <path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd" />
-                    </svg>
-                </button>
-                <h1 class="text-3xl font-bold text-gray-100">User Profile</h1>
-            </div>
-            <button id="profileLogoutButton" class="py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition ease-in-out duration-150">
-                Log Out
+        <!-- Bottom Navigation -->
+        <nav class="bottom-nav">
+            <button class="nav-item active" data-page="home">
+                <span class="nav-item-icon">🏠</span>
+                <span class="nav-item-label">Home</span>
             </button>
+            <button class="nav-item" data-page="communities">
+                <span class="nav-item-icon">👥</span>
+                <span class="nav-item-label">Communities</span>
+            </button>
+            <button class="nav-item" data-page="create">
+                <span class="nav-item-icon">➕</span>
+                <span class="nav-item-label">Create</span>
+            </button>
+            <button class="nav-item" data-page="inbox">
+                <span class="nav-item-icon">💬</span>
+                <span class="nav-item-label">Inbox</span>
+            </button>
+            <button class="nav-item" data-page="profile">
+                <span class="nav-item-icon">👤</span>
+                <span class="nav-item-label">Profile</span>
+            </button>
+        </nav>
+
+        <!-- Drawer Menu -->
+        <div class="drawer" id="drawer">
+            <div class="drawer-header">
+                <div class="drawer-user" id="drawerUser">
+                    <div class="drawer-user-avatar">?</div>
+                    <div>
+                        <div class="drawer-username">Guest</div>
+                        <div class="drawer-karma">Login to see karma</div>
+                    </div>
+                </div>
+            </div>
+            <div class="drawer-menu">
+                <button class="drawer-item" onclick="app.navigateTo('profile')">
+                    <span class="drawer-item-icon">👤</span>
+                    <span>My Profile</span>
+                </button>
+                <button class="drawer-item" onclick="app.navigateTo('saved')">
+                    <span class="drawer-item-icon">🔖</span>
+                    <span>Saved</span>
+                </button>
+                <button class="drawer-item" onclick="app.navigateTo('settings')">
+                    <span class="drawer-item-icon">⚙️</span>
+                    <span>Settings</span>
+                </button>
+                <div class="drawer-divider"></div>
+                <button class="drawer-item" onclick="app.toggleTheme()">
+                    <span class="drawer-item-icon">🌙</span>
+                    <span>Dark Mode</span>
+                </button>
+                <button class="drawer-item" onclick="app.showInstancePicker()">
+                    <span class="drawer-item-icon">🌐</span>
+                    <span>Change Instance</span>
+                </button>
+                <div class="drawer-divider"></div>
+                <button class="drawer-item" id="authBtn" onclick="app.handleAuth()">
+                    <span class="drawer-item-icon">🔑</span>
+                    <span>Login</span>
+                </button>
+            </div>
         </div>
 
-        <div class="bg-gray-800 rounded-xl overflow-hidden shadow-lg mb-6">
-            <!-- Banner image will be dynamically set here -->
-            <div id="profileBanner" class="w-full h-32 bg-gray-700 object-cover bg-center bg-cover"></div>
-            <div class="flex items-center p-6 -mt-16">
-                <!-- Avatar image will be dynamically set here -->
-                <div id="profileAvatarContainer" class="w-24 h-24 rounded-full border-4 border-gray-800 bg-gray-600 flex items-center justify-center text-5xl font-bold text-gray-300">
-                    <!-- Initial will be placed here -->
+        <!-- Login Modal -->
+        <div class="modal" id="loginModal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 class="modal-title">Login to Lemmy</h2>
+                    <button class="modal-close" onclick="app.closeModal('loginModal')">×</button>
                 </div>
-                <div class="ml-4 flex-1">
-                    <h2 id="profileUsername" class="text-2xl font-bold text-white"></h2>
-                    <p id="profileBio" class="text-gray-400 mt-1"></p>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label class="form-label">Instance</label>
+                        <input type="text" class="form-input" id="instanceInput" placeholder="lemmy.world" value="lemmy.world">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Username or Email</label>
+                        <input type="text" class="form-input" id="usernameInput" placeholder="Enter username or email">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Password</label>
+                        <input type="password" class="form-input" id="passwordInput" placeholder="Enter password">
+                    </div>
+                    <button class="btn" onclick="app.login()">Login</button>
+                    <button class="btn btn-secondary" style="margin-top: 8px" onclick="app.showRegister()">Create Account</button>
                 </div>
             </div>
         </div>
 
-        <div class="flex justify-between items-center mb-4">
-            <h3 class="text-xl font-semibold text-gray-100">Content</h3>
-            <div class="relative inline-block text-left">
-                <select id="contentDropdown" class="inline-flex justify-center w-full rounded-md border border-gray-600 shadow-sm px-4 py-2 bg-gray-700 text-sm font-medium text-gray-300 hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-                    <option value="posts">Posts</option>
-                    <option value="comments">Comments</option>
-                </select>
+        <!-- Create Post Modal -->
+        <div class="modal" id="createPostModal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 class="modal-title">Create Post</h2>
+                    <button class="modal-close" onclick="app.closeModal('createPostModal')">×</button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label class="form-label">Community</label>
+                        <select class="form-input" id="postCommunity">
+                            <option value="">Select a community</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Title</label>
+                        <input type="text" class="form-input" id="postTitle" placeholder="Enter post title">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">URL (optional)</label>
+                        <input type="url" class="form-input" id="postUrl" placeholder="https://example.com">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Body (optional)</label>
+                        <textarea class="form-textarea" id="postBody" placeholder="Enter post content"></textarea>
+                    </div>
+                    <button class="btn" onclick="app.createPost()">Submit Post</button>
+                </div>
             </div>
         </div>
 
-        <div id="profileContent" class="space-y-4">
-            <!-- User posts/comments will be dynamically injected here -->
-        </div>
+        <!-- Toast Notification -->
+        <div class="toast" id="toast"></div>
     </div>
-
 
     <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            const loginView = document.getElementById('loginView');
-            const feedsView = document.getElementById('feedsView');
-            const profileView = document.getElementById('profileView');
-            const loginForm = document.getElementById('loginForm');
-            const usernameInput = document.getElementById('username');
-            const passwordInput = document.getElementById('password');
-            const loginButton = document.getElementById('loginButton');
-            const loadingMessage = document.getElementById('loadingMessage');
-            const resultMessage = document.getElementById('resultMessage');
-            const feedsHeader = document.getElementById('feedsHeader');
-            const feedContent = document.getElementById('feedContent');
-            const allFeedTab = document.getElementById('allFeedTab');
-            const subscribedFeedTab = document.getElementById('subscribedFeedTab');
-            const localFeedTab = document.getElementById('localFeedTab');
-            const logoutButton = document.getElementById('logoutButton');
-            const profileButton = document.getElementById('profileButton');
-            const backToFeedsButton = document.getElementById('backToFeedsButton');
-            const profileLogoutButton = document.getElementById('profileLogoutButton');
-            const profileUsername = document.getElementById('profileUsername');
-            const profileBio = document.getElementById('profileBio');
-            const profileAvatarContainer = document.getElementById('profileAvatarContainer');
-            const profileBanner = document.getElementById('profileBanner');
-            const contentDropdown = document.getElementById('contentDropdown');
-            const profileContent = document.getElementById('profileContent');
-            const refreshButton = document.getElementById('refreshButton');
-            const feedLoadingSpinner = document.getElementById('feedLoadingSpinner');
+        // Lemmy API Client
+        class LemmyClient {
+            constructor(instanceUrl = 'https://lemmy.world') {
+                this.baseUrl = instanceUrl;
+                this.auth = null;
+                this.user = null;
+            }
 
-            // Modal elements
-            const modal = document.getElementById('custom-modal');
-            const modalTitle = document.getElementById('modal-title');
-            const modalBody = document.getElementById('modal-body');
-            const modalCloseButton = document.getElementById('modal-close');
+            async request(endpoint, options = {}) {
+                const url = `${this.baseUrl}/api/v3${endpoint}`;
+                const headers = {
+                    'Content-Type': 'application/json',
+                    ...options.headers
+                };
 
-            const showModal = (title, body) => {
-                modalTitle.textContent = title;
-                modalBody.textContent = body;
-                modal.classList.remove('hidden');
-            };
-
-            const hideModal = () => {
-                modal.classList.add('hidden');
-            };
-
-            modalCloseButton.addEventListener('click', hideModal);
-
-            // Hardcode the instance URL
-            const instanceUrl = 'https://piefed.social';
-            
-            let authToken = '';
-            let currentUsername = '';
-            let activeFeedType = 'all';
-
-            const saveSession = (token, username) => {
-                localStorage.setItem('piefed-auth-token', token);
-                localStorage.setItem('piefed-username', username);
-            };
-
-            const clearSession = () => {
-                localStorage.removeItem('piefed-auth-token');
-                localStorage.removeItem('piefed-username');
-            };
-
-            const setView = (view) => {
-                loginView.classList.add('hidden');
-                feedsView.classList.add('hidden');
-                profileView.classList.add('hidden');
-                document.getElementById(view).classList.remove('hidden');
-            };
-
-            const fetchFeed = async (feedType) => {
-                if (!instanceUrl || !authToken) {
-                    showModal('Authentication Error', 'You must log in first to fetch feeds.');
-                    return [];
+                if (this.auth && options.method !== 'GET') {
+                    options.body = options.body ? JSON.parse(options.body) : {};
+                    options.body.auth = this.auth;
+                    options.body = JSON.stringify(options.body);
                 }
 
                 try {
-                    // Step 1: Fetch list of communities (feeds)
-                    const communitiesResponse = await fetch(`${instanceUrl}/api/alpha/feed/list`, {
-                        method: 'GET',
-                        headers: {
-                            'Authorization': `Bearer ${authToken}`,
-                            'Content-Type': 'application/json'
-                        }
-                    });
-
-                    if (!communitiesResponse.ok) {
-                        throw new Error(`API returned status code ${communitiesResponse.status} for communities list.`);
-                    }
-                    const communitiesData = await communitiesResponse.json();
-                    
-                    if (!communitiesData.feeds || !Array.isArray(communitiesData.feeds) || communitiesData.feeds.length === 0) {
-                        console.error('No communities found:', communitiesData);
-                        showModal('Error', 'No communities found on this instance.');
-                        return null;
-                    }
-
-                    // Step 2: Select a feedId based on the tab
-                    let feedId;
-                    if (feedType === 'subscribed') {
-                        // Find a subscribed feed, for now we'll just use the first one available
-                        const subscribedFeed = communitiesData.feeds.find(feed => feed.is_subscribed);
-                        feedId = subscribedFeed ? subscribedFeed.id : null;
-                    } else if (feedType === 'local') {
-                        // Find a local feed, for now we'll just use the first one available
-                        const localFeed = communitiesData.feeds.find(feed => feed.is_local);
-                        feedId = localFeed ? localFeed.id : null;
-                    } else { // 'all' feed
-                        // For simplicity, we'll use the ID of the first community in the list
-                        feedId = communitiesData.feeds[0].id;
-                    }
-
-                    if (!feedId) {
-                        showModal('Error', `No ${feedType} feed found.`);
-                        return [];
-                    }
-
-                    // Step 3: Fetch posts for the selected feed
-                    const postsResponse = await fetch(`${instanceUrl}/api/alpha/feed/${feedId}/post/list`, {
-                        method: 'GET',
-                        headers: {
-                            'Authorization': `Bearer ${authToken}`,
-                            'Content-Type': 'application/json'
-                        }
-                    });
-                    
-                    if (!postsResponse.ok) {
-                         throw new Error(`API returned status code ${postsResponse.status} for posts list.`);
-                    }
-
-                    const postsData = await postsResponse.json();
-
-                    const feedData = postsData.posts || [];
-                    
-                    if (Array.isArray(feedData)) {
-                      console.log('Successfully fetched feed data:', feedData);
-                      return feedData;
-                    } else {
-                      console.error('API response for feed list is not a valid array:', postsData);
-                      throw new Error('Invalid feed data received from API.');
-                    }
-
+                    const response = await fetch(url, { ...options, headers });
+                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                    return await response.json();
                 } catch (error) {
-                    showModal('Network Error', `Failed to fetch feed data from ${instanceUrl}. Error: ${error.message}`);
-                    console.error('Fetch Error:', error);
-                    return null;
+                    console.error('API request failed:', error);
+                    throw error;
                 }
-            };
+            }
 
-            const renderFeed = (feedData, container) => {
-                console.log('Rendering posts:', feedData); 
-                container.innerHTML = '';
-                if (!feedData || feedData.length === 0) {
-                    container.innerHTML = `<p class="text-center text-gray-500 mt-6">No posts to display in this feed.</p>`;
+            async login(username_or_email, password) {
+                const response = await this.request('/user/login', {
+                    method: 'POST',
+                    body: JSON.stringify({ username_or_email, password })
+                });
+                this.auth = response.jwt;
+                this.user = response.my_user;
+                localStorage.setItem('lemmy_auth', this.auth);
+                localStorage.setItem('lemmy_user', JSON.stringify(this.user));
+                return response;
+            }
+
+            async getPosts(params = {}) {
+                const queryParams = new URLSearchParams({
+                    type_: params.type || 'Local',
+                    sort: params.sort || 'Hot',
+                    page: params.page || 1,
+                    limit: params.limit || 20
+                });
+                
+                if (this.auth) {
+                    queryParams.append('auth', this.auth);
+                }
+
+                return await this.request(`/post/list?${queryParams}`);
+            }
+
+            async getPost(id) {
+                const queryParams = new URLSearchParams({ id });
+                if (this.auth) queryParams.append('auth', this.auth);
+                return await this.request(`/post?${queryParams}`);
+            }
+
+            async getComments(post_id, params = {}) {
+                const queryParams = new URLSearchParams({
+                    post_id,
+                    type_: params.type || 'All',
+                    sort: params.sort || 'Hot',
+                    page: params.page || 1,
+                    limit: params.limit || 50
+                });
+                
+                if (this.auth) queryParams.append('auth', this.auth);
+                return await this.request(`/comment/list?${queryParams}`);
+            }
+
+            async getCommunities(params = {}) {
+                const queryParams = new URLSearchParams({
+                    type_: params.type || 'Local',
+                    sort: params.sort || 'Hot',
+                    page: params.page || 1,
+                    limit: params.limit || 50
+                });
+                
+                if (this.auth) queryParams.append('auth', this.auth);
+                return await this.request(`/community/list?${queryParams}`);
+            }
+
+            async createPost(community_id, name, body, url) {
+                return await this.request('/post', {
+                    method: 'POST',
+                    body: JSON.stringify({ community_id, name, body, url })
+                });
+            }
+
+            async createComment(post_id, content, parent_id) {
+                return await this.request('/comment', {
+                    method: 'POST',
+                    body: JSON.stringify({ post_id, content, parent_id })
+                });
+            }
+
+            async vote(post_id, score) {
+                return await this.request('/post/like', {
+                    method: 'POST',
+                    body: JSON.stringify({ post_id, score })
+                });
+            }
+
+            async voteComment(comment_id, score) {
+                return await this.request('/comment/like', {
+                    method: 'POST',
+                    body: JSON.stringify({ comment_id, score })
+                });
+            }
+
+            async savePost(post_id, save) {
+                return await this.request('/post/save', {
+                    method: 'PUT',
+                    body: JSON.stringify({ post_id, save })
+                });
+            }
+
+            async getSite() {
+                const queryParams = new URLSearchParams();
+                if (this.auth) queryParams.append('auth', this.auth);
+                return await this.request(`/site?${queryParams}`);
+            }
+
+            loadAuth() {
+                const auth = localStorage.getItem('lemmy_auth');
+                const user = localStorage.getItem('lemmy_user');
+                if (auth && user) {
+                    this.auth = auth;
+                    this.user = JSON.parse(user);
+                    return true;
+                }
+                return false;
+            }
+
+            logout() {
+                this.auth = null;
+                this.user = null;
+                localStorage.removeItem('lemmy_auth');
+                localStorage.removeItem('lemmy_user');
+            }
+        }
+
+        // Main App
+        class LemmyApp {
+            constructor() {
+                this.client = new LemmyClient();
+                this.currentView = 'home';
+                this.currentFeed = 'local';
+                this.currentSort = 'Hot';
+                this.posts = [];
+                this.communities = [];
+                this.currentPost = null;
+                this.currentPage = 1;
+                this.isLoading = false;
+                this.init();
+            }
+
+            async init() {
+                // Load saved auth
+                if (this.client.loadAuth()) {
+                    this.updateUserUI();
+                }
+
+                // Set up event listeners
+                this.setupEventListeners();
+
+                // Load initial content
+                await this.loadPosts();
+            }
+
+            setupEventListeners() {
+                // Navigation tabs
+                document.querySelectorAll('.nav-tab').forEach(tab => {
+                    tab.addEventListener('click', (e) => {
+                        document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+                        e.target.classList.add('active');
+                        this.currentFeed = e.target.dataset.feed;
+                        this.loadPosts();
+                    });
+                });
+
+                // Sort pills
+                document.querySelectorAll('.sort-pill').forEach(pill => {
+                    pill.addEventListener('click', (e) => {
+                        document.querySelectorAll('.sort-pill').forEach(p => p.classList.remove('active'));
+                        e.target.classList.add('active');
+                        this.currentSort = e.target.dataset.sort;
+                        this.loadPosts();
+                    });
+                });
+
+                // Bottom navigation
+                document.querySelectorAll('.nav-item').forEach(item => {
+                    item.addEventListener('click', (e) => {
+                        const page = e.currentTarget.dataset.page;
+                        this.navigateTo(page);
+                    });
+                });
+
+                // Search
+                document.getElementById('searchInput').addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') {
+                        this.search(e.target.value);
+                    }
+                });
+
+                // Infinite scroll
+                window.addEventListener('scroll', () => {
+                    if (window.innerHeight + window.scrollY >= document.body.offsetHeight - 1000) {
+                        if (!this.isLoading && this.currentView === 'home') {
+                            this.loadMorePosts();
+                        }
+                    }
+                });
+
+                // Close drawer on outside click
+                document.addEventListener('click', (e) => {
+                    const drawer = document.getElementById('drawer');
+                    if (drawer.classList.contains('active') && !drawer.contains(e.target) && !e.target.classList.contains('menu-btn')) {
+                        this.toggleDrawer();
+                    }
+                });
+            }
+
+            async loadPosts() {
+                if (this.isLoading) return;
+                this.isLoading = true;
+                this.currentPage = 1;
+
+                const content = document.getElementById('content');
+                content.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+
+                try {
+                    const typeMap = {
+                        'home': 'Local',
+                        'local': 'Local',
+                        'all': 'All',
+                        'subscribed': 'Subscribed'
+                    };
+
+                    const response = await this.client.getPosts({
+                        type: typeMap[this.currentFeed],
+                        sort: this.currentSort,
+                        page: this.currentPage
+                    });
+
+                    this.posts = response.posts;
+                    this.renderPosts();
+                } catch (error) {
+                    content.innerHTML = '<div class="error-message">Failed to load posts. Please try again.</div>';
+                } finally {
+                    this.isLoading = false;
+                }
+            }
+
+            async loadMorePosts() {
+                if (this.isLoading) return;
+                this.isLoading = true;
+                this.currentPage++;
+
+                try {
+                    const typeMap = {
+                        'home': 'Local',
+                        'local': 'Local',
+                        'all': 'All',
+                        'subscribed': 'Subscribed'
+                    };
+
+                    const response = await this.client.getPosts({
+                        type: typeMap[this.currentFeed],
+                        sort: this.currentSort,
+                        page: this.currentPage
+                    });
+
+                    this.posts = [...this.posts, ...response.posts];
+                    this.renderPosts();
+                } catch (error) {
+                    this.showToast('Failed to load more posts');
+                } finally {
+                    this.isLoading = false;
+                }
+            }
+
+            renderPosts() {
+                const content = document.getElementById('content');
+                
+                if (this.posts.length === 0) {
+                    content.innerHTML = `
+                        <div class="empty-state">
+                            <div class="empty-icon">📭</div>
+                            <div class="empty-title">No posts yet</div>
+                            <div class="empty-message">Be the first to post in this community!</div>
+                        </div>
+                    `;
                     return;
                 }
-                
-                // Sort posts by published date in descending order (newest first)
-                feedData.sort((a, b) => new Date(b.published) - new Date(a.published));
 
-                feedData.forEach(post => {
-                    const postTitle = post.title || 'No Title';
-                    const publishedDate = post.published ? new Date(post.published).toLocaleString() : 'Unknown Date';
-                    const communityName = post.community_name || 'Unknown Community';
-                    const authorName = post.author_name || 'Anonymous';
-                    
-                    const postElement = document.createElement('div');
-                    postElement.className = 'feed-card mb-4 p-6 rounded-xl space-y-4';
+                content.innerHTML = this.posts.map(postView => {
+                    const post = postView.post;
+                    const creator = postView.creator;
+                    const community = postView.community;
+                    const counts = postView.counts;
+                    const my_vote = postView.my_vote;
 
-                    const avatarContent = post.author_avatar ? 
-                                          `<img src="${post.author_avatar}" alt="${authorName} avatar" class="w-10 h-10 rounded-full object-cover">` : 
-                                          `<div class="flex items-center justify-center w-10 h-10 rounded-full bg-indigo-600 text-white font-bold text-lg">${authorName.charAt(0).toUpperCase()}</div>`;
-                    
-                    postElement.innerHTML = `
-                        <div class="flex items-center space-x-4">
-                            ${avatarContent}
-                            <div>
-                                <h3 class="font-semibold text-gray-100">${authorName}</h3>
-                                <p class="text-xs text-gray-400">
-                                    <span class="mr-2">to ${communityName}</span>
-                                    <span class="mr-2">&bull; ${publishedDate}</span>
-                                </p>
+                    return `
+                        <div class="post-card" onclick="app.viewPost(${post.id})">
+                            <div class="post-content">
+                                <div class="post-header">
+                                    <div class="community-icon"></div>
+                                    <span>c/${community.name}</span>
+                                    <span>•</span>
+                                    <span>u/${creator.name}</span>
+                                    <span>•</span>
+                                    <span>${this.formatTime(post.published)}</span>
+                                </div>
+                                <h3 class="post-title">${this.escapeHtml(post.name)}</h3>
+                                ${post.body ? `<div class="post-body">${this.escapeHtml(post.body.substring(0, 200))}${post.body.length > 200 ? '...' : ''}</div>` : ''}
+                                ${post.thumbnail_url ? `<img class="post-image" src="${post.thumbnail_url}" alt="Post thumbnail">` : ''}
                             </div>
-                        </div>
-                        <p class="text-gray-300 whitespace-pre-wrap font-bold">${postTitle}</p>
-                        
-                        <!-- Actions Section -->
-                        <div class="flex items-center space-x-6 text-gray-400">
-                            <div class="flex items-center space-x-1 cursor-pointer hover:text-indigo-400 transition-colors">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                  <path fill-rule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clip-rule="evenodd" />
-                                </svg>
-                                <span>Vote</span>
-                            </div>
-                            <div class="flex items-center space-x-1 cursor-pointer hover:text-indigo-400 transition-colors">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                  <path fill-rule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.492 12.11 2 10.536 2 9c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5a1 1 0 110-2h2a1 1 0 110 2zm.006 3.5a1 1 0 100-2 1 1 0 000 2zm3.994-3.5a1 1 0 110-2h-2a1 1 0 110 2h2z" clip-rule="evenodd" />
-                                </svg>
-                                <span>Comment</span>
+                            <div class="post-footer">
+                                <div class="vote-buttons">
+                                    <button class="vote-btn ${my_vote === 1 ? 'upvoted' : ''}" onclick="event.stopPropagation(); app.vote(${post.id}, 1)">▲</button>
+                                    <span class="vote-count">${this.formatCount(counts.score)}</span>
+                                    <button class="vote-btn ${my_vote === -1 ? 'downvoted' : ''}" onclick="event.stopPropagation(); app.vote(${post.id}, -1)">▼</button>
+                                </div>
+                                <button class="post-action" onclick="event.stopPropagation(); app.viewPost(${post.id})">
+                                    💬 ${this.formatCount(counts.comments)}
+                                </button>
+                                <button class="post-action" onclick="event.stopPropagation(); app.share(${post.id})">
+                                    🔗 Share
+                                </button>
+                                <button class="post-action" onclick="event.stopPropagation(); app.save(${post.id})">
+                                    🔖 Save
+                                </button>
                             </div>
                         </div>
                     `;
-                    container.appendChild(postElement);
-                });
-            };
+                }).join('');
+            }
 
-            const fetchProfileData = async () => {
-                if (!instanceUrl || !authToken) {
-                    showModal('Authentication Error', 'You must be logged in to view your profile.');
-                    return null;
-                }
-
-                // Using the correct API endpoint from the provided documentation.
-                const profileUrl = `${instanceUrl}/api/alpha/user/${currentUsername}/profile`;
+            async viewPost(postId) {
+                this.currentView = 'post';
+                const content = document.getElementById('content');
+                content.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
 
                 try {
-                    const response = await fetch(profileUrl, {
-                        method: 'GET',
-                        headers: {
-                            'Authorization': `Bearer ${authToken}`,
-                            'Content-Type': 'application/json'
-                        }
-                    });
+                    const [postResponse, commentsResponse] = await Promise.all([
+                        this.client.getPost(postId),
+                        this.client.getComments(postId)
+                    ]);
 
-                    // Log the full response to help debug
-                    console.log('Profile API Response Status:', response.status);
-                    const data = await response.json();
-                    console.log('Profile API Raw Data:', data);
-
-
-                    if (!response.ok) {
-                        throw new Error(`Profile fetch failed with status ${response.status}`);
-                    }
-                    
-                    return data; // The profile data is at the root of the JSON object, not nested.
+                    this.currentPost = postResponse.post_view;
+                    this.renderPostDetail(postResponse.post_view, commentsResponse.comments);
                 } catch (error) {
-                    showModal('Profile Error', `Failed to fetch profile data. Error: ${error.message}`);
-                    console.error('Profile fetch error:', error);
-                    return null;
+                    content.innerHTML = '<div class="error-message">Failed to load post. Please try again.</div>';
                 }
-            };
+            }
 
-            const fetchUserContent = async (contentType) => {
-                if (!instanceUrl || !authToken) {
-                    showModal('Authentication Error', 'You must be logged in to view your content.');
-                    return null;
-                }
+            renderPostDetail(postView, comments) {
+                const post = postView.post;
+                const creator = postView.creator;
+                const community = postView.community;
+                const counts = postView.counts;
 
-                // Using the correct API endpoint from the provided documentation.
-                const contentUrl = `${instanceUrl}/api/alpha/user/${currentUsername}/${contentType}`;
-                
-                try {
-                    const response = await fetch(contentUrl, {
-                        method: 'GET',
-                        headers: {
-                            'Authorization': `Bearer ${authToken}`,
-                            'Content-Type': 'application/json'
-                        }
-                    });
+                const content = document.getElementById('content');
+                content.innerHTML = `
+                    <div class="post-detail">
+                        <div class="post-detail-content">
+                            <div class="post-header">
+                                <div class="community-icon"></div>
+                                <span>c/${community.name}</span>
+                                <span>•</span>
+                                <span>u/${creator.name}</span>
+                                <span>•</span>
+                                <span>${this.formatTime(post.published)}</span>
+                            </div>
+                            <h1 class="post-detail-title">${this.escapeHtml(post.name)}</h1>
+                            ${post.body ? `<div class="post-detail-body">${this.escapeHtml(post.body)}</div>` : ''}
+                            ${post.url ? `<a href="${post.url}" target="_blank" class="post-link">🔗 ${post.url}</a>` : ''}
+                            <div class="post-footer">
+                                <div class="vote-buttons">
+                                    <button class="vote-btn ${postView.my_vote === 1 ? 'upvoted' : ''}" onclick="app.vote(${post.id}, 1)">▲</button>
+                                    <span class="vote-count">${this.formatCount(counts.score)}</span>
+                                    <button class="vote-btn ${postView.my_vote === -1 ? 'downvoted' : ''}" onclick="app.vote(${post.id}, -1)">▼</button>
+                                </div>
+                                <button class="post-action" onclick="app.share(${post.id})">
+                                    🔗 Share
+                                </button>
+                                <button class="post-action" onclick="app.save(${post.id})">
+                                    🔖 Save
+                                </button>
+                            </div>
+                        </div>
+                        <div class="comments-section">
+                            <div class="comments-header">
+                                <h2 class="comments-title">Comments (${counts.comments})</h2>
+                            </div>
+                            ${this.renderComments(comments)}
+                        </div>
+                    </div>
+                `;
+            }
 
-                    // Log the full response to help debug
-                    console.log('User Content API Response Status:', response.status);
-                    const data = await response.json();
-                    console.log('User Content API Raw Data:', data);
+            renderComments(comments, parentId = null, depth = 0) {
+                const filtered = comments.filter(c => 
+                    (parentId === null && !c.comment.parent_id) || 
+                    (c.comment.parent_id === parentId)
+                );
 
+                return filtered.map(commentView => {
+                    const comment = commentView.comment;
+                    const creator = commentView.creator;
+                    const counts = commentView.counts;
 
-                    if (!response.ok) {
-                        throw new Error(`Content fetch failed with status ${response.status}`);
-                    }
-                    return data.content || data.posts || data.comments; // Assuming different key names
-                } catch (error) {
-                    showModal('Content Error', `Failed to fetch user ${contentType}. Error: ${error.message}`);
-                    console.error('User content fetch error:', error);
-                    return null;
-                }
-            };
+                    const replies = this.renderComments(comments, comment.id, depth + 1);
 
-            const handleTabClick = async (tabId, feedType) => {
-                document.querySelectorAll('.tab-button').forEach(btn => {
-                    btn.classList.remove('active');
-                });
-                document.getElementById(tabId).classList.add('active');
-                activeFeedType = feedType;
-                
-                feedContent.innerHTML = '';
-                feedLoadingSpinner.classList.remove('hidden');
-
-                const data = await fetchFeed(feedType);
-
-                feedLoadingSpinner.classList.add('hidden');
-                if (data) {
-                    renderFeed(data, feedContent);
-                } else {
-                    feedContent.innerHTML = `<p class="text-center text-red-500 mt-6">Failed to load feed data. Please check the console for more details.</p>`;
-                }
-            };
-
-            const showFeedsView = (username) => {
-                feedsHeader.textContent = `Welcome, ${username}!`;
-                handleTabClick('allFeedTab', 'all');
-                setView('feedsView');
-            };
-
-            const showProfileView = async () => {
-                setView('profileView');
-                profileUsername.textContent = 'Loading...';
-                profileBio.textContent = '';
-                profileContent.innerHTML = `<p class="text-center text-gray-500 mt-6">Loading profile data...</p>`;
-                
-                // Fetch and display profile data
-                const profileData = await fetchProfileData();
-                if (profileData) {
-                    profileUsername.textContent = profileData.username || 'N/A';
-                    profileBio.textContent = profileData.bio || 'No bio provided.';
-                    if (profileData.avatar) {
-                        profileAvatarContainer.innerHTML = `<img src="${profileData.avatar}" alt="${profileData.username} profile picture" class="w-24 h-24 rounded-full border-4 border-gray-800 object-cover">`;
-                    } else {
-                        const initial = (profileData.username || 'U').charAt(0).toUpperCase();
-                        profileAvatarContainer.innerHTML = `<div class="w-24 h-24 rounded-full border-4 border-gray-800 bg-indigo-600 flex items-center justify-center text-5xl font-bold text-white">${initial}</div>`;
-                    }
-                    if (profileData.banner) {
-                        profileBanner.style.backgroundImage = `url('${profileData.banner}')`;
-                    } else {
-                        profileBanner.style.backgroundImage = 'none'; // Clear any previous banner
-                    }
-                    // Fetch and display default content (posts)
-                    const userPosts = await fetchUserContent('posts');
-                    if (userPosts) {
-                        renderFeed(userPosts, profileContent);
-                    } else {
-                        profileContent.innerHTML = `<p class="text-center text-red-500 mt-6">Failed to load user posts.</p>`;
-                    }
-                } else {
-                    profileUsername.textContent = 'Failed to load profile';
-                    profileContent.innerHTML = `<p class="text-center text-red-500 mt-6">Failed to load profile data.</p>`;
-                }
-            };
-
-            const checkSession = () => {
-                const storedToken = localStorage.getItem('piefed-auth-token');
-                const storedUsername = localStorage.getItem('piefed-username');
-                
-                if (storedToken && storedUsername) {
-                    authToken = storedToken;
-                    currentUsername = storedUsername;
-                    showFeedsView(currentUsername);
-                } else {
-                    setView('loginView');
-                }
-            };
-
-            loginForm.addEventListener('submit', async (e) => {
-                e.preventDefault();
-
-                const username = usernameInput.value.trim();
-                const password = passwordInput.value.trim();
-
-                resultMessage.classList.add('hidden');
-                resultMessage.innerHTML = '';
-
-                loadingMessage.classList.remove('hidden');
-                loginButton.disabled = true;
-
-                try {
-                    const loginEndpoint = `${instanceUrl}/api/alpha/user/login`;
-                    const response = await fetch(loginEndpoint, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({ username, password })
-                    });
-
-                    if (!response.ok) {
-                         throw new Error(`Login failed with status ${response.status}`);
-                    }
-
-                    const data = await response.json();
-                    authToken = data.jwt;
-
-                    if (authToken) {
-                        currentUsername = username;
-                        saveSession(authToken, currentUsername);
-                        resultMessage.classList.remove('hidden');
-                        resultMessage.innerHTML = `
-                            <p class="text-lg font-semibold text-green-400">Connection Successful!</p>
-                            <p class="mt-2 text-gray-400">Logged in as: <span class="font-bold text-gray-200">${username}</span></p>
-                        `;
-
-                        setTimeout(() => showFeedsView(username), 1000);
-
-                    } else {
-                         console.error('No authentication token received. Please check the API response below and provide the correct key name.');
-                         console.log('API Response Data:', data);
-                         throw new Error('No authentication token received.');
-                    }
-
-                } catch (error) {
-                    showModal('Login Failed', `Could not connect to the specified instance. Please check your credentials and URL. Error: ${error.message}`);
-                    console.error('Error during login:', error);
-                    resultMessage.classList.remove('hidden');
-                    resultMessage.innerHTML = `
-                        <p class="text-lg font-semibold text-red-400">Login Error</p>
-                        <p class="mt-2 text-gray-400">Please check your instance URL and credentials.</p>
+                    return `
+                        <div class="comment" style="margin-left: ${depth * 16}px">
+                            <div class="comment-header">
+                                <span class="comment-author">u/${creator.name}</span>
+                                <span>•</span>
+                                <span>${this.formatTime(comment.published)}</span>
+                            </div>
+                            <div class="comment-body">${this.escapeHtml(comment.content)}</div>
+                            <div class="comment-actions">
+                                <div class="vote-buttons">
+                                    <button class="vote-btn ${commentView.my_vote === 1 ? 'upvoted' : ''}" onclick="app.voteComment(${comment.id}, 1)">▲</button>
+                                    <span class="vote-count">${counts.score}</span>
+                                    <button class="vote-btn ${commentView.my_vote === -1 ? 'downvoted' : ''}" onclick="app.voteComment(${comment.id}, -1)">▼</button>
+                                </div>
+                                <button class="post-action" onclick="app.replyToComment(${comment.id})">
+                                    ↩️ Reply
+                                </button>
+                            </div>
+                            ${replies}
+                        </div>
                     `;
-                } finally {
-                    loadingMessage.classList.add('hidden');
-                    loginButton.disabled = false;
+                }).join('');
+            }
+
+            async loadCommunities() {
+                const content = document.getElementById('content');
+                content.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+
+                try {
+                    const response = await this.client.getCommunities({ limit: 100 });
+                    this.communities = response.communities;
+                    this.renderCommunities();
+                } catch (error) {
+                    content.innerHTML = '<div class="error-message">Failed to load communities.</div>';
                 }
-            });
+            }
 
-            const handleLogout = () => {
-                clearSession();
-                setView('loginView');
-            };
+            renderCommunities() {
+                const content = document.getElementById('content');
+                content.innerHTML = `
+                    <div class="community-list">
+                        ${this.communities.map(communityView => {
+                            const community = communityView.community;
+                            const counts = communityView.counts;
+                            return `
+                                <div class="community-item" onclick="app.viewCommunity(${community.id})">
+                                    <div class="community-avatar">${community.name[0].toUpperCase()}</div>
+                                    <div class="community-info">
+                                        <div class="community-name">c/${community.name}</div>
+                                        <div class="community-members">${this.formatCount(counts.subscribers)} members</div>
+                                    </div>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                `;
+            }
 
-            logoutButton.addEventListener('click', handleLogout);
-            profileLogoutButton.addEventListener('click', handleLogout);
-            
-            profileButton.addEventListener('click', showProfileView);
-            backToFeedsButton.addEventListener('click', () => showFeedsView(currentUsername));
-            contentDropdown.addEventListener('change', async (e) => {
-                profileContent.innerHTML = `<p class="text-center text-gray-500 mt-6">Loading user ${e.target.value}...</p>`;
-                const content = await fetchUserContent(e.target.value);
-                if (content) {
-                    renderFeed(content, profileContent);
+            async vote(postId, score) {
+                if (!this.client.auth) {
+                    this.showToast('Please login to vote');
+                    return;
+                }
+
+                try {
+                    await this.client.vote(postId, score);
+                    // Update UI
+                    const postView = this.posts.find(p => p.post.id === postId);
+                    if (postView) {
+                        if (postView.my_vote === score) {
+                            postView.my_vote = 0;
+                            postView.counts.score -= score;
+                        } else {
+                            if (postView.my_vote) {
+                                postView.counts.score -= postView.my_vote;
+                            }
+                            postView.my_vote = score;
+                            postView.counts.score += score;
+                        }
+                        this.renderPosts();
+                    }
+                } catch (error) {
+                    this.showToast('Failed to vote');
+                }
+            }
+
+            async voteComment(commentId, score) {
+                if (!this.client.auth) {
+                    this.showToast('Please login to vote');
+                    return;
+                }
+
+                try {
+                    await this.client.voteComment(commentId, score);
+                    this.showToast('Vote recorded');
+                } catch (error) {
+                    this.showToast('Failed to vote');
+                }
+            }
+
+            async save(postId) {
+                if (!this.client.auth) {
+                    this.showToast('Please login to save posts');
+                    return;
+                }
+
+                try {
+                    await this.client.savePost(postId, true);
+                    this.showToast('Post saved');
+                } catch (error) {
+                    this.showToast('Failed to save post');
+                }
+            }
+
+            share(postId) {
+                const post = this.posts.find(p => p.post.id === postId);
+                if (post) {
+                    const url = `${window.location.origin}/post/${postId}`;
+                    if (navigator.share) {
+                        navigator.share({
+                            title: post.post.name,
+                            url: url
+                        });
+                    } else {
+                        navigator.clipboard.writeText(url);
+                        this.showToast('Link copied to clipboard');
+                    }
+                }
+            }
+
+            navigateTo(page) {
+                document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
+                document.querySelector(`[data-page="${page}"]`).classList.add('active');
+
+                switch(page) {
+                    case 'home':
+                        this.currentView = 'home';
+                        this.loadPosts();
+                        break;
+                    case 'communities':
+                        this.currentView = 'communities';
+                        this.loadCommunities();
+                        break;
+                    case 'create':
+                        this.showCreatePost();
+                        break;
+                    case 'inbox':
+                        this.showInbox();
+                        break;
+                    case 'profile':
+                        this.showProfile();
+                        break;
+                }
+            }
+
+            showCreatePost() {
+                if (!this.client.auth) {
+                    this.showToast('Please login to create posts');
+                    return;
+                }
+
+                document.getElementById('createPostModal').classList.add('active');
+                
+                // Load communities for dropdown
+                this.client.getCommunities({ limit: 100 }).then(response => {
+                    const select = document.getElementById('postCommunity');
+                    select.innerHTML = '<option value="">Select a community</option>' +
+                        response.communities.map(c => 
+                            `<option value="${c.community.id}">c/${c.community.name}</option>`
+                        ).join('');
+                });
+            }
+
+            async createPost() {
+                const community_id = parseInt(document.getElementById('postCommunity').value);
+                const name = document.getElementById('postTitle').value;
+                const url = document.getElementById('postUrl').value;
+                const body = document.getElementById('postBody').value;
+
+                if (!community_id || !name) {
+                    this.showToast('Please select a community and enter a title');
+                    return;
+                }
+
+                try {
+                    await this.client.createPost(community_id, name, body || undefined, url || undefined);
+                    this.closeModal('createPostModal');
+                    this.showToast('Post created successfully');
+                    this.loadPosts();
+                } catch (error) {
+                    this.showToast('Failed to create post');
+                }
+            }
+
+            showInbox() {
+                const content = document.getElementById('content');
+                content.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-icon">📬</div>
+                        <div class="empty-title">No messages</div>
+                        <div class="empty-message">Your inbox is empty</div>
+                    </div>
+                `;
+            }
+
+            showProfile() {
+                const content = document.getElementById('content');
+                if (this.client.user) {
+                    const user = this.client.user.local_user_view.person;
+                    content.innerHTML = `
+                        <div style="padding: 20px;">
+                            <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 20px;">
+                                <div class="user-avatar" style="width: 60px; height: 60px; font-size: 24px;">
+                                    ${user.name[0].toUpperCase()}
+                                </div>
+                                <div>
+                                    <h2 style="margin: 0;">u/${user.name}</h2>
+                                    <div style="color: var(--text-secondary); font-size: 14px;">
+                                        Joined ${this.formatTime(user.published)}
+                                    </div>
+                                </div>
+                            </div>
+                            <button class="btn btn-secondary" onclick="app.logout()">Logout</button>
+                        </div>
+                    `;
                 } else {
-                    profileContent.innerHTML = `<p class="text-center text-red-500 mt-6">Failed to load user ${e.target.value}.</p>`;
+                    content.innerHTML = `
+                        <div class="empty-state">
+                            <div class="empty-icon">👤</div>
+                            <div class="empty-title">Not logged in</div>
+                            <div class="empty-message">Login to view your profile</div>
+                            <button class="btn" style="max-width: 200px; margin: 20px auto;" onclick="app.showLogin()">Login</button>
+                        </div>
+                    `;
                 }
-            });
-            
-            refreshButton.addEventListener('click', () => {
-                handleTabClick(document.querySelector('.tab-button.active').id, activeFeedType);
-            });
+            }
 
-            checkSession();
-        });
+            toggleDrawer() {
+                document.getElementById('drawer').classList.toggle('active');
+            }
+
+            toggleTheme() {
+                document.body.dataset.theme = document.body.dataset.theme === 'dark' ? '' : 'dark';
+                localStorage.setItem('theme', document.body.dataset.theme || 'light');
+                this.showToast(`Switched to ${document.body.dataset.theme === 'dark' ? 'dark' : 'light'} mode`);
+            }
+
+            showLogin() {
+                document.getElementById('loginModal').classList.add('active');
+            }
+
+            async login() {
+                const instance = document.getElementById('instanceInput').value;
+                const username = document.getElementById('usernameInput').value;
+                const password = document.getElementById('passwordInput').value;
+
+                if (!username || !password) {
+                    this.showToast('Please enter username and password');
+                    return;
+                }
+
+                try {
+                    this.client.baseUrl = `https://${instance}`;
+                    await this.client.login(username, password);
+                    this.closeModal('loginModal');
+                    this.showToast('Logged in successfully');
+                    this.updateUserUI();
+                    this.loadPosts();
+                } catch (error) {
+                    this.showToast('Login failed. Please check your credentials.');
+                }
+            }
+
+            logout() {
+                this.client.logout();
+                this.updateUserUI();
+                this.showToast('Logged out');
+                this.navigateTo('home');
+            }
+
+            updateUserUI() {
+                if (this.client.user) {
+                    const user = this.client.user.local_user_view.person;
+                    document.getElementById('userAvatar').textContent = user.name[0].toUpperCase();
+                    document.getElementById('drawerUser').innerHTML = `
+                        <div class="drawer-user-avatar">${user.name[0].toUpperCase()}</div>
+                        <div>
+                            <div class="drawer-username">u/${user.name}</div>
+                            <div class="drawer-karma">Member since ${this.formatTime(user.published)}</div>
+                        </div>
+                    `;
+                    document.getElementById('authBtn').innerHTML = `
+                        <span class="drawer-item-icon">🚪</span>
+                        <span>Logout</span>
+                    `;
+                } else {
+                    document.getElementById('userAvatar').textContent = '?';
+                    document.getElementById('drawerUser').innerHTML = `
+                        <div class="drawer-user-avatar">?</div>
+                        <div>
+                            <div class="drawer-username">Guest</div>
+                            <div class="drawer-karma">Login to see profile</div>
+                        </div>
+                    `;
+                    document.getElementById('authBtn').innerHTML = `
+                        <span class="drawer-item-icon">🔑</span>
+                        <span>Login</span>
+                    `;
+                }
+            }
+
+            handleAuth() {
+                if (this.client.auth) {
+                    this.logout();
+                } else {
+                    this.showLogin();
+                }
+            }
+
+            closeModal(modalId) {
+                document.getElementById(modalId).classList.remove('active');
+            }
+
+            showToast(message) {
+                const toast = document.getElementById('toast');
+                toast.textContent = message;
+                toast.classList.add('show');
+                setTimeout(() => toast.classList.remove('show'), 3000);
+            }
+
+            formatTime(timestamp) {
+                const date = new Date(timestamp);
+                const now = new Date();
+                const diff = now - date;
+                const seconds = Math.floor(diff / 1000);
+                const minutes = Math.floor(seconds / 60);
+                const hours = Math.floor(minutes / 60);
+                const days = Math.floor(hours / 24);
+
+                if (days > 0) return `${days}d ago`;
+                if (hours > 0) return `${hours}h ago`;
+                if (minutes > 0) return `${minutes}m ago`;
+                return 'just now';
+            }
+
+            formatCount(count) {
+                if (count >= 1000000) return `${(count / 1000000).toFixed(1)}M`;
+                if (count >= 1000) return `${(count / 1000).toFixed(1)}k`;
+                return count.toString();
+            }
+
+            escapeHtml(text) {
+                const map = {
+                    '&': '&amp;',
+                    '<': '&lt;',
+                    '>': '&gt;',
+                    '"': '&quot;',
+                    "'": '&#39;'
+                };
+                return text.replace(/[&<>"']/g, m => map[m]);
+            }
+
+            search(query) {
+                // Implement search functionality
+                this.showToast(`Searching for: ${query}`);
+            }
+
+            viewCommunity(communityId) {
+                // Filter posts by community
+                this.showToast('Loading community posts...');
+            }
+
+            replyToComment(commentId) {
+                if (!this.client.auth) {
+                    this.showToast('Please login to reply');
+                    return;
+                }
+                // Implement reply functionality
+                this.showToast('Reply feature coming soon');
+            }
+
+            showInstancePicker() {
+                // Implement instance picker
+                this.showToast('Instance picker coming soon');
+            }
+
+            showRegister() {
+                // Implement registration
+                this.showToast('Registration coming soon');
+            }
+
+            toggleUserMenu() {
+                // Show user menu dropdown
+                this.toggleDrawer();
+            }
+        }
+
+        // Initialize app
+        const app = new LemmyApp();
+
+        // Load saved theme
+        const savedTheme = localStorage.getItem('theme');
+        if (savedTheme === 'dark') {
+            document.body.dataset.theme = 'dark';
+        }
     </script>
 </body>
 </html>
