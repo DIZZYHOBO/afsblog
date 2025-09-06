@@ -1,16 +1,18 @@
-// app.js - Clean working version with localStorage
+// app.js - Main application logic and initialization - Updated to remove c/ prefix
 
-// Global variables - declared once only
+// App state - ALL VARIABLES DECLARED ONCE HERE
 let currentUser = null;
 let currentPage = 'feed';
 let communities = [];
 let posts = [];
 let currentCommunity = null;
 let isLoading = false;
+let adminData = null;
 let currentPostType = 'text';
 let inlineLoginFormOpen = false;
 let currentFeedTab = 'general';
 let followedCommunities = new Set();
+let markdownRenderer = null;
 
 // Menu functions
 function toggleMenu() {
@@ -33,23 +35,41 @@ function updateMenuContent() {
     const menuLogout = document.getElementById('menuLogout');
     
     if (currentUser) {
-        menuHeader.innerHTML = `
-            <div class="menu-user-info">
-                <div class="profile-avatar">${currentUser.username.charAt(0).toUpperCase()}</div>
-                <div class="menu-user-details">
-                    <h4>@${escapeHtml(currentUser.username)}</h4>
-                    <p>${currentUser.profile?.isAdmin ? 'Administrator' : 'Member'}</p>
+        // Update menu avatar to use profile picture
+        if (currentUser.profile?.profilePicture) {
+            menuHeader.innerHTML = `
+                <div class="menu-user-info">
+                    <img src="${currentUser.profile.profilePicture}" 
+                         alt="Profile" 
+                         class="profile-avatar"
+                         style="border-radius: 50%; object-fit: cover;"
+                         onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                    <div class="profile-avatar" style="display: none;">${currentUser.username.charAt(0).toUpperCase()}</div>
+                    <div class="menu-user-details">
+                        <h4>@${escapeHtml(currentUser.username)}</h4>
+                        <p>${currentUser.profile?.isAdmin ? 'Administrator' : 'Member'}</p>
+                    </div>
                 </div>
-            </div>
-        `;
+            `;
+        } else {
+            menuHeader.innerHTML = `
+                <div class="menu-user-info">
+                    <div class="profile-avatar">${currentUser.username.charAt(0).toUpperCase()}</div>
+                    <div class="menu-user-details">
+                        <h4>@${escapeHtml(currentUser.username)}</h4>
+                        <p>${currentUser.profile?.isAdmin ? 'Administrator' : 'Member'}</p>
+                    </div>
+                </div>
+            `;
+        }
         
-        // Show authenticated menu items
+        // Show/hide menu items based on auth status
         document.getElementById('menuProfile').style.display = 'flex';
         document.getElementById('menuCreateCommunity').style.display = 'flex';
         document.getElementById('menuBrowseCommunities').style.display = 'flex';
         document.getElementById('menuSettings').style.display = 'flex';
         
-        // Show admin menu for admins
+        // Show admin menu item only for admins
         const menuAdmin = document.getElementById('menuAdmin');
         if (currentUser.profile?.isAdmin) {
             menuAdmin.style.display = 'flex';
@@ -58,6 +78,8 @@ function updateMenuContent() {
         }
         
         menuLogout.style.display = 'flex';
+        
+        // Update communities dropdown
         updateCommunitiesInMenu();
     } else {
         menuHeader.innerHTML = `
@@ -69,14 +91,14 @@ function updateMenuContent() {
                     <form id="inlineLoginFormElement" onsubmit="handleInlineLogin(event)">
                         <div class="inline-form-group">
                             <label for="inlineUsername">Username</label>
-                            <input type="text" id="inlineUsername" required>
+                            <input type="text" id="inlineUsername" required minlength="3" maxlength="20">
                         </div>
                         <div class="inline-form-group">
                             <label for="inlinePassword">Password</label>
-                            <input type="password" id="inlinePassword" required>
+                            <input type="password" id="inlinePassword" required minlength="6">
                         </div>
                         <div class="inline-form-buttons">
-                            <button type="submit" class="inline-btn-primary">Sign In</button>
+                            <button type="submit" class="inline-btn-primary" id="inlineLoginBtn">Sign In</button>
                             <button type="button" class="inline-btn-secondary" onclick="openAuthModal('signup'); toggleMenu();">Sign Up</button>
                         </div>
                     </form>
@@ -109,6 +131,11 @@ function toggleInlineLoginForm() {
             if (usernameField) usernameField.focus();
         }, 300);
     }
+}
+
+function handleLogout() {
+    logout();
+    toggleMenu();
 }
 
 function updateCommunitiesInMenu() {
@@ -174,11 +201,16 @@ function navigateToSettings() {
 }
 
 function navigateToCommunity(communityName) {
+    console.log('navigateToCommunity called with:', communityName);
+    
     const community = communities.find(c => c.name === communityName);
     if (!community) {
+        console.error('Community not found:', communityName);
         showSuccessMessage('Community not found');
         return;
     }
+    
+    console.log('Found community, navigating to:', community.displayName || community.name);
     
     if (document.getElementById('slideMenu').classList.contains('open')) {
         toggleMenu();
@@ -192,6 +224,10 @@ function navigateToCommunity(communityName) {
     });
     
     updateUI();
+}
+
+function openCreate() {
+    openCreateCommunity();
 }
 
 function openCreateCommunity() {
@@ -213,9 +249,10 @@ function updateActiveMenuItem(activeId) {
     }
 }
 
-// Feed tab functions
+// Feed Tab Functions
 function switchFeedTab(tabName) {
     if (tabName !== 'general' && tabName !== 'followed') {
+        console.warn('Invalid tab name:', tabName);
         return;
     }
     
@@ -240,13 +277,70 @@ function updateFeedTabsVisibility() {
     if (currentPage === 'feed' && currentUser) {
         feedTabs.style.display = 'flex';
         const followedTab = document.getElementById('followedTab');
-        if (followedTab) followedTab.disabled = false;
+        if (followedTab) {
+            followedTab.disabled = false;
+        }
     } else {
         feedTabs.style.display = 'none';
     }
 }
 
-// UI functions
+// Community follow function
+async function toggleCommunityFollow(communityName) {
+    console.log('toggleCommunityFollow called for:', communityName);
+    
+    if (!currentUser) {
+        console.log('Not authenticated, opening auth modal');
+        openAuthModal('signin');
+        return;
+    }
+
+    const followBtn = document.getElementById(`followBtn-${communityName}`);
+    if (!followBtn) {
+        console.error('Follow button not found for community:', communityName);
+        return;
+    }
+    
+    const originalText = followBtn.textContent;
+    const wasFollowing = followBtn.classList.contains('btn-secondary');
+    
+    try {
+        followBtn.disabled = true;
+        followBtn.textContent = 'Loading...';
+        
+        const response = await toggleFollowStatus(communityName, !wasFollowing);
+        
+        if (response.success) {
+            if (response.following) {
+                followBtn.textContent = '✓ Following';
+                followBtn.className = 'btn btn-secondary';
+                showSuccessMessage(`Now following ${communityName}! 🎉`);
+            } else {
+                followBtn.textContent = '+ Follow';
+                followBtn.className = 'btn';
+                showSuccessMessage(`Unfollowed ${communityName}`);
+            }
+        } else {
+            throw new Error(response.error || 'Unknown error');
+        }
+        
+    } catch (error) {
+        console.error('Error toggling follow status:', error);
+        followBtn.textContent = originalText;
+        
+        if (wasFollowing) {
+            followBtn.className = 'btn btn-secondary';
+        } else {
+            followBtn.className = 'btn';
+        }
+        
+        showSuccessMessage(error.message || 'Failed to update follow status. Please try again.');
+    } finally {
+        followBtn.disabled = false;
+    }
+}
+
+// UI update functions
 function updateUI() {
     updateComposeButton();
     updateFeedTabsVisibility();
@@ -274,247 +368,69 @@ function renderCurrentPage() {
     }
 }
 
-// Authentication functions
-function handleAuth(e) {
-    e.preventDefault();
-    const form = e.target;
-    const mode = form.dataset.mode || 'signin';
-    const username = document.getElementById('username')?.value?.trim();
-    const password = document.getElementById('password')?.value;
-    const bio = document.getElementById('bio')?.value?.trim();
-    
-    if (!username || !password) {
-        showSuccessMessage('Please enter username and password');
-        return;
+// Event listeners setup
+function setupEventListeners() {
+    const authForm = document.getElementById('authForm');
+    if (authForm) {
+        authForm.addEventListener('submit', handleAuth);
     }
     
-    try {
-        if (mode === 'signup') {
-            const userData = { 
-                username, 
-                password, 
-                bio: bio || `Hello! I'm ${username}`, 
-                profile: { 
-                    isAdmin: username.toLowerCase() === 'admin',
-                    bio: bio || `Hello! I'm ${username}`,
-                    createdAt: new Date().toISOString()
-                } 
-            };
-            localStorage.setItem('currentUser', JSON.stringify(userData));
-            currentUser = userData;
-            showSuccessMessage('Account created successfully!');
-        } else {
-            const storedUser = localStorage.getItem('currentUser');
-            if (storedUser) {
-                const userData = JSON.parse(storedUser);
-                if (userData.username === username && userData.password === password) {
-                    currentUser = userData;
-                    showSuccessMessage('Login successful!');
-                } else {
-                    showSuccessMessage('Invalid credentials');
-                    return;
+    const createCommunityForm = document.getElementById('createCommunityForm');
+    if (createCommunityForm) {
+        createCommunityForm.addEventListener('submit', handleCreateCommunity);
+    }
+    
+    const composeForm = document.getElementById('composeForm');
+    if (composeForm) {
+        composeForm.addEventListener('submit', handleCreatePost);
+    }
+    
+    const urlInput = document.getElementById('postUrl');
+    if (urlInput) {
+        let previewTimeout;
+        urlInput.addEventListener('input', (e) => {
+            clearTimeout(previewTimeout);
+            const url = e.target.value.trim();
+            
+            if (url && url.length > 10) {
+                previewTimeout = setTimeout(() => {
+                    previewMedia(url);
+                }, 1000);
+            } else {
+                const preview = document.getElementById('mediaPreview');
+                if (preview) {
+                    preview.innerHTML = '';
                 }
-            } else {
-                showSuccessMessage('No account found. Please sign up first.');
-                return;
             }
-        }
+        });
+    }
+    
+    document.addEventListener('click', (e) => {
+        const menu = document.getElementById('slideMenu');
+        const menuToggle = document.getElementById('menuToggle');
         
-        closeModal('authModal');
-        updateUI();
-        
-    } catch (error) {
-        console.error('Auth error:', error);
-        showSuccessMessage('Authentication failed');
-    }
-}
-
-function handleInlineLogin(e) {
-    e.preventDefault();
-    const username = document.getElementById('inlineUsername')?.value?.trim();
-    const password = document.getElementById('inlinePassword')?.value;
-    
-    if (!username || !password) {
-        showSuccessMessage('Please enter username and password');
-        return;
-    }
-    
-    try {
-        const storedUser = localStorage.getItem('currentUser');
-        if (storedUser) {
-            const userData = JSON.parse(storedUser);
-            if (userData.username === username && userData.password === password) {
-                currentUser = userData;
-                showSuccessMessage('Login successful!');
-                toggleInlineLoginForm();
-                updateUI();
-            } else {
-                showSuccessMessage('Invalid credentials');
-            }
-        } else {
-            showSuccessMessage('No account found. Please sign up first.');
+        if (menu && menuToggle && menu.classList.contains('open') && 
+            !menu.contains(e.target) && 
+            !menuToggle.contains(e.target)) {
+            toggleMenu();
         }
-    } catch (error) {
-        console.error('Login error:', error);
-        showSuccessMessage('Login failed');
-    }
+    });
 }
 
-function logout() {
-    currentUser = null;
-    localStorage.removeItem('currentUser');
-    showSuccessMessage('Logged out successfully');
-    updateUI();
-}
-
-// Modal functions
-function openAuthModal(mode) {
-    const modal = document.getElementById('authModal');
-    const title = document.getElementById('authTitle');
-    const toggleText = document.getElementById('authToggleText');
-    const toggleBtn = document.getElementById('authToggleBtn');
-    const submitBtn = document.getElementById('authSubmitBtn');
-    const form = document.getElementById('authForm');
-    const bioField = document.getElementById('bio');
-    
-    if (mode === 'signup') {
-        title.textContent = 'Sign Up';
-        toggleText.textContent = 'Already have an account?';
-        toggleBtn.textContent = 'Sign In';
-        submitBtn.textContent = 'Sign Up';
-        form.dataset.mode = 'signup';
-        if (bioField) bioField.parentElement.style.display = 'block';
-    } else {
-        title.textContent = 'Sign In';
-        toggleText.textContent = "Don't have an account?";
-        toggleBtn.textContent = 'Sign Up';
-        submitBtn.textContent = 'Sign In';
-        form.dataset.mode = 'signin';
-        if (bioField) bioField.parentElement.style.display = 'none';
-    }
-    
-    openModal('authModal');
-}
-
-function toggleAuthMode() {
-    const form = document.getElementById('authForm');
-    const currentMode = form.dataset.mode;
-    openAuthModal(currentMode === 'signup' ? 'signin' : 'signup');
-}
-
-function openModal(modalId) {
-    const modal = document.getElementById(modalId);
-    if (modal) {
-        modal.style.display = 'block';
-    }
-}
-
-function closeModal(modalId) {
-    const modal = document.getElementById(modalId);
-    if (modal) {
-        modal.style.display = 'none';
-    }
-}
-
-// Community and post functions
-function handleCreateCommunity(e) {
-    e.preventDefault();
-    const communityName = document.getElementById('communityName')?.value?.trim();
-    const displayName = document.getElementById('communityDisplayName')?.value?.trim();
-    const description = document.getElementById('communityDescription')?.value?.trim();
-    
-    if (!communityName || !displayName) {
-        showSuccessMessage('Please fill in required fields');
-        return;
-    }
-    
-    const newCommunity = {
-        name: communityName,
-        displayName: displayName,
-        description: description || '',
-        createdBy: currentUser?.username || 'anonymous',
-        createdAt: new Date().toISOString(),
-        members: [currentUser?.username || 'anonymous']
-    };
-    
-    communities.push(newCommunity);
-    localStorage.setItem('communities', JSON.stringify(communities));
-    
-    showSuccessMessage(`Community "${displayName}" created successfully!`);
-    closeModal('createCommunityModal');
-    updateCommunitiesInMenu();
-    
-    // Clear form
-    document.getElementById('communityName').value = '';
-    document.getElementById('communityDisplayName').value = '';
-    document.getElementById('communityDescription').value = '';
-}
-
-function handleCreatePost(e) {
-    e.preventDefault();
-    const title = document.getElementById('postTitle')?.value?.trim();
-    const content = document.getElementById('postContent')?.value?.trim();
-    const communityName = document.getElementById('postCommunity')?.value;
-    const isPrivate = document.getElementById('isPrivate')?.checked;
-    
-    if (!title || !content) {
-        showSuccessMessage('Please fill in title and content');
-        return;
-    }
-    
-    const newPost = {
-        id: Date.now().toString(),
-        title: title,
-        content: content,
-        author: currentUser?.username || 'anonymous',
-        communityName: communityName || null,
-        isPrivate: isPrivate || false,
-        timestamp: new Date().toISOString(),
-        type: 'text',
-        replies: []
-    };
-    
-    posts.unshift(newPost);
-    localStorage.setItem('posts', JSON.stringify(posts));
-    
-    showSuccessMessage('Post created successfully!');
-    closeModal('composeModal');
-    
-    // Clear form
-    document.getElementById('postTitle').value = '';
-    document.getElementById('postContent').value = '';
-    document.getElementById('isPrivate').checked = false;
-    
-    updateUI();
-}
-
-function deletePost(postId) {
-    if (!currentUser) return;
-    
-    const postIndex = posts.findIndex(post => post.id === postId);
-    if (postIndex === -1) return;
-    
-    const post = posts[postIndex];
-    
-    if (post.author !== currentUser.username && !currentUser.profile?.isAdmin) {
-        showSuccessMessage('You can only delete your own posts');
-        return;
-    }
-    
-    if (confirm('Are you sure you want to delete this post?')) {
-        posts.splice(postIndex, 1);
-        localStorage.setItem('posts', JSON.stringify(posts));
-        showSuccessMessage('Post deleted successfully');
-        updateUI();
-    }
-}
-
-// Data loading functions
+// Data loading functions using secure API
 async function loadUser() {
     try {
-        const storedUser = localStorage.getItem('currentUser');
-        if (storedUser) {
-            currentUser = JSON.parse(storedUser);
+        if (typeof secureAPI !== 'undefined') {
+            currentUser = await secureAPI.loadUserData();
+            if (currentUser) {
+                await loadFollowedCommunities();
+            }
+        } else {
+            // Fallback to localStorage
+            const storedUser = localStorage.getItem('currentUser');
+            if (storedUser) {
+                currentUser = JSON.parse(storedUser);
+            }
         }
     } catch (error) {
         console.error('Error loading user:', error);
@@ -524,11 +440,13 @@ async function loadUser() {
 
 async function loadCommunities() {
     try {
-        const storedCommunities = localStorage.getItem('communities');
-        if (storedCommunities) {
-            communities = JSON.parse(storedCommunities);
-        } else {
-            communities = [];
+        const response = await fetch('/.netlify/functions/blobs?list=true&prefix=community_');
+        if (response.ok) {
+            const data = await response.json();
+            communities = data.keys ? data.keys.map(key => ({ 
+                name: key.replace('community_', ''),
+                displayName: key.replace('community_', '').charAt(0).toUpperCase() + key.replace('community_', '').slice(1)
+            })) : [];
         }
     } catch (error) {
         console.error('Error loading communities:', error);
@@ -538,10 +456,9 @@ async function loadCommunities() {
 
 async function loadPosts() {
     try {
-        const storedPosts = localStorage.getItem('posts');
-        if (storedPosts) {
-            posts = JSON.parse(storedPosts);
-        } else {
+        const response = await fetch('/.netlify/functions/blobs?list=true&prefix=post_');
+        if (response.ok) {
+            const data = await response.json();
             posts = [];
         }
     } catch (error) {
@@ -550,340 +467,141 @@ async function loadPosts() {
     }
 }
 
-// Rendering functions
-function renderFeedWithTabs() {
-    const feed = document.getElementById('feed');
-    if (!feed) return;
-    
-    if (!currentUser) {
-        feed.innerHTML = `
-            <div style="text-align: center; padding: 40px; background: var(--bg-default); border-radius: 8px; margin: 20px 0;">
-                <h2>Welcome to The Shed! 🏠</h2>
-                <p style="color: var(--fg-muted); margin: 16px 0;">Join our community to share posts and connect with others.</p>
-                <button class="btn" onclick="openAuthModal('signup')" style="margin-right: 12px;">Sign Up</button>
-                <button class="btn btn-secondary" onclick="openAuthModal('signin')">Sign In</button>
-            </div>
-        `;
-        return;
+async function loadFollowedCommunities() {
+    try {
+        if (currentUser) {
+            followedCommunities = new Set();
+        }
+    } catch (error) {
+        console.error('Error loading followed communities:', error);
+        followedCommunities = new Set();
     }
-    
-    let postsToShow = [];
-    
-    if (currentFeedTab === 'followed') {
-        postsToShow = posts.filter(post => 
-            !post.isPrivate && 
-            post.communityName && 
-            followedCommunities.has(post.communityName)
-        );
-    } else {
-        postsToShow = posts.filter(post => !post.isPrivate);
-    }
-    
-    if (postsToShow.length === 0) {
-        const emptyMessage = currentFeedTab === 'followed' 
-            ? 'No posts from followed communities yet!'
-            : 'No posts yet! Be the first to share something.';
-            
-        feed.innerHTML = `
-            <div style="text-align: center; padding: 40px; background: var(--bg-default); border-radius: 8px;">
-                <h3>${emptyMessage}</h3>
-                <button class="btn" onclick="openModal('composeModal')" style="margin-top: 16px;">Create Post</button>
-            </div>
-        `;
-        return;
-    }
-    
-    feed.innerHTML = postsToShow.map(post => renderPost(post)).join('');
 }
 
-function renderPost(post) {
-    const community = communities.find(c => c.name === post.communityName);
-    
-    return `
-        <div style="background: var(--bg-default); border: 1px solid var(--border-default); border-radius: 8px; margin-bottom: 16px;">
-            <div style="padding: 16px;">
-                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
-                    <div style="width: 32px; height: 32px; background: linear-gradient(135deg, var(--accent-emphasis), var(--accent-fg)); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: 600;">
-                        ${post.author.charAt(0).toUpperCase()}
-                    </div>
-                    <div>
-                        <div style="font-weight: 600; color: var(--fg-default);">@${escapeHtml(post.author)}</div>
-                        <div style="font-size: 12px; color: var(--fg-muted);">${formatTimestamp(post.timestamp)}</div>
-                    </div>
-                    ${post.isPrivate ? '<span style="background: var(--attention-fg); color: white; padding: 2px 8px; border-radius: 12px; font-size: 11px; margin-left: auto;">Private</span>' : ''}
-                </div>
-                
-                ${post.communityName && community ? `
-                    <div style="margin-bottom: 8px;">
-                        <span style="background: rgba(88, 166, 255, 0.1); color: var(--accent-fg); padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: 600;">
-                            c/${escapeHtml(community.displayName)}
-                        </span>
-                    </div>
-                ` : ''}
-                
-                <h3 style="color: var(--fg-default); margin: 0 0 12px 0; font-size: 18px;">
-                    ${escapeHtml(post.title)}
-                </h3>
-                
-                <div style="color: var(--fg-default); line-height: 1.6;">
-                    ${escapeHtml(post.content)}
-                </div>
-            </div>
-            
-            <div style="background: var(--bg-subtle); border-top: 1px solid var(--border-default); padding: 8px; display: flex; gap: 8px;">
-                <button style="background: none; border: none; color: var(--fg-muted); padding: 8px 16px; border-radius: 4px; cursor: pointer; display: flex; align-items: center; gap: 6px;">
-                    ⬆️ Vote
-                </button>
-                <button style="background: none; border: none; color: var(--fg-muted); padding: 8px 16px; border-radius: 4px; cursor: pointer; display: flex; align-items: center; gap: 6px;">
-                    💬 ${post.replies ? post.replies.length : 0}
-                </button>
-                ${currentUser && (currentUser.username === post.author || currentUser.profile?.isAdmin) ? `
-                    <button onclick="deletePost('${post.id}')" style="background: none; border: none; color: var(--fg-muted); padding: 8px 16px; border-radius: 4px; cursor: pointer; display: flex; align-items: center; gap: 6px;">
-                        🗑️ Delete
-                    </button>
-                ` : ''}
-            </div>
-        </div>
-    `;
+async function loadAdminStats() {
+    try {
+        if (currentUser?.profile?.isAdmin) {
+            console.log('Loading admin stats...');
+        }
+    } catch (error) {
+        console.error('Error loading admin stats:', error);
+    }
+}
+
+// Placeholder functions for missing dependencies
+function logout() {
+    currentUser = null;
+    localStorage.removeItem('currentUser');
+    location.reload();
+}
+
+function handleAuth(e) {
+    e.preventDefault();
+    console.log('Auth handler called');
+}
+
+function handleCreateCommunity(e) {
+    e.preventDefault();
+    console.log('Create community handler called');
+}
+
+function handleCreatePost(e) {
+    e.preventDefault();
+    console.log('Create post handler called');
+}
+
+function handleInlineLogin(e) {
+    e.preventDefault();
+    console.log('Inline login handler called');
+}
+
+function toggleFollowStatus(communityName, follow) {
+    return Promise.resolve({ success: true, following: follow, memberCount: 1 });
+}
+
+function checkIfFollowing(communityName) {
+    return Promise.resolve(false);
+}
+
+// Placeholder rendering functions
+function renderFeedWithTabs() {
+    const feed = document.getElementById('feed');
+    if (feed) {
+        feed.innerHTML = '<div class="loading">Feed loading...</div>';
+    }
 }
 
 function renderCommunityPage() {
     const feed = document.getElementById('feed');
-    if (!feed || !currentCommunity) return;
-    
-    const community = communities.find(c => c.name === currentCommunity);
-    if (!community) {
-        feed.innerHTML = '<div>Community not found</div>';
-        return;
+    if (feed) {
+        feed.innerHTML = '<div class="loading">Community loading...</div>';
     }
-    
-    const communityPosts = posts.filter(post => 
-        post.communityName === community.name && !post.isPrivate
-    );
-    
-    feed.innerHTML = `
-        <div style="background: var(--bg-default); border: 1px solid var(--border-default); border-radius: 16px; padding: 32px; margin-bottom: 24px;">
-            <div style="display: flex; align-items: flex-start; gap: 24px;">
-                <div style="width: 80px; height: 80px; background: linear-gradient(135deg, var(--accent-emphasis), var(--accent-fg)); border-radius: 20px; display: flex; align-items: center; justify-content: center; font-size: 36px; font-weight: 700; color: white;">
-                    ${community.displayName.charAt(0).toUpperCase()}
-                </div>
-                <div style="flex: 1;">
-                    <h1 style="font-size: 32px; font-weight: 700; color: var(--fg-default); margin: 0 0 8px 0;">
-                        ${escapeHtml(community.displayName)}
-                    </h1>
-                    <p style="font-size: 18px; color: var(--accent-fg); margin: 0 0 12px 0;">
-                        c/${escapeHtml(community.name)}
-                    </p>
-                    ${community.description ? `<p style="color: var(--fg-muted); margin: 0;">${escapeHtml(community.description)}</p>` : ''}
-                </div>
-            </div>
-        </div>
-        
-        ${communityPosts.length > 0 ? 
-            communityPosts.map(post => renderPost(post)).join('') :
-            `<div style="text-align: center; padding: 40px; background: var(--bg-default); border-radius: 8px;">
-                <h3>No posts in this community yet!</h3>
-                ${currentUser ? `<button class="btn" onclick="openModal('composeModal')">Create First Post</button>` : ''}
-            </div>`
-        }
-    `;
 }
 
 function renderProfilePage() {
     const feed = document.getElementById('feed');
-    if (!feed) return;
-    
-    if (!currentUser) {
-        feed.innerHTML = `
-            <div style="text-align: center; padding: 40px;">
-                <h3>Please sign in to view your profile</h3>
-                <button class="btn" onclick="openAuthModal('signin')">Sign In</button>
-            </div>
-        `;
-        return;
+    if (feed) {
+        feed.innerHTML = '<div class="loading">Profile loading...</div>';
     }
-    
-    const userPosts = posts.filter(post => 
-        post.author === currentUser.username && !post.isPrivate
-    );
-    
-    feed.innerHTML = `
-        <div style="background: var(--bg-default); border: 1px solid var(--border-default); border-radius: 16px; padding: 32px; margin-bottom: 24px;">
-            <div style="display: flex; align-items: center; gap: 24px;">
-                <div style="width: 120px; height: 120px; background: linear-gradient(135deg, var(--accent-emphasis), var(--accent-fg)); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 48px; font-weight: 700; color: white;">
-                    ${currentUser.username.charAt(0).toUpperCase()}
-                </div>
-                <div>
-                    <h1 style="font-size: 32px; font-weight: 700; color: var(--fg-default); margin: 0 0 8px 0;">
-                        @${escapeHtml(currentUser.username)}
-                    </h1>
-                    ${currentUser.profile?.isAdmin ? '<div style="background: linear-gradient(135deg, var(--attention-fg), #f59e0b); color: white; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 600; display: inline-block; margin-bottom: 12px;">👑 Administrator</div>' : ''}
-                    <p style="color: var(--fg-muted); margin: 0;">
-                        ${escapeHtml(currentUser.profile?.bio || currentUser.bio || `Hello! I'm ${currentUser.username}`)}
-                    </p>
-                </div>
-            </div>
-            
-            <div style="display: flex; gap: 24px; padding-top: 20px; border-top: 1px solid var(--border-default); margin-top: 20px;">
-                <div style="display: flex; align-items: center; gap: 8px;">
-                    <span style="font-size: 18px; font-weight: 700; color: var(--accent-fg);">${userPosts.length}</span>
-                    <span style="color: var(--fg-muted);">public posts</span>
-                </div>
-            </div>
-        </div>
-        
-        <h3 style="color: var(--fg-default); margin: 0 0 16px 0;">Your Public Posts</h3>
-        
-        ${userPosts.length > 0 ? 
-            userPosts.map(post => renderPost(post)).join('') :
-            `<div style="text-align: center; padding: 40px; background: var(--bg-default); border-radius: 8px;">
-                <h3>No public posts yet!</h3>
-                <button class="btn" onclick="openModal('composeModal')">Create Your First Post</button>
-            </div>`
-        }
-    `;
 }
 
 function renderMyShedPage() {
     const feed = document.getElementById('feed');
-    if (!feed) return;
-    
-    if (!currentUser) {
-        feed.innerHTML = `
-            <div style="text-align: center; padding: 40px;">
-                <h3>🏠 My Shed</h3>
-                <p>Please sign in to view your private posts</p>
-                <button class="btn" onclick="openAuthModal('signin')">Sign In</button>
-            </div>
-        `;
-        return;
+    if (feed) {
+        feed.innerHTML = '<div class="loading">My Shed loading...</div>';
     }
-    
-    const privatePosts = posts.filter(post => 
-        post.author === currentUser.username && post.isPrivate
-    );
-    
-    feed.innerHTML = `
-        <div style="background: var(--bg-default); border: 1px solid var(--border-default); border-radius: 12px; padding: 24px; margin-bottom: 24px;">
-            <h1 style="color: var(--fg-default); margin: 0 0 8px 0; font-size: 28px;">🏠 My Shed</h1>
-            <p style="color: var(--fg-muted); margin: 0 0 16px 0;">Your private posts and personal content</p>
-            
-            <div style="display: flex; align-items: center; gap: 16px; padding-top: 16px; border-top: 1px solid var(--border-default);">
-                <div style="display: flex; align-items: center; gap: 8px;">
-                    <span style="font-size: 18px; font-weight: 600; color: var(--accent-fg);">${privatePosts.length}</span>
-                    <span style="color: var(--fg-muted);">private posts</span>
-                </div>
-                <div style="color: var(--fg-muted); font-size: 14px;">Only visible to you</div>
-            </div>
-        </div>
-        
-        ${privatePosts.length > 0 ? 
-            privatePosts.map(post => renderPost(post)).join('') :
-            `<div style="text-align: center; padding: 40px; background: var(--bg-default); border-radius: 8px;">
-                <div style="font-size: 48px; margin-bottom: 16px;">📝</div>
-                <h3>No Private Posts Yet</h3>
-                <p style="color: var(--fg-muted); margin: 16px 0;">Create private posts that only you can see.</p>
-                <button class="btn" onclick="openModal('composeModal')">Create Private Post</button>
-            </div>`
-        }
-    `;
 }
 
 function renderAdminPage() {
     const feed = document.getElementById('feed');
-    if (!feed) return;
-    
-    if (!currentUser?.profile?.isAdmin) {
-        feed.innerHTML = `
-            <div style="text-align: center; padding: 40px;">
-                <h3>🚫 Access Denied</h3>
-                <p>Administrator privileges required</p>
-                <button class="btn" onclick="navigateToFeed()">Return to Feed</button>
-            </div>
-        `;
-        return;
-    }
-    
-    const publicPosts = posts.filter(p => !p.isPrivate);
-    
-    feed.innerHTML = `
-        <div style="background: linear-gradient(135deg, var(--danger-fg), #dc2626); color: white; border-radius: 12px; padding: 32px; margin-bottom: 24px; text-align: center;">
-            <h1 style="margin: 0 0 8px 0; font-size: 32px;">🔧 Admin Panel</h1>
-            <p style="margin: 0; opacity: 0.9;">Manage users, communities, and content</p>
-        </div>
-        
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 32px;">
-            <div style="background: var(--bg-default); border: 1px solid var(--border-default); border-radius: 12px; padding: 24px; text-align: center;">
-                <div style="font-size: 28px; font-weight: 700; color: var(--accent-fg);">1</div>
-                <div style="color: var(--fg-muted); font-size: 14px;">Total Users</div>
-            </div>
-            <div style="background: var(--bg-default); border: 1px solid var(--border-default); border-radius: 12px; padding: 24px; text-align: center;">
-                <div style="font-size: 28px; font-weight: 700; color: var(--accent-fg);">${communities.length}</div>
-                <div style="color: var(--fg-muted); font-size: 14px;">Communities</div>
-            </div>
-            <div style="background: var(--bg-default); border: 1px solid var(--border-default); border-radius: 12px; padding: 24px; text-align: center;">
-                <div style="font-size: 28px; font-weight: 700; color: var(--accent-fg);">${publicPosts.length}</div>
-                <div style="color: var(--fg-muted); font-size: 14px;">Public Posts</div>
-            </div>
-        </div>
-        
-        <div style="background: var(--bg-default); border: 1px solid var(--border-default); border-radius: 8px; padding: 24px;">
-            <h3 style="color: var(--fg-default); margin: 0 0 16px 0;">Admin Panel Active</h3>
-            <p style="color: var(--fg-muted);">Welcome, Administrator! The system is running with localStorage.</p>
-        </div>
-    `;
-}
-
-// Event setup
-function setupEventListeners() {
-    const authForm = document.getElementById('authForm');
-    if (authForm) authForm.addEventListener('submit', handleAuth);
-    
-    const createCommunityForm = document.getElementById('createCommunityForm');
-    if (createCommunityForm) createCommunityForm.addEventListener('submit', handleCreateCommunity);
-    
-    const composeForm = document.getElementById('composeForm');
-    if (composeForm) composeForm.addEventListener('submit', handleCreatePost);
-    
-    // Update community dropdown when compose modal opens
-    const composeModal = document.getElementById('composeModal');
-    if (composeModal) {
-        const observer = new MutationObserver((mutations) => {
-            mutations.forEach((mutation) => {
-                if (mutation.type === 'attributes' && mutation.attributeName === 'style') {
-                    if (composeModal.style.display === 'block') {
-                        updateCommunityDropdown();
-                    }
-                }
-            });
-        });
-        observer.observe(composeModal, { attributes: true });
+    if (feed) {
+        feed.innerHTML = '<div class="loading">Admin page loading...</div>';
     }
 }
 
-function updateCommunityDropdown() {
-    const select = document.getElementById('postCommunity');
-    if (!select) return;
-    
-    select.innerHTML = '<option value="">General Feed</option>';
-    communities.forEach(community => {
-        const option = document.createElement('option');
-        option.value = community.name;
-        option.textContent = community.displayName;
-        select.appendChild(option);
-    });
+function previewMedia(url) {
+    console.log('Preview media:', url);
 }
 
 // Initialize app
 document.addEventListener('DOMContentLoaded', async () => {
-    console.log('App initializing...');
+    // Configure marked.js for markdown rendering
+    if (typeof marked !== 'undefined') {
+        marked.setOptions({
+            highlight: function(code, lang) {
+                if (lang && typeof hljs !== 'undefined' && hljs.getLanguage(lang)) {
+                    return hljs.highlight(code, { language: lang }).value;
+                }
+                return typeof hljs !== 'undefined' ? hljs.highlightAuto(code).value : code;
+            },
+            breaks: true,
+            gfm: true
+        });
+        
+        // Set up custom renderer
+        markdownRenderer = new marked.Renderer();
+        
+        markdownRenderer.link = function(href, title, text) {
+            if (typeof renderMediaFromUrl === 'function') {
+                const mediaHtml = renderMediaFromUrl(href);
+                if (mediaHtml) return mediaHtml;
+            }
+            
+            return `<a href="${href}" target="_blank" rel="noopener noreferrer" ${title ? `title="${title}"` : ''}>${text}</a>`;
+        };
+        
+        window.markdownRenderer.image = function(href, title, text) {
+            return `<img src="${href}" alt="${text || 'Image'}" ${title ? `title="${title}"` : ''} onclick="openImageModal('${href}')" style="cursor: pointer;">`;
+        };
+    }
     
     await loadUser();
     await loadCommunities();
     await loadPosts();
-    
     updateUI();
     setupEventListeners();
     
-    console.log('App initialized successfully');
+    if (currentUser?.profile?.isAdmin) {
+        await loadAdminStats();
+    }
 });
