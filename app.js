@@ -1,6 +1,6 @@
 // app.js - Main application logic and initialization - Updated to remove c/ prefix
 
-// App state
+// App state - ALL VARIABLES DECLARED ONCE HERE
 let currentUser = null;
 let currentPage = 'feed';
 let communities = [];
@@ -10,9 +10,9 @@ let isLoading = false;
 let adminData = null;
 let currentPostType = 'text';
 let inlineLoginFormOpen = false;
-let currentFeedTab = 'general'; // Track current feed tab - only 'general' and 'followed' now
+let currentFeedTab = 'general';
 let followedCommunities = new Set();
-let markdownRenderer;
+let markdownRenderer = null;
 
 // Menu functions
 function toggleMenu() {
@@ -126,9 +126,9 @@ function toggleInlineLoginForm() {
     } else {
         form.classList.add('open');
         inlineLoginFormOpen = true;
-        // Focus on username field
         setTimeout(() => {
-            document.getElementById('inlineUsername').focus();
+            const usernameField = document.getElementById('inlineUsername');
+            if (usernameField) usernameField.focus();
         }, 300);
     }
 }
@@ -144,10 +144,9 @@ function updateCommunitiesInMenu() {
     if (communities.length === 0) {
         dropdown.innerHTML = '<div class="community-item">No communities yet</div>';
     } else {
-        // UPDATED: Removed "c/" prefix from menu items
         dropdown.innerHTML = communities.map(community => `
             <a href="#" class="community-item" onclick="navigateToCommunity('${community.name}'); return false;">
-                ${escapeHtml(community.displayName)}
+                ${escapeHtml(community.displayName || community.name)}
             </a>
         `).join('');
     }
@@ -182,7 +181,6 @@ function navigateToProfile() {
     updateUI();
 }
 
-// NEW: Updated navigateToMyShed to show private posts instead of separate page
 function navigateToMyShed() {
     toggleMenu();
     currentPage = 'myshed';
@@ -190,7 +188,6 @@ function navigateToMyShed() {
     updateUI();
 }
 
-// Add missing navigation functions
 function navigateToAdmin() {
     toggleMenu();
     currentPage = 'admin';
@@ -200,14 +197,12 @@ function navigateToAdmin() {
 
 function navigateToSettings() {
     toggleMenu();
-    // For now, just show a placeholder
     showSuccessMessage('Settings page coming soon!');
 }
 
 function navigateToCommunity(communityName) {
     console.log('navigateToCommunity called with:', communityName);
     
-    // Find the community
     const community = communities.find(c => c.name === communityName);
     if (!community) {
         console.error('Community not found:', communityName);
@@ -215,27 +210,22 @@ function navigateToCommunity(communityName) {
         return;
     }
     
-    console.log('Found community, navigating to:', community.displayName);
+    console.log('Found community, navigating to:', community.displayName || community.name);
     
-    // Close menu if open
     if (document.getElementById('slideMenu').classList.contains('open')) {
         toggleMenu();
     }
     
-    // Set page state
     currentPage = 'community';
     currentCommunity = communityName;
     
-    // Update active menu item - clear all active states for community navigation
     document.querySelectorAll('.menu-item').forEach(item => {
         item.classList.remove('active');
     });
     
-    // Update UI
     updateUI();
 }
 
-// FIXED: Add the missing openCreate function
 function openCreate() {
     openCreateCommunity();
 }
@@ -253,12 +243,14 @@ function updateActiveMenuItem(activeId) {
     document.querySelectorAll('.menu-item').forEach(item => {
         item.classList.remove('active');
     });
-    document.getElementById(activeId).classList.add('active');
+    const activeElement = document.getElementById(activeId);
+    if (activeElement) {
+        activeElement.classList.add('active');
+    }
 }
 
-// Feed Tab Functions - Updated to only handle 'general' and 'followed'
+// Feed Tab Functions
 function switchFeedTab(tabName) {
-    // Only allow 'general' and 'followed' tabs now
     if (tabName !== 'general' && tabName !== 'followed') {
         console.warn('Invalid tab name:', tabName);
         return;
@@ -266,35 +258,36 @@ function switchFeedTab(tabName) {
     
     currentFeedTab = tabName;
     
-    // Update tab visual states
     document.querySelectorAll('.feed-tab').forEach(tab => {
         tab.classList.remove('active');
     });
-    document.getElementById(`${tabName}Tab`).classList.add('active');
     
-    // Re-render the current page with new tab
+    const activeTab = document.getElementById(`${tabName}Tab`);
+    if (activeTab) {
+        activeTab.classList.add('active');
+    }
+    
     renderCurrentPage();
 }
 
 function updateFeedTabsVisibility() {
     const feedTabs = document.getElementById('feedTabs');
-    // Show tabs only on feed page when user is logged in
+    if (!feedTabs) return;
+    
     if (currentPage === 'feed' && currentUser) {
         feedTabs.style.display = 'flex';
-        
-        // Enable followed tab for logged in users
         const followedTab = document.getElementById('followedTab');
-        followedTab.disabled = false;
+        if (followedTab) {
+            followedTab.disabled = false;
+        }
     } else {
-        // Hide tabs for all other pages including My Shed (since My Shed is now its own page)
         feedTabs.style.display = 'none';
     }
 }
 
-// FIXED: Improved toggleCommunityFollow function with real follow/unfollow logic
+// Community follow function
 async function toggleCommunityFollow(communityName) {
     console.log('toggleCommunityFollow called for:', communityName);
-    console.log('Current user:', currentUser);
     
     if (!currentUser) {
         console.log('Not authenticated, opening auth modal');
@@ -303,8 +296,6 @@ async function toggleCommunityFollow(communityName) {
     }
 
     const followBtn = document.getElementById(`followBtn-${communityName}`);
-    console.log('Follow button found:', followBtn);
-    
     if (!followBtn) {
         console.error('Follow button not found for community:', communityName);
         return;
@@ -317,27 +308,18 @@ async function toggleCommunityFollow(communityName) {
         followBtn.disabled = true;
         followBtn.textContent = 'Loading...';
         
-        console.log('Toggling follow status for community:', communityName);
-        console.log('Was following:', wasFollowing, 'Will follow:', !wasFollowing);
-        
-        // Use real follow/unfollow logic
         const response = await toggleFollowStatus(communityName, !wasFollowing);
         
         if (response.success) {
-            // Update button appearance
             if (response.following) {
                 followBtn.textContent = '✓ Following';
                 followBtn.className = 'btn btn-secondary';
-                followBtn.style.cssText = 'padding: 12px 24px; font-weight: 600; box-shadow: 0 2px 8px rgba(0,0,0,0.15);';
                 showSuccessMessage(`Now following ${communityName}! 🎉`);
             } else {
                 followBtn.textContent = '+ Follow';
                 followBtn.className = 'btn';
-                followBtn.style.cssText = 'padding: 12px 24px; font-weight: 600; box-shadow: 0 2px 8px rgba(0,0,0,0.15);';
                 showSuccessMessage(`Unfollowed ${communityName}`);
             }
-            
-            console.log(`Follow toggle successful. New member count: ${response.memberCount}`);
         } else {
             throw new Error(response.error || 'Unknown error');
         }
@@ -346,13 +328,11 @@ async function toggleCommunityFollow(communityName) {
         console.error('Error toggling follow status:', error);
         followBtn.textContent = originalText;
         
-        // Restore original button class
         if (wasFollowing) {
             followBtn.className = 'btn btn-secondary';
         } else {
             followBtn.className = 'btn';
         }
-        followBtn.style.cssText = 'padding: 12px 24px; font-weight: 600; box-shadow: 0 2px 8px rgba(0,0,0,0.15);';
         
         showSuccessMessage(error.message || 'Failed to update follow status. Please try again.');
     } finally {
@@ -360,6 +340,7 @@ async function toggleCommunityFollow(communityName) {
     }
 }
 
+// UI update functions
 function updateUI() {
     updateComposeButton();
     updateFeedTabsVisibility();
@@ -368,7 +349,9 @@ function updateUI() {
 
 function updateComposeButton() {
     const composeBtn = document.getElementById('composeBtn');
-    composeBtn.style.display = currentUser ? 'block' : 'none';
+    if (composeBtn) {
+        composeBtn.style.display = currentUser ? 'block' : 'none';
+    }
 }
 
 function renderCurrentPage() {
@@ -385,17 +368,23 @@ function renderCurrentPage() {
     }
 }
 
+// Event listeners setup
 function setupEventListeners() {
-    // Auth form
-    document.getElementById('authForm').addEventListener('submit', handleAuth);
+    const authForm = document.getElementById('authForm');
+    if (authForm) {
+        authForm.addEventListener('submit', handleAuth);
+    }
     
-    // Create community form
-    document.getElementById('createCommunityForm').addEventListener('submit', handleCreateCommunity);
+    const createCommunityForm = document.getElementById('createCommunityForm');
+    if (createCommunityForm) {
+        createCommunityForm.addEventListener('submit', handleCreateCommunity);
+    }
     
-    // Compose form
-    document.getElementById('composeForm').addEventListener('submit', handleCreatePost);
+    const composeForm = document.getElementById('composeForm');
+    if (composeForm) {
+        composeForm.addEventListener('submit', handleCreatePost);
+    }
     
-    // URL input for media preview
     const urlInput = document.getElementById('postUrl');
     if (urlInput) {
         let previewTimeout;
@@ -406,7 +395,7 @@ function setupEventListeners() {
             if (url && url.length > 10) {
                 previewTimeout = setTimeout(() => {
                     previewMedia(url);
-                }, 1000); // Debounce for 1 second
+                }, 1000);
             } else {
                 const preview = document.getElementById('mediaPreview');
                 if (preview) {
@@ -416,12 +405,11 @@ function setupEventListeners() {
         });
     }
     
-    // Close menu when clicking outside
     document.addEventListener('click', (e) => {
         const menu = document.getElementById('slideMenu');
         const menuToggle = document.getElementById('menuToggle');
         
-        if (menu.classList.contains('open') && 
+        if (menu && menuToggle && menu.classList.contains('open') && 
             !menu.contains(e.target) && 
             !menuToggle.contains(e.target)) {
             toggleMenu();
@@ -432,7 +420,6 @@ function setupEventListeners() {
 // Data loading functions
 async function loadUser() {
     try {
-        // Simple user loading - replace with your actual auth logic
         const storedUser = localStorage.getItem('currentUser');
         if (storedUser) {
             currentUser = JSON.parse(storedUser);
@@ -445,11 +432,13 @@ async function loadUser() {
 
 async function loadCommunities() {
     try {
-        // Load communities from your API or storage
         const response = await fetch('/.netlify/functions/blobs?list=true&prefix=community_');
         if (response.ok) {
             const data = await response.json();
-            communities = data.keys.map(key => ({ name: key.replace('community_', '') }));
+            communities = data.keys ? data.keys.map(key => ({ 
+                name: key.replace('community_', ''),
+                displayName: key.replace('community_', '').charAt(0).toUpperCase() + key.replace('community_', '').slice(1)
+            })) : [];
         }
     } catch (error) {
         console.error('Error loading communities:', error);
@@ -459,11 +448,10 @@ async function loadCommunities() {
 
 async function loadPosts() {
     try {
-        // Load posts from your API or storage
         const response = await fetch('/.netlify/functions/blobs?list=true&prefix=post_');
         if (response.ok) {
             const data = await response.json();
-            posts = []; // You'll need to implement actual post loading
+            posts = [];
         }
     } catch (error) {
         console.error('Error loading posts:', error);
@@ -474,7 +462,7 @@ async function loadPosts() {
 async function loadFollowedCommunities() {
     try {
         if (currentUser) {
-            followedCommunities = new Set(); // You'll need to implement this
+            followedCommunities = new Set();
         }
     } catch (error) {
         console.error('Error loading followed communities:', error);
@@ -485,7 +473,6 @@ async function loadFollowedCommunities() {
 async function loadAdminStats() {
     try {
         if (currentUser?.profile?.isAdmin) {
-            // Load admin stats
             console.log('Loading admin stats...');
         }
     } catch (error) {
@@ -521,13 +508,51 @@ function handleInlineLogin(e) {
 }
 
 function toggleFollowStatus(communityName, follow) {
-    // Placeholder - implement actual follow logic
     return Promise.resolve({ success: true, following: follow, memberCount: 1 });
 }
 
 function checkIfFollowing(communityName) {
-    // Placeholder - implement actual check
     return Promise.resolve(false);
+}
+
+// Placeholder rendering functions
+function renderFeedWithTabs() {
+    const feed = document.getElementById('feed');
+    if (feed) {
+        feed.innerHTML = '<div class="loading">Feed loading...</div>';
+    }
+}
+
+function renderCommunityPage() {
+    const feed = document.getElementById('feed');
+    if (feed) {
+        feed.innerHTML = '<div class="loading">Community loading...</div>';
+    }
+}
+
+function renderProfilePage() {
+    const feed = document.getElementById('feed');
+    if (feed) {
+        feed.innerHTML = '<div class="loading">Profile loading...</div>';
+    }
+}
+
+function renderMyShedPage() {
+    const feed = document.getElementById('feed');
+    if (feed) {
+        feed.innerHTML = '<div class="loading">My Shed loading...</div>';
+    }
+}
+
+function renderAdminPage() {
+    const feed = document.getElementById('feed');
+    if (feed) {
+        feed.innerHTML = '<div class="loading">Admin page loading...</div>';
+    }
+}
+
+function previewMedia(url) {
+    console.log('Preview media:', url);
 }
 
 // Initialize app
@@ -545,18 +570,18 @@ document.addEventListener('DOMContentLoaded', async () => {
             gfm: true
         });
         
-        // Custom renderer for enhanced features
+        // Set up custom renderer
         markdownRenderer = new marked.Renderer();
         
-        // Custom link renderer to handle media embeds
         markdownRenderer.link = function(href, title, text) {
-            const mediaHtml = renderMediaFromUrl(href);
-            if (mediaHtml) return mediaHtml;
+            if (typeof renderMediaFromUrl === 'function') {
+                const mediaHtml = renderMediaFromUrl(href);
+                if (mediaHtml) return mediaHtml;
+            }
             
             return `<a href="${href}" target="_blank" rel="noopener noreferrer" ${title ? `title="${title}"` : ''}>${text}</a>`;
         };
         
-        // Custom image renderer
         markdownRenderer.image = function(href, title, text) {
             return `<img src="${href}" alt="${text || 'Image'}" ${title ? `title="${title}"` : ''} onclick="openImageModal('${href}')" style="cursor: pointer;">`;
         };
@@ -568,7 +593,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     updateUI();
     setupEventListeners();
     
-    // Load admin stats if user is admin
     if (currentUser?.profile?.isAdmin) {
         await loadAdminStats();
     }
