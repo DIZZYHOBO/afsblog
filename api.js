@@ -549,3 +549,24 @@ async function handleSecureAuth(e) {
     console.error('Auth error:', error);
   }
 }
+async function handleSecureAuth(e) {
+  e.preventDefault();
+  const form = e.target;
+  const mode = form.dataset.mode;
+  const username = document.getElementById('username')?.value?.trim();
+  const password = document.getElementById('password')?.value;
+  const bio = document.getElementById('bio')?.value?.trim();
+  const email = document.getElementById('email')?.value?.trim();
+  const rememberMe = document.getElementById('rememberMe')?.checked || false;
+
+  try {
+    if (mode === 'signup') {
+      await handleRegister({ username, password, bio, email, rememberMe });
+    } else {
+      await handleLogin({ username, password, rememberMe });
+    }
+  } catch (error) {
+    console.error('Auth error:', error);
+    showError('authError', error.message);
+  }
+}
