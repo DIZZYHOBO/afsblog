@@ -1925,6 +1925,11 @@
                     </div>
                 `;
             }).join('');
+            
+            // Auto-scroll to bottom after rendering messages
+            setTimeout(() => {
+                scrollToBottom();
+            }, 10);
         }
 
         function formatTimestamp(timestamp) {
