@@ -12,7 +12,6 @@ let currentPostType = 'text';
 let inlineLoginFormOpen = false;
 let currentFeedTab = 'general';
 let followedCommunities = new Set();
-let markdownRenderer = null;
 
 // Menu functions
 function toggleMenu() {
@@ -488,31 +487,150 @@ async function loadAdminStats() {
     }
 }
 
-// Placeholder functions for missing dependencies
-function logout() {
-    currentUser = null;
-    localStorage.removeItem('currentUser');
-    location.reload();
+// Authentication functions using secure API
+async function logout() {
+    try {
+        if (typeof secureAPI !== 'undefined') {
+            await secureAPI.logout();
+        } else {
+            // Fallback if secureAPI not available
+            currentUser = null;
+            localStorage.removeItem('currentUser');
+        }
+        location.reload();
+    } catch (error) {
+        console.error('Logout error:', error);
+        // Force logout even if API fails
+        currentUser = null;
+        localStorage.removeItem('currentUser');
+        location.reload();
+    }
 }
 
-function handleAuth(e) {
+async function handleAuth(e) {
     e.preventDefault();
-    console.log('Auth handler called');
+    
+    if (typeof secureAPI === 'undefined') {
+        showError('authError', 'Authentication system not loaded');
+        return;
+    }
+    
+    const form = e.target;
+    const mode = form.dataset.mode;
+    const username = document.getElementById('username')?.value?.trim();
+    const password = document.getElementById('password')?.value;
+    const bio = document.getElementById('bio')?.value?.trim();
+    const email = document.getElementById('email')?.value?.trim();
+    const rememberMe = document.getElementById('rememberMe')?.checked || false;
+
+    if (!username || !password) {
+        showError('authError', 'Username and password are required');
+        return;
+    }
+
+    try {
+        const submitBtn = document.getElementById('authSubmitBtn');
+        const originalText = submitBtn.textContent;
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Processing...';
+
+        if (mode === 'signup') {
+            const response = await secureAPI.register({ username, password, bio, email, rememberMe });
+            if (response.success) {
+                showSuccessMessage('Registration submitted for admin approval!');
+                closeModal('authModal');
+                form.reset();
+            } else {
+                showError('authError', response.error || 'Registration failed');
+            }
+        } else {
+            const response = await secureAPI.login({ username, password, rememberMe });
+            if (response.success) {
+                showSuccessMessage('Login successful!');
+                closeModal('authModal');
+                form.reset();
+                // Reload user data and refresh UI
+                await loadUser();
+                updateUI();
+            } else {
+                showError('authError', response.error || 'Login failed');
+            }
+        }
+
+        submitBtn.disabled = false;
+        submitBtn.textContent = originalText;
+        
+    } catch (error) {
+        console.error('Auth error:', error);
+        showError('authError', error.message || 'Authentication failed');
+        
+        const submitBtn = document.getElementById('authSubmitBtn');
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = mode === 'signup' ? 'Sign Up' : 'Sign In';
+        }
+    }
+}
+
+async function handleInlineLogin(e) {
+    e.preventDefault();
+    
+    if (typeof secureAPI === 'undefined') {
+        showError('inlineLoginError', 'Authentication system not loaded');
+        return;
+    }
+
+    const username = document.getElementById('inlineUsername')?.value?.trim();
+    const password = document.getElementById('inlinePassword')?.value;
+
+    if (!username || !password) {
+        showError('inlineLoginError', 'Username and password are required');
+        return;
+    }
+
+    try {
+        const submitBtn = document.getElementById('inlineLoginBtn');
+        const originalText = submitBtn.textContent;
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Signing In...';
+
+        const response = await secureAPI.login({ username, password, rememberMe: false });
+        
+        if (response.success) {
+            showSuccessMessage('Login successful!');
+            // Reload user data and refresh UI
+            await loadUser();
+            updateUI();
+            toggleMenu(); // Close the menu
+        } else {
+            showError('inlineLoginError', response.error || 'Login failed');
+        }
+
+        submitBtn.disabled = false;
+        submitBtn.textContent = originalText;
+        
+    } catch (error) {
+        console.error('Inline login error:', error);
+        showError('inlineLoginError', error.message || 'Login failed');
+        
+        const submitBtn = document.getElementById('inlineLoginBtn');
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Sign In';
+        }
+    }
 }
 
 function handleCreateCommunity(e) {
     e.preventDefault();
     console.log('Create community handler called');
+    showSuccessMessage('Community creation coming soon!');
 }
 
 function handleCreatePost(e) {
     e.preventDefault();
     console.log('Create post handler called');
-}
-
-function handleInlineLogin(e) {
-    e.preventDefault();
-    console.log('Inline login handler called');
+    showSuccessMessage('Post creation coming soon!');
 }
 
 function toggleFollowStatus(communityName, follow) {
@@ -565,43 +683,34 @@ function previewMedia(url) {
 
 // Initialize app
 document.addEventListener('DOMContentLoaded', async () => {
-    // Configure marked.js for markdown rendering
+    console.log('App initializing...');
+    
+    // Configure marked.js for markdown rendering - SIMPLIFIED VERSION
     if (typeof marked !== 'undefined') {
-        marked.setOptions({
-            highlight: function(code, lang) {
-                if (lang && typeof hljs !== 'undefined' && hljs.getLanguage(lang)) {
-                    return hljs.highlight(code, { language: lang }).value;
-                }
-                return typeof hljs !== 'undefined' ? hljs.highlightAuto(code).value : code;
-            },
-            breaks: true,
-            gfm: true
-        });
-        
-        // Set up custom renderer
-        markdownRenderer = new marked.Renderer();
-        
-        markdownRenderer.link = function(href, title, text) {
-            if (typeof renderMediaFromUrl === 'function') {
-                const mediaHtml = renderMediaFromUrl(href);
-                if (mediaHtml) return mediaHtml;
-            }
-            
-            return `<a href="${href}" target="_blank" rel="noopener noreferrer" ${title ? `title="${title}"` : ''}>${text}</a>`;
-        };
-        
-        window.markdownRenderer.image = function(href, title, text) {
-            return `<img src="${href}" alt="${text || 'Image'}" ${title ? `title="${title}"` : ''} onclick="openImageModal('${href}')" style="cursor: pointer;">`;
-        };
+        try {
+            marked.setOptions({
+                breaks: true,
+                gfm: true
+            });
+            console.log('Marked.js configured successfully');
+        } catch (error) {
+            console.error('Error configuring marked.js:', error);
+        }
+    } else {
+        console.warn('Marked.js library not loaded');
     }
     
+    // Load app data
     await loadUser();
     await loadCommunities();
     await loadPosts();
     updateUI();
     setupEventListeners();
     
+    // Load admin stats if user is admin
     if (currentUser?.profile?.isAdmin) {
         await loadAdminStats();
     }
+    
+    console.log('App initialized successfully');
 });
