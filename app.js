@@ -12,7 +12,7 @@ let currentPostType = 'text';
 let inlineLoginFormOpen = false;
 let currentFeedTab = 'general';
 let followedCommunities = new Set();
-let markdownRenderer = null;
+var markdownRenderer = null;
 
 // Menu functions
 function toggleMenu() {
