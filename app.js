@@ -545,22 +545,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             gfm: true
         });
         
-        // Custom renderer for enhanced features
-        markdownRenderer = new marked.Renderer();
-        
-        // Custom link renderer to handle media embeds
-        markdownRenderer.link = function(href, title, text) {
-            const mediaHtml = renderMediaFromUrl(href);
-            if (mediaHtml) return mediaHtml;
-            
-            return `<a href="${href}" target="_blank" rel="noopener noreferrer" ${title ? `title="${title}"` : ''}>${text}</a>`;
-        };
-        
-        // Custom image renderer
-        markdownRenderer.image = function(href, title, text) {
-            return `<img src="${href}" alt="${text || 'Image'}" ${title ? `title="${title}"` : ''} onclick="openImageModal('${href}')" style="cursor: pointer;">`;
-        };
-    }
+    
     
     await loadUser();
     await loadCommunities();
