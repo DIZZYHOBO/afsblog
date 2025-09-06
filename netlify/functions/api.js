@@ -1,189 +1,225 @@
-// netlify/functions/api.js
+// netlify/functions/api.js - COMPLETELY REWRITTEN WITH MODERN SECURITY
 import { getStore } from "@netlify/blobs";
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 
-// API configuration
-const API_CONFIG = {
+// Enhanced security configuration
+const SECURITY_CONFIG = {
+  // Environment variables (must be set in Netlify)
+  JWT_SECRET: process.env.JWT_SECRET || crypto.randomBytes(64).toString('hex'),
+  JWT_REFRESH_SECRET: process.env.JWT_REFRESH_SECRET || crypto.randomBytes(64).toString('hex'),
   MASTER_API_KEY: process.env.MASTER_API_KEY || "your-secret-master-key-here",
-  JWT_SECRET: process.env.JWT_SECRET || "your-jwt-secret-here",
-  RATE_LIMIT_WINDOW: 60 * 60 * 1000, // 1 hour
-  RATE_LIMIT_MAX_REQUESTS: 1000,
-  SESSION_DURATION: 7 * 24 * 60 * 60 * 1000, // 7 days
-  DEFAULT_PAGE_SIZE: 10,
-  MAX_PAGE_SIZE: 50,
+  
+  // Token lifetimes
+  ACCESS_TOKEN_LIFETIME: 15 * 60, // 15 minutes
+  REFRESH_TOKEN_LIFETIME: 7 * 24 * 60 * 60, // 7 days
+  REMEMBER_ME_LIFETIME: 30 * 24 * 60 * 60, // 30 days
+  
+  // Rate limiting (per IP address)
+  RATE_LIMITS: {
+    LOGIN_ATTEMPTS: { max: 5, window: 15 * 60 * 1000 }, // 5 attempts per 15 minutes
+    REGISTRATION: { max: 3, window: 60 * 60 * 1000 }, // 3 registrations per hour
+    PASSWORD_RESET: { max: 3, window: 60 * 60 * 1000 }, // 3 resets per hour
+    API_CALLS: { max: 100, window: 60 * 1000 } // 100 calls per minute
+  },
+  
+  // Account security
+  MAX_FAILED_ATTEMPTS: 5,
+  LOCKOUT_DURATION: 30 * 60 * 1000, // 30 minutes
+  
+  // Password requirements
+  PASSWORD_MIN_LENGTH: 9,
+  PASSWORD_REQUIREMENTS: {
+    minLength: 9,
+    requireUppercase: true,
+    requireLowercase: true,
+    requireNumbers: true,
+    requireSpecialChars: true,
+    maxLength: 128
+  },
+  
+  // Session security
+  MAX_CONCURRENT_SESSIONS: 5,
+  SESSION_ROTATION_INTERVAL: 24 * 60 * 60 * 1000, // 24 hours
+  
+  // CORS settings
+  ALLOWED_ORIGINS: [
+    'https://your-domain.netlify.app',
+    'https://localhost:3000',
+    'http://localhost:8888'
+  ],
+  
   PROTECTED_ADMIN: "dumbass" // Protected admin that cannot be demoted
 };
 
 export default async (req, context) => {
   const store = getStore("blog-api-data");
   const blogStore = getStore("blog-data");
+  const securityStore = getStore("security-data");
   
-  const headers = {
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization, X-API-Key",
-    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-    "Content-Type": "application/json"
-  };
-
+  // Enhanced CORS headers
+  const corsHeaders = getCorsHeaders(req);
+  
   if (req.method === "OPTIONS") {
-    return new Response(null, { status: 200, headers });
+    return new Response(null, { status: 200, headers: corsHeaders });
   }
 
   try {
     const url = new URL(req.url);
     const path = url.pathname.split('/api/')[1] || '';
+    const clientIP = getClientIP(req);
 
-    // Handle authentication endpoints
-    if (path === 'auth/login') {
-      return await handleLogin(req, blogStore, headers);
-    }
-    
-    if (path === 'auth/register') {
-      return await handleRegister(req, blogStore, headers);
-    }
-
-    if (path === 'auth/logout') {
-      return await handleLogout(req, store, headers);
-    }
-
-    // Enhanced Media detection endpoint
-    if (path === 'media/detect') {
-      return await handleMediaDetection(req, headers);
-    }
-
-    // Search endpoint (requires authentication)
-    if (path === 'search/posts') {
-      const authResult = await validateAuth(req, store, blogStore);
-      if (!authResult.valid) {
-        return new Response(
-          JSON.stringify({ error: authResult.error }),
-          { status: authResult.status, headers }
-        );
-      }
-      return await handleSearchPosts(req, blogStore, headers, authResult.user);
-    }
-
-    // COMMUNITY ENDPOINTS (public - no auth required for reading)
-    if (path === 'communities') {
-      if (req.method === 'GET') {
-        return await handleGetCommunities(req, blogStore, headers);
-      } else {
-        // Creating communities requires authentication
-        const authResult = await validateAuth(req, store, blogStore);
-        if (!authResult.valid) {
-          return new Response(
-            JSON.stringify({ error: authResult.error }),
-            { status: authResult.status, headers }
-          );
-        }
-        return await handleCreateCommunity(req, blogStore, headers, authResult.user);
-      }
-    }
-
-    if (path.startsWith('communities/')) {
-      const communityName = path.split('/')[1];
-      if (path.endsWith('/posts')) {
-        // Get posts in a community
-        return await handleCommunityPosts(req, blogStore, headers, communityName);
-      } else if (path.split('/').length === 2) {
-        // Get specific community details
-        return await handleGetCommunity(req, blogStore, headers, communityName);
-      }
-    }
-
-    // Validate authentication for protected endpoints
-    const authResult = await validateAuth(req, store, blogStore);
-    if (!authResult.valid) {
+    // Rate limiting check
+    const rateLimitResult = await checkRateLimit(securityStore, clientIP, path, req.method);
+    if (!rateLimitResult.allowed) {
       return new Response(
-        JSON.stringify({ error: authResult.error }),
-        { status: authResult.status, headers }
+        JSON.stringify({ 
+          error: "Rate limit exceeded", 
+          retryAfter: rateLimitResult.retryAfter 
+        }),
+        { 
+          status: 429, 
+          headers: { 
+            ...corsHeaders, 
+            'Retry-After': rateLimitResult.retryAfter.toString() 
+          } 
+        }
       );
     }
+
+    // Security logging
+    await logSecurityEvent(securityStore, {
+      type: 'api_request',
+      ip: clientIP,
+      path: path,
+      method: req.method,
+      userAgent: req.headers.get('User-Agent'),
+      timestamp: new Date().toISOString()
+    });
+
+    // Authentication endpoints (no auth required)
+    if (path === 'auth/register') {
+      return await handleSecureRegister(req, blogStore, securityStore, corsHeaders, clientIP);
+    }
+    
+    if (path === 'auth/login') {
+      return await handleSecureLogin(req, blogStore, securityStore, corsHeaders, clientIP);
+    }
+    
+    if (path === 'auth/refresh') {
+      return await handleTokenRefresh(req, store, corsHeaders);
+    }
+    
+    if (path === 'auth/logout') {
+      return await handleSecureLogout(req, store, securityStore, corsHeaders);
+    }
+    
+    if (path === 'auth/forgot-password') {
+      return await handleForgotPassword(req, blogStore, securityStore, corsHeaders, clientIP);
+    }
+    
+    if (path === 'auth/verify-email') {
+      return await handleEmailVerification(req, blogStore, corsHeaders);
+    }
+
+    // Public endpoints (no auth required)
+    if (path === 'communities' && req.method === 'GET') {
+      return await handleGetCommunities(req, blogStore, corsHeaders);
+    }
+    
+    if (path.startsWith('communities/') && req.method === 'GET') {
+      const communityName = path.split('/')[1];
+      if (path.endsWith('/posts')) {
+        return await handleCommunityPosts(req, blogStore, corsHeaders, communityName);
+      } else {
+        return await handleGetCommunity(req, blogStore, corsHeaders, communityName);
+      }
+    }
+
+    // Protected endpoints - validate authentication
+    const authResult = await validateSecureAuth(req, store, blogStore);
+    if (!authResult.valid) {
+      await logSecurityEvent(securityStore, {
+        type: 'auth_failure',
+        ip: clientIP,
+        path: path,
+        reason: authResult.error,
+        timestamp: new Date().toISOString()
+      });
+      
+      return new Response(
+        JSON.stringify({ error: authResult.error }),
+        { status: authResult.status, headers: corsHeaders }
+      );
+    }
+
+    // Update user's last activity
+    await updateUserActivity(store, authResult.user.username);
 
     // Admin endpoints (require admin privileges)
     if (path.startsWith('admin/')) {
       if (!authResult.user.isAdmin) {
+        await logSecurityEvent(securityStore, {
+          type: 'unauthorized_admin_access',
+          ip: clientIP,
+          username: authResult.user.username,
+          path: path,
+          timestamp: new Date().toISOString()
+        });
+        
         return new Response(
           JSON.stringify({ error: "Admin privileges required" }),
-          { status: 403, headers }
+          { status: 403, headers: corsHeaders }
         );
       }
       
-      switch (path) {
-        case 'admin/pending-users':
-          return await handlePendingUsers(req, blogStore, headers, authResult.user);
-        case 'admin/users':
-          return await handleAllUsers(req, blogStore, headers, authResult.user);
-        case 'admin/approve-user':
-          return await handleApproveUser(req, blogStore, headers, authResult.user);
-        case 'admin/reject-user':
-          return await handleRejectUser(req, blogStore, headers, authResult.user);
-        case 'admin/promote-user':
-          return await handlePromoteUser(req, blogStore, headers, authResult.user);
-        case 'admin/demote-user':
-          return await handleDemoteUser(req, blogStore, headers, authResult.user);
-        case 'admin/delete-user':
-          return await handleDeleteUser(req, blogStore, headers, authResult.user);
-        case 'admin/stats':
-          return await handleAdminStats(req, blogStore, headers, authResult.user);
-        case 'admin/communities':
-          return await handleAdminCommunities(req, blogStore, headers, authResult.user);
-        case 'admin/communities/delete':
-          return await handleDeleteCommunity(req, blogStore, headers, authResult.user);
-      }
+      return await handleAdminEndpoints(path, req, blogStore, securityStore, corsHeaders, authResult.user);
     }
 
-    // Regular authenticated routes
-    switch (path) {
-      case 'feeds/public':
-        return await handlePublicFeed(req, blogStore, headers, authResult.user);
-      case 'feeds/private':
-        return await handlePrivateFeed(req, blogStore, headers, authResult.user);
-      case 'feeds/following':
-        return await handleFollowingFeed(req, blogStore, headers, authResult.user);
-      case 'posts':
-        return await handlePosts(req, blogStore, headers, authResult.user);
-      case 'posts/create':
-        return await handleCreatePost(req, blogStore, headers, authResult.user);
-      case 'replies/create':
-        return await handleCreateReply(req, blogStore, headers, authResult.user);
-      case 'replies/delete':
-        return await handleDeleteReply(req, blogStore, headers, authResult.user);
-      case 'communities/follow':
-        return await handleFollowCommunity(req, blogStore, headers, authResult.user);
-      case 'communities/following':
-        return await handleGetFollowedCommunities(req, blogStore, headers, authResult.user);
-      case 'likes/toggle':
-        return await handleToggleLike(req, blogStore, headers, authResult.user);
-      case 'profile':
-        return await handleProfile(req, blogStore, headers, authResult.user);
-      case 'profile/update':
-        return await handleProfileUpdate(req, blogStore, headers, authResult.user);
-      default:
-        // Handle dynamic routes
-        if (path.startsWith('posts/') && path !== 'posts/create') {
-          if (path.endsWith('/likes')) {
-            return await handlePostLikes(req, blogStore, headers, authResult.user, path);
-          }
-          if (path.endsWith('/edit')) {
-            return await handleEditPost(req, blogStore, headers, authResult.user, path);
-          }
-          return await handlePostOperations(req, blogStore, headers, authResult.user, path);
-        }
-        return await handleDefault(req, headers);
+    // Security endpoints
+    if (path === 'security/sessions') {
+      return await handleUserSessions(req, store, corsHeaders, authResult.user);
     }
+    
+    if (path === 'security/change-password') {
+      return await handleChangePassword(req, blogStore, securityStore, corsHeaders, authResult.user, clientIP);
+    }
+    
+    if (path === 'security/login-history') {
+      return await handleLoginHistory(req, securityStore, corsHeaders, authResult.user);
+    }
+
+    // Regular authenticated endpoints
+    return await handleAuthenticatedEndpoints(path, req, blogStore, store, corsHeaders, authResult.user);
 
   } catch (error) {
     console.error("API error:", error);
+    
+    // Log security incident
+    await logSecurityEvent(securityStore, {
+      type: 'api_error',
+      ip: getClientIP(req),
+      error: error.message,
+      stack: error.stack,
+      timestamp: new Date().toISOString()
+    });
+    
     return new Response(
-      JSON.stringify({ error: "Internal server error", details: error.message }),
-      { status: 500, headers }
+      JSON.stringify({ 
+        error: "Internal server error", 
+        id: crypto.randomUUID() // Error tracking ID
+      }),
+      { status: 500, headers: corsHeaders }
     );
   }
 };
 
-// ENHANCED MEDIA DETECTION HANDLERS
+// ==============================================
+// SECURE AUTHENTICATION HANDLERS
+// ==============================================
 
-async function handleMediaDetection(req, headers) {
+async function handleSecureRegister(req, blogStore, securityStore, headers, clientIP) {
   if (req.method !== 'POST') {
     return new Response(
       JSON.stringify({ error: "Method not allowed" }),
@@ -192,1650 +228,87 @@ async function handleMediaDetection(req, headers) {
   }
 
   try {
-    const { url } = await req.json();
+    const { username, password, bio, email } = await req.json();
 
-    if (!url) {
+    // Input validation
+    const validation = validateRegistrationInput({ username, password, bio, email });
+    if (!validation.valid) {
       return new Response(
-        JSON.stringify({ error: "URL is required" }),
+        JSON.stringify({ error: validation.error }),
         { status: 400, headers }
       );
     }
 
-    const mediaInfo = detectMediaType(url);
-    
-    return new Response(
-      JSON.stringify({
-        success: true,
-        url: url,
-        mediaType: mediaInfo.type,
-        platform: mediaInfo.platform,
-        canEmbed: mediaInfo.embed,
-        metadata: {
-          isVideo: mediaInfo.type === 'video',
-          isAudio: mediaInfo.type === 'audio',
-          isImage: mediaInfo.type === 'image',
-          isWebsite: mediaInfo.type === 'website',
-          requiresNewTab: true
-        }
-      }),
-      { status: 200, headers }
-    );
-
-  } catch (error) {
-    console.error("Media detection error:", error);
-    return new Response(
-      JSON.stringify({ 
-        error: "Failed to analyze media", 
-        details: error.message 
-      }),
-      { status: 500, headers }
-    );
-  }
-}
-
-// Enhanced detectMediaType function
-function detectMediaType(url) {
-  if (!url) return { type: 'text', embed: false, platform: null };
-
-  // YouTube
-  if (url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)/)) {
-    return { type: 'video', embed: true, platform: 'youtube' };
-  }
-
-  // Dailymotion
-  if (url.match(/(?:dailymotion\.com\/video\/|dai\.ly\/)/)) {
-    return { type: 'video', embed: true, platform: 'dailymotion' };
-  }
-
-  // Suno
-  if (url.match(/suno\.com\/song\//)) {
-    return { type: 'audio', embed: true, platform: 'suno' };
-  }
-
-  // Direct media files
-  if (url.match(/\.(jpg|jpeg|png|gif|webp|svg)(\?.*)?$/i)) {
-    return { type: 'image', embed: true, platform: 'direct' };
-  }
-
-  if (url.match(/\.(mp4|webm|ogg|mov)(\?.*)?$/i)) {
-    return { type: 'video', embed: true, platform: 'direct' };
-  }
-
-  if (url.match(/\.(mp3|wav|ogg|m4a|aac|flac)(\?.*)?$/i)) {
-    return { type: 'audio', embed: true, platform: 'direct' };
-  }
-
-  // General website
-  if (url.match(/^https?:\/\/.+/i)) {
-    return { type: 'website', embed: true, platform: 'web' };
-  }
-
-  return { type: 'link', embed: false, platform: null };
-}
-
-// ADMIN USER MANAGEMENT HANDLERS
-
-async function handlePromoteUser(req, blogStore, headers, admin) {
-  if (req.method !== 'POST') {
-    return new Response(
-      JSON.stringify({ error: "Method not allowed" }),
-      { status: 405, headers }
-    );
-  }
-
-  try {
-    const { username } = await req.json();
-
-    if (!username) {
-      return new Response(
-        JSON.stringify({ error: "Username is required" }),
-        { status: 400, headers }
-      );
-    }
-
-    const user = await blogStore.get(`user_${username}`, { type: "json" });
-    if (!user) {
-      return new Response(
-        JSON.stringify({ error: "User not found" }),
-        { status: 404, headers }
-      );
-    }
-
-    if (user.isAdmin) {
-      return new Response(
-        JSON.stringify({ error: "User is already an admin" }),
-        { status: 400, headers }
-      );
-    }
-
-    const updatedUser = {
-      ...user,
-      isAdmin: true,
-      promotedAt: new Date().toISOString(),
-      promotedBy: admin.username
-    };
-
-    await blogStore.set(`user_${username}`, JSON.stringify(updatedUser));
-
-    return new Response(
-      JSON.stringify({
-        success: true,
-        message: `@${username} promoted to administrator`,
-        promotedUser: username,
-        promotedBy: admin.username
-      }),
-      { status: 200, headers }
-    );
-
-  } catch (error) {
-    console.error("Promote user error:", error);
-    return new Response(
-      JSON.stringify({ error: "Failed to promote user" }),
-      { status: 500, headers }
-    );
-  }
-}
-
-async function handleDemoteUser(req, blogStore, headers, admin) {
-  if (req.method !== 'POST') {
-    return new Response(
-      JSON.stringify({ error: "Method not allowed" }),
-      { status: 405, headers }
-    );
-  }
-
-  try {
-    const { username } = await req.json();
-
-    if (!username) {
-      return new Response(
-        JSON.stringify({ error: "Username is required" }),
-        { status: 400, headers }
-      );
-    }
-
-    // Check if trying to demote the protected admin
-    if (username === API_CONFIG.PROTECTED_ADMIN) {
-      return new Response(
-        JSON.stringify({ 
-          error: `@${API_CONFIG.PROTECTED_ADMIN} is a protected admin and cannot be demoted`,
-          protected: true
-        }),
-        { status: 403, headers }
-      );
-    }
-
-    const user = await blogStore.get(`user_${username}`, { type: "json" });
-    if (!user) {
-      return new Response(
-        JSON.stringify({ error: "User not found" }),
-        { status: 404, headers }
-      );
-    }
-
-    if (!user.isAdmin) {
-      return new Response(
-        JSON.stringify({ error: "User is not an admin" }),
-        { status: 400, headers }
-      );
-    }
-
-    // Prevent self-demotion
-    if (user.username === admin.username) {
-      return new Response(
-        JSON.stringify({ error: "Cannot demote yourself" }),
-        { status: 400, headers }
-      );
-    }
-
-    const updatedUser = {
-      ...user,
-      isAdmin: false,
-      demotedAt: new Date().toISOString(),
-      demotedBy: admin.username
-    };
-
-    await blogStore.set(`user_${username}`, JSON.stringify(updatedUser));
-
-    return new Response(
-      JSON.stringify({
-        success: true,
-        message: `@${username} admin privileges removed`,
-        demotedUser: username,
-        demotedBy: admin.username
-      }),
-      { status: 200, headers }
-    );
-
-  } catch (error) {
-    console.error("Demote user error:", error);
-    return new Response(
-      JSON.stringify({ error: "Failed to remove admin privileges" }),
-      { status: 500, headers }
-    );
-  }
-}
-
-// REPLY HANDLERS (IMPLEMENTED)
-
-async function handleCreateReply(req, blogStore, headers, user) {
-  if (req.method !== 'POST') {
-    return new Response(
-      JSON.stringify({ error: "Method not allowed" }),
-      { status: 405, headers }
-    );
-  }
-
-  try {
-    const { postId, content } = await req.json();
-
-    if (!postId || !content) {
-      return new Response(
-        JSON.stringify({ error: "Post ID and content are required" }),
-        { status: 400, headers }
-      );
-    }
-
-    if (content.trim().length === 0) {
-      return new Response(
-        JSON.stringify({ error: "Reply content cannot be empty" }),
-        { status: 400, headers }
-      );
-    }
-
-    if (content.length > 2000) {
-      return new Response(
-        JSON.stringify({ error: "Reply must be 2000 characters or less" }),
-        { status: 400, headers }
-      );
-    }
-
-    // Get the post
-    const post = await blogStore.get(postId, { type: "json" });
-    if (!post) {
-      return new Response(
-        JSON.stringify({ error: "Post not found" }),
-        { status: 404, headers }
-      );
-    }
-
-    // Create reply
-    const reply = {
-      id: `reply_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      author: user.username,
-      content: content.trim(),
-      timestamp: new Date().toISOString(),
-      postId: postId
-    };
-
-    // Add reply to post
-    if (!post.replies) {
-      post.replies = [];
-    }
-    post.replies.push(reply);
-
-    // Save updated post
-    await blogStore.set(postId, JSON.stringify(post));
-
-    return new Response(
-      JSON.stringify({
-        success: true,
-        message: "Reply created successfully",
-        reply: reply,
-        replyCount: post.replies.length
-      }),
-      { status: 201, headers }
-    );
-
-  } catch (error) {
-    console.error("Create reply error:", error);
-    return new Response(
-      JSON.stringify({ error: "Failed to create reply" }),
-      { status: 500, headers }
-    );
-  }
-}
-
-async function handleDeleteReply(req, blogStore, headers, user) {
-  if (req.method !== 'DELETE') {
-    return new Response(
-      JSON.stringify({ error: "Method not allowed" }),
-      { status: 405, headers }
-    );
-  }
-
-  try {
-    const { postId, replyId } = await req.json();
-
-    if (!postId || !replyId) {
-      return new Response(
-        JSON.stringify({ error: "Post ID and Reply ID are required" }),
-        { status: 400, headers }
-      );
-    }
-
-    // Get the post
-    const post = await blogStore.get(postId, { type: "json" });
-    if (!post) {
-      return new Response(
-        JSON.stringify({ error: "Post not found" }),
-        { status: 404, headers }
-      );
-    }
-
-    // Find reply
-    const replyIndex = post.replies.findIndex(r => r.id === replyId);
-    if (replyIndex === -1) {
-      return new Response(
-        JSON.stringify({ error: "Reply not found" }),
-        { status: 404, headers }
-      );
-    }
-
-    const reply = post.replies[replyIndex];
-
-    // Check permissions
-    if (reply.author !== user.username && !user.isAdmin) {
-      return new Response(
-        JSON.stringify({ error: "You can only delete your own replies" }),
-        { status: 403, headers }
-      );
-    }
-
-    // Remove reply
-    post.replies.splice(replyIndex, 1);
-
-    // Save updated post
-    await blogStore.set(postId, JSON.stringify(post));
-
-    return new Response(
-      JSON.stringify({
-        success: true,
-        message: "Reply deleted successfully",
-        replyCount: post.replies.length
-      }),
-      { status: 200, headers }
-    );
-
-  } catch (error) {
-    console.error("Delete reply error:", error);
-    return new Response(
-      JSON.stringify({ error: "Failed to delete reply" }),
-      { status: 500, headers }
-    );
-  }
-}
-
-// COMMUNITY FOLLOWING HANDLERS
-
-async function handleFollowCommunity(req, blogStore, headers, user) {
-  if (req.method !== 'POST') {
-    return new Response(
-      JSON.stringify({ error: "Method not allowed" }),
-      { status: 405, headers }
-    );
-  }
-
-  try {
-    const { communityName, action = 'toggle' } = await req.json();
-
-    if (!communityName) {
-      return new Response(
-        JSON.stringify({ error: "Community name is required" }),
-        { status: 400, headers }
-      );
-    }
-
-    // Check if community exists
-    const community = await blogStore.get(`community_${communityName}`, { type: "json" });
-    if (!community) {
-      return new Response(
-        JSON.stringify({ error: "Community not found" }),
-        { status: 404, headers }
-      );
-    }
-
-    // Get user's followed communities
-    let followedCommunities = await blogStore.get(`user_following_${user.username}`, { type: "json" }) || [];
-    
-    const isFollowing = followedCommunities.includes(communityName);
-    let newFollowStatus = false;
-
-    if (action === 'follow' || (action === 'toggle' && !isFollowing)) {
-      if (!isFollowing) {
-        followedCommunities.push(communityName);
-        newFollowStatus = true;
-      } else {
-        newFollowStatus = true; // Already following
-      }
-    } else if (action === 'unfollow' || (action === 'toggle' && isFollowing)) {
-      followedCommunities = followedCommunities.filter(name => name !== communityName);
-      newFollowStatus = false;
-    }
-
-    // Save updated following list
-    await blogStore.set(`user_following_${user.username}`, JSON.stringify(followedCommunities));
-
-    return new Response(
-      JSON.stringify({
-        success: true,
-        message: newFollowStatus ? `Now following c/${communityName}` : `Unfollowed c/${communityName}`,
-        following: newFollowStatus,
-        communityName: communityName,
-        totalFollowing: followedCommunities.length
-      }),
-      { status: 200, headers }
-    );
-
-  } catch (error) {
-    console.error("Follow community error:", error);
-    return new Response(
-      JSON.stringify({ error: "Failed to update follow status" }),
-      { status: 500, headers }
-    );
-  }
-}
-
-async function handleGetFollowedCommunities(req, blogStore, headers, user) {
-  if (req.method !== 'GET') {
-    return new Response(
-      JSON.stringify({ error: "Method not allowed" }),
-      { status: 405, headers }
-    );
-  }
-
-  try {
-    // Get user's followed communities
-    const followedCommunityNames = await blogStore.get(`user_following_${user.username}`, { type: "json" }) || [];
-    
-    // Get community details
-    const communities = [];
-    for (const communityName of followedCommunityNames) {
-      try {
-        const community = await blogStore.get(`community_${communityName}`, { type: "json" });
-        if (community) {
-          communities.push(community);
-        }
-      } catch (error) {
-        console.error(`Error loading community ${communityName}:`, error);
-      }
-    }
-
-    return new Response(
-      JSON.stringify({
-        success: true,
-        communities: communities.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)),
-        totalFollowing: communities.length
-      }),
-      { status: 200, headers }
-    );
-
-  } catch (error) {
-    console.error("Get followed communities error:", error);
-    return new Response(
-      JSON.stringify({ error: "Failed to get followed communities" }),
-      { status: 500, headers }
-    );
-  }
-}
-
-async function handleFollowingFeed(req, blogStore, headers, user) {
-  if (req.method !== 'GET') {
-    return new Response(
-      JSON.stringify({ error: "Method not allowed" }),
-      { status: 405, headers }
-    );
-  }
-
-  try {
-    const url = new URL(req.url);
-    const { page, limit, skip } = getPaginationParams(url);
-    const includeReplies = url.searchParams.get('includeReplies') !== 'false';
-
-    // Get user's followed communities
-    const followedCommunityNames = await blogStore.get(`user_following_${user.username}`, { type: "json" }) || [];
-
-    if (followedCommunityNames.length === 0) {
-      return new Response(
-        JSON.stringify({
-          success: true,
-          feed: "following",
-          posts: [],
-          pagination: createPaginationMeta(0, page, limit),
-          user: user.username,
-          followedCommunities: 0,
-          message: "You're not following any communities yet"
-        }),
-        { status: 200, headers }
-      );
-    }
-
-    // Get all posts
-    const { blobs } = await blogStore.list({ prefix: "post_" });
-    
-    const postPromises = blobs.map(async (blob) => {
-      try {
-        const post = await blogStore.get(blob.key, { type: "json" });
-        // Only include posts from followed communities that are not private
-        if (post && !post.isPrivate && post.communityName && followedCommunityNames.includes(post.communityName)) {
-          // Add community info
-          try {
-            const community = await blogStore.get(`community_${post.communityName}`, { type: "json" });
-            if (community) {
-              post.communityInfo = {
-                name: community.name,
-                displayName: community.displayName,
-                isPrivate: community.isPrivate
-              };
-            }
-          } catch (error) {
-            console.error(`Error loading community ${post.communityName}:`, error);
-          }
-
-          // Add like information
-          post.likes = post.likes || [];
-          post.likesCount = post.likes.length;
-          post.userLiked = post.likes.some(like => like.username === user.username);
-          
-          post.replies = post.replies || [];
-          post.replyCount = post.replies.length;
-          
-          if (!includeReplies) {
-            const replyCount = post.replies.length;
-            delete post.replies;
-            post.replyCount = replyCount;
-          }
-          
-          return post;
-        }
-        return null;
-      } catch (error) {
-        console.error(`Error loading post ${blob.key}:`, error);
-        return null;
-      }
-    });
-    
-    const loadedPosts = await Promise.all(postPromises);
-    const followingPosts = loadedPosts.filter(Boolean);
-    const sortedPosts = sortPostsByTimestamp(followingPosts);
-    const paginatedPosts = sortedPosts.slice(skip, skip + limit);
-    
-    // Enrich posts with author profile data
-    const enrichedPosts = await enrichPostsWithAuthorProfiles(paginatedPosts, blogStore);
-    
-    const paginationMeta = createPaginationMeta(sortedPosts.length, page, limit);
-
-    return new Response(
-      JSON.stringify({
-        success: true,
-        feed: "following",
-        posts: enrichedPosts,
-        pagination: paginationMeta,
-        user: user.username,
-        followedCommunities: followedCommunityNames.length,
-        includeReplies: includeReplies
-      }),
-      { status: 200, headers }
-    );
-
-  } catch (error) {
-    console.error("Following feed error:", error);
-    return new Response(
-      JSON.stringify({ error: "Failed to load following feed" }),
-      { status: 500, headers }
-    );
-  }
-}
-
-// COMMUNITY HANDLERS
-
-async function handleGetCommunities(req, blogStore, headers) {
-  if (req.method !== 'GET') {
-    return new Response(
-      JSON.stringify({ error: "Method not allowed" }),
-      { status: 405, headers }
-    );
-  }
-
-  try {
-    const url = new URL(req.url);
-    const { page, limit, skip } = getPaginationParams(url);
-
-    const { blobs } = await blogStore.list({ prefix: "community_" });
-    
-    if (blobs.length === 0) {
-      return new Response(
-        JSON.stringify({
-          success: true,
-          communities: [],
-          pagination: createPaginationMeta(0, page, limit)
-        }),
-        { status: 200, headers }
-      );
-    }
-
-    const communityPromises = blobs.map(async (blob) => {
-      try {
-        const community = await blogStore.get(blob.key, { type: "json" });
-        if (community) {
-          // Get post count for this community
-          const { blobs: postBlobs } = await blogStore.list({ prefix: "post_" });
-          let postCount = 0;
-          
-          for (const postBlob of postBlobs) {
-            try {
-              const post = await blogStore.get(postBlob.key, { type: "json" });
-              if (post && post.communityName === community.name && !post.isPrivate) {
-                postCount++;
-              }
-            } catch (error) {
-              console.error(`Error loading post ${postBlob.key}:`, error);
-            }
-          }
-          
-          return {
-            ...community,
-            postCount
-          };
-        }
-        return null;
-      } catch (error) {
-        console.error(`Error loading community ${blob.key}:`, error);
-        return null;
-      }
-    });
-    
-    const loadedCommunities = await Promise.all(communityPromises);
-    const communities = loadedCommunities
-      .filter(Boolean)
-      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-    
-    const paginatedCommunities = communities.slice(skip, skip + limit);
-    const paginationMeta = createPaginationMeta(communities.length, page, limit);
-
-    return new Response(
-      JSON.stringify({
-        success: true,
-        communities: paginatedCommunities,
-        pagination: paginationMeta
-      }),
-      { status: 200, headers }
-    );
-
-  } catch (error) {
-    console.error("Get communities error:", error);
-    return new Response(
-      JSON.stringify({ error: "Failed to load communities" }),
-      { status: 500, headers }
-    );
-  }
-}
-
-async function handleGetCommunity(req, blogStore, headers, communityName) {
-  if (req.method !== 'GET') {
-    return new Response(
-      JSON.stringify({ error: "Method not allowed" }),
-      { status: 405, headers }
-    );
-  }
-
-  try {
-    const community = await blogStore.get(`community_${communityName}`, { type: "json" });
-    
-    if (!community) {
-      return new Response(
-        JSON.stringify({ error: "Community not found" }),
-        { status: 404, headers }
-      );
-    }
-
-    // Get post count and member count
-    const { blobs: postBlobs } = await blogStore.list({ prefix: "post_" });
-    let postCount = 0;
-    
-    for (const postBlob of postBlobs) {
-      try {
-        const post = await blogStore.get(postBlob.key, { type: "json" });
-        if (post && post.communityName === community.name && !post.isPrivate) {
-          postCount++;
-        }
-      } catch (error) {
-        console.error(`Error loading post ${postBlob.key}:`, error);
-      }
-    }
-
-    return new Response(
-      JSON.stringify({
-        success: true,
-        community: {
-          ...community,
-          postCount,
-          memberCount: community.members ? community.members.length : 0
-        }
-      }),
-      { status: 200, headers }
-    );
-
-  } catch (error) {
-    console.error("Get community error:", error);
-    return new Response(
-      JSON.stringify({ error: "Failed to load community" }),
-      { status: 500, headers }
-    );
-  }
-}
-
-async function handleCreateCommunity(req, blogStore, headers, user) {
-  if (req.method !== 'POST') {
-    return new Response(
-      JSON.stringify({ error: "Method not allowed" }),
-      { status: 405, headers }
-    );
-  }
-
-  try {
-    const { name, displayName, description, isPrivate = false } = await req.json();
-
-    if (!name || !displayName) {
-      return new Response(
-        JSON.stringify({ error: "Name and display name are required" }),
-        { status: 400, headers }
-      );
-    }
-
-    // Validate community name (lowercase, no spaces, alphanumeric + underscores)
-    if (!/^[a-z0-9_]{3,25}$/.test(name)) {
-      return new Response(
-        JSON.stringify({ error: "Community name must be 3-25 characters, lowercase, alphanumeric and underscores only" }),
-        { status: 400, headers }
-      );
-    }
-
-    if (displayName.length > 50) {
-      return new Response(
-        JSON.stringify({ error: "Display name must be 50 characters or less" }),
-        { status: 400, headers }
-      );
-    }
-
-    if (description && description.length > 500) {
-      return new Response(
-        JSON.stringify({ error: "Description must be 500 characters or less" }),
-        { status: 400, headers }
-      );
-    }
-
-    // Check if community already exists
-    const existingCommunity = await blogStore.get(`community_${name}`, { type: "json" });
-    if (existingCommunity) {
-      return new Response(
-        JSON.stringify({ error: "Community name already exists" }),
-        { status: 409, headers }
-      );
-    }
-
-    const community = {
-      name,
-      displayName: displayName.trim(),
-      description: description ? description.trim() : '',
-      createdBy: user.username,
-      createdAt: new Date().toISOString(),
-      isPrivate: Boolean(isPrivate),
-      moderators: [user.username],
-      members: [user.username],
-      rules: [],
-      settings: {
-        allowImages: true,
-        allowLinks: true,
-        requireApproval: false
-      }
-    };
-
-    await blogStore.set(`community_${name}`, JSON.stringify(community));
-
-    return new Response(
-      JSON.stringify({
-        success: true,
-        message: "Community created successfully",
-        community: {
-          ...community,
-          postCount: 0,
-          memberCount: 1
-        }
-      }),
-      { status: 201, headers }
-    );
-
-  } catch (error) {
-    console.error("Create community error:", error);
-    return new Response(
-      JSON.stringify({ error: "Failed to create community" }),
-      { status: 500, headers }
-    );
-  }
-}
-
-async function handleCommunityPosts(req, blogStore, headers, communityName) {
-  if (req.method !== 'GET') {
-    return new Response(
-      JSON.stringify({ error: "Method not allowed" }),
-      { status: 405, headers }
-    );
-  }
-
-  try {
-    const url = new URL(req.url);
-    const { page, limit, skip } = getPaginationParams(url);
-    const includeReplies = url.searchParams.get('includeReplies') !== 'false';
-
-    // Check if community exists
-    const community = await blogStore.get(`community_${communityName}`, { type: "json" });
-    if (!community) {
-      return new Response(
-        JSON.stringify({ error: "Community not found" }),
-        { status: 404, headers }
-      );
-    }
-
-    const { blobs } = await blogStore.list({ prefix: "post_" });
-    
-    if (blobs.length === 0) {
-      return new Response(
-        JSON.stringify({
-          success: true,
-          community: community,
-          posts: [],
-          pagination: createPaginationMeta(0, page, limit)
-        }),
-        { status: 200, headers }
-      );
-    }
-
-    const postPromises = blobs.map(async (blob) => {
-      try {
-        const post = await blogStore.get(blob.key, { type: "json" });
-        if (post && post.communityName === communityName && !post.isPrivate) {
-          // Add like information
-          post.likes = post.likes || [];
-          post.likesCount = post.likes.length;
-          
-          post.replies = post.replies || [];
-          post.replyCount = post.replies.length;
-          
-          if (!includeReplies) {
-            const replyCount = post.replies.length;
-            delete post.replies;
-            post.replyCount = replyCount;
-          }
-          
-          return post;
-        }
-        return null;
-      } catch (error) {
-        console.error(`Error loading post ${blob.key}:`, error);
-        return null;
-      }
-    });
-    
-    const loadedPosts = await Promise.all(postPromises);
-    const communityPosts = loadedPosts.filter(Boolean);
-    const sortedPosts = sortPostsByTimestamp(communityPosts);
-    const paginatedPosts = sortedPosts.slice(skip, skip + limit);
-    
-    // Enrich posts with author profile data
-    const enrichedPosts = await enrichPostsWithAuthorProfiles(paginatedPosts, blogStore);
-    
-    const paginationMeta = createPaginationMeta(sortedPosts.length, page, limit);
-
-    return new Response(
-      JSON.stringify({
-        success: true,
-        community: community,
-        posts: enrichedPosts,
-        pagination: paginationMeta,
-        includeReplies: includeReplies
-      }),
-      { status: 200, headers }
-    );
-
-  } catch (error) {
-    console.error("Get community posts error:", error);
-    return new Response(
-      JSON.stringify({ error: "Failed to load community posts" }),
-      { status: 500, headers }
-    );
-  }
-}
-
-// UPDATED POST CREATION WITH COMMUNITY SUPPORT AND ENHANCED MEDIA DETECTION
-async function handleCreatePost(req, blogStore, headers, user) {
-  if (req.method !== 'POST') {
-    return new Response(
-      JSON.stringify({ error: "Method not allowed" }),
-      { status: 405, headers }
-    );
-  }
-
-  try {
-    const { title, content, type = "text", url, description, isPrivate = false, communityName } = await req.json();
-
-    if (!title) {
-      return new Response(
-        JSON.stringify({ error: "Title is required" }),
-        { status: 400, headers }
-      );
-    }
-
-    if (title.length > 200) {
-      return new Response(
-        JSON.stringify({ error: "Title must be 200 characters or less" }),
-        { status: 400, headers }
-      );
-    }
-
-    // Validate community if specified
-    if (communityName) {
-      const community = await blogStore.get(`community_${communityName}`, { type: "json" });
-      if (!community) {
-        return new Response(
-          JSON.stringify({ error: "Community not found" }),
-          { status: 404, headers }
-        );
-      }
-      
-      // Check if user can post to this community
-      if (community.isPrivate && !community.members.includes(user.username)) {
-        return new Response(
-          JSON.stringify({ error: "You are not a member of this private community" }),
-          { status: 403, headers }
-        );
-      }
-    }
-
-    if (type === "text") {
-      if (!content) {
-        return new Response(
-          JSON.stringify({ error: "Content is required for text posts" }),
-          { status: 400, headers }
-        );
-      }
-      if (content.length > 10000) {
-        return new Response(
-          JSON.stringify({ error: "Content must be 10,000 characters or less" }),
-          { status: 400, headers }
-        );
-      }
-    } else if (type === "link") {
-      if (!url) {
-        return new Response(
-          JSON.stringify({ error: "URL is required for link posts" }),
-          { status: 400, headers }
-        );
-      }
-      
-      try {
-        new URL(url);
-      } catch {
-        return new Response(
-          JSON.stringify({ error: "Invalid URL format" }),
-          { status: 400, headers }
-        );
-      }
-      
-      if (description && description.length > 2000) {
-        return new Response(
-          JSON.stringify({ error: "Description must be 2,000 characters or less" }),
-          { status: 400, headers }
-        );
-      }
-    } else {
-      return new Response(
-        JSON.stringify({ error: "Post type must be 'text' or 'link'" }),
-        { status: 400, headers }
-      );
-    }
-
-    const post = {
-      id: `post_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      type: type,
-      title: title.trim(),
-      author: user.username,
-      timestamp: new Date().toISOString(),
-      isPrivate: Boolean(isPrivate),
-      replies: [],
-      likes: [],
-      communityName: communityName || null,
-      createdViaAPI: true
-    };
-
-    if (type === "text") {
-      post.content = content.trim();
-    } else if (type === "link") {
-      post.url = url.trim();
-      if (description) {
-        post.description = description.trim();
-      }
-      
-      // Enhanced media detection
-      const mediaInfo = detectMediaType(url);
-      post.mediaType = mediaInfo.type;
-      post.canEmbed = mediaInfo.embed;
-      post.platform = mediaInfo.platform;
-    }
-
-    await blogStore.set(post.id, JSON.stringify(post));
-
-    // Add like information for response
-    post.likesCount = 0;
-    post.userLiked = false;
-
-    // Enrich with author profile data
-    const enrichedPost = await enrichPostWithAuthorProfile(post, blogStore);
-
-    return new Response(
-      JSON.stringify({
-        success: true,
-        message: "Post created successfully",
-        post: enrichedPost
-      }),
-      { status: 201, headers }
-    );
-
-  } catch (error) {
-    console.error("Create post error:", error);
-    return new Response(
-      JSON.stringify({ error: "Failed to create post" }),
-      { status: 500, headers }
-    );
-  }
-}
-
-// UPDATED FEED HANDLERS WITH COMMUNITY INFO
-async function handlePublicFeed(req, blogStore, headers, user) {
-  if (req.method !== 'GET') {
-    return new Response(
-      JSON.stringify({ error: "Method not allowed" }),
-      { status: 405, headers }
-    );
-  }
-
-  try {
-    const url = new URL(req.url);
-    const { page, limit, skip } = getPaginationParams(url);
-    const includeReplies = url.searchParams.get('includeReplies') !== 'false';
-
-    const { blobs } = await blogStore.list({ prefix: "post_" });
-    
-    if (blobs.length === 0) {
-      return new Response(
-        JSON.stringify({
-          success: true,
-          feed: "public",
-          posts: [],
-          pagination: createPaginationMeta(0, page, limit),
-          user: user.username
-        }),
-        { status: 200, headers }
-      );
-    }
-
-    const postPromises = blobs.map(async (blob) => {
-      try {
-        const post = await blogStore.get(blob.key, { type: "json" });
-        if (post && !post.isPrivate) {
-          // Add community info if post belongs to a community
-          if (post.communityName) {
-            try {
-              const community = await blogStore.get(`community_${post.communityName}`, { type: "json" });
-              if (community) {
-                post.communityInfo = {
-                  name: community.name,
-                  displayName: community.displayName,
-                  isPrivate: community.isPrivate
-                };
-              }
-            } catch (error) {
-              console.error(`Error loading community ${post.communityName}:`, error);
-            }
-          }
-
-          // Add like information
-          post.likes = post.likes || [];
-          post.likesCount = post.likes.length;
-          post.userLiked = post.likes.some(like => like.username === user.username);
-          
-          post.replies = post.replies || [];
-          post.replyCount = post.replies.length;
-          
-          if (!includeReplies) {
-            const replyCount = post.replies.length;
-            delete post.replies;
-            post.replyCount = replyCount;
-          }
-          
-          return post;
-        }
-        return null;
-      } catch (error) {
-        console.error(`Error loading post ${blob.key}:`, error);
-        return null;
-      }
-    });
-    
-    const loadedPosts = await Promise.all(postPromises);
-    const publicPosts = loadedPosts.filter(Boolean);
-    const sortedPosts = sortPostsByTimestamp(publicPosts);
-    const paginatedPosts = sortedPosts.slice(skip, skip + limit);
-    
-    // Enrich posts with author profile data
-    const enrichedPosts = await enrichPostsWithAuthorProfiles(paginatedPosts, blogStore);
-    
-    const paginationMeta = createPaginationMeta(sortedPosts.length, page, limit);
-
-    return new Response(
-      JSON.stringify({
-        success: true,
-        feed: "public",
-        posts: enrichedPosts,
-        pagination: paginationMeta,
-        user: user.username,
-        includeReplies: includeReplies
-      }),
-      { status: 200, headers }
-    );
-
-  } catch (error) {
-    console.error("Public feed error:", error);
-    return new Response(
-      JSON.stringify({ error: "Failed to load public feed" }),
-      { status: 500, headers }
-    );
-  }
-}
-
-async function handlePrivateFeed(req, blogStore, headers, user) {
-  if (req.method !== 'GET') {
-    return new Response(
-      JSON.stringify({ error: "Method not allowed" }),
-      { status: 405, headers }
-    );
-  }
-
-  try {
-    const url = new URL(req.url);
-    const { page, limit, skip } = getPaginationParams(url);
-    const includeReplies = url.searchParams.get('includeReplies') !== 'false';
-
-    const { blobs } = await blogStore.list({ prefix: "post_" });
-    
-    if (blobs.length === 0) {
-      return new Response(
-        JSON.stringify({
-          success: true,
-          feed: "private",
-          posts: [],
-          pagination: createPaginationMeta(0, page, limit),
-          user: user.username
-        }),
-        { status: 200, headers }
-      );
-    }
-
-    const postPromises = blobs.map(async (blob) => {
-      try {
-        const post = await blogStore.get(blob.key, { type: "json" });
-        if (post && post.isPrivate && post.author === user.username) {
-          // Add community info if post belongs to a community
-          if (post.communityName) {
-            try {
-              const community = await blogStore.get(`community_${post.communityName}`, { type: "json" });
-              if (community) {
-                post.communityInfo = {
-                  name: community.name,
-                  displayName: community.displayName,
-                  isPrivate: community.isPrivate
-                };
-              }
-            } catch (error) {
-              console.error(`Error loading community ${post.communityName}:`, error);
-            }
-          }
-
-          // Add like information
-          post.likes = post.likes || [];
-          post.likesCount = post.likes.length;
-          post.userLiked = post.likes.some(like => like.username === user.username);
-          
-          post.replies = post.replies || [];
-          post.replyCount = post.replies.length;
-          
-          if (!includeReplies) {
-            const replyCount = post.replies.length;
-            delete post.replies;
-            post.replyCount = replyCount;
-          }
-          
-          return post;
-        }
-        return null;
-      } catch (error) {
-        console.error(`Error loading post ${blob.key}:`, error);
-        return null;
-      }
-    });
-    
-    const loadedPosts = await Promise.all(postPromises);
-    const privatePosts = loadedPosts.filter(Boolean);
-    const sortedPosts = sortPostsByTimestamp(privatePosts);
-    const paginatedPosts = sortedPosts.slice(skip, skip + limit);
-    
-    // Enrich posts with author profile data
-    const enrichedPosts = await enrichPostsWithAuthorProfiles(paginatedPosts, blogStore);
-    
-    const paginationMeta = createPaginationMeta(sortedPosts.length, page, limit);
-
-    return new Response(
-      JSON.stringify({
-        success: true,
-        feed: "private",
-        posts: enrichedPosts,
-        pagination: paginationMeta,
-        user: user.username,
-        includeReplies: includeReplies
-      }),
-      { status: 200, headers }
-    );
-
-  } catch (error) {
-    console.error("Private feed error:", error);
-    return new Response(
-      JSON.stringify({ error: "Failed to load private feed" }),
-      { status: 500, headers }
-    );
-  }
-}
-
-// ADMIN COMMUNITY HANDLERS
-
-async function handleAdminCommunities(req, blogStore, headers, admin) {
-  if (req.method !== 'GET') {
-    return new Response(
-      JSON.stringify({ error: "Method not allowed" }),
-      { status: 405, headers }
-    );
-  }
-
-  try {
-    const { blobs } = await blogStore.list({ prefix: "community_" });
-    const communities = [];
-
-    for (const blob of blobs) {
-      try {
-        const community = await blogStore.get(blob.key, { type: "json" });
-        if (community) {
-          // Get post count for this community
-          const { blobs: postBlobs } = await blogStore.list({ prefix: "post_" });
-          let postCount = 0;
-          
-          for (const postBlob of postBlobs) {
-            try {
-              const post = await blogStore.get(postBlob.key, { type: "json" });
-              if (post && post.communityName === community.name) {
-                postCount++;
-              }
-            } catch (error) {
-              console.error(`Error loading post ${postBlob.key}:`, error);
-            }
-          }
-          
-          communities.push({
-            ...community,
-            postCount,
-            memberCount: community.members ? community.members.length : 0
-          });
-        }
-      } catch (error) {
-        console.error(`Error loading community ${blob.key}:`, error);
-      }
-    }
-
-    return new Response(
-      JSON.stringify({
-        success: true,
-        communities: communities.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-      }),
-      { status: 200, headers }
-    );
-
-  } catch (error) {
-    console.error("Get admin communities error:", error);
-    return new Response(
-      JSON.stringify({ error: "Failed to load communities" }),
-      { status: 500, headers }
-    );
-  }
-}
-
-async function handleDeleteCommunity(req, blogStore, headers, admin) {
-  if (req.method !== 'POST') {
-    return new Response(
-      JSON.stringify({ error: "Method not allowed" }),
-      { status: 405, headers }
-    );
-  }
-
-  try {
-    const { name } = await req.json();
-
-    if (!name) {
-      return new Response(
-        JSON.stringify({ error: "Community name is required" }),
-        { status: 400, headers }
-      );
-    }
-
-    // Get community to verify it exists
-    const community = await blogStore.get(`community_${name}`, { type: "json" });
-    if (!community) {
-      return new Response(
-        JSON.stringify({ error: "Community not found" }),
-        { status: 404, headers }
-      );
-    }
-
-    // Delete all posts in this community
-    const { blobs } = await blogStore.list({ prefix: "post_" });
-    let deletedPosts = 0;
-
-    for (const blob of blobs) {
-      try {
-        const post = await blogStore.get(blob.key, { type: "json" });
-        if (post && post.communityName === name) {
-          await blogStore.delete(blob.key);
-          deletedPosts++;
-        }
-      } catch (error) {
-        console.error(`Error deleting post ${blob.key}:`, error);
-      }
-    }
-
-    // Delete community
-    await blogStore.delete(`community_${name}`);
-
-    return new Response(
-      JSON.stringify({
-        success: true,
-        message: "Community and all associated posts deleted successfully",
-        deletedCommunity: name,
-        deletedPosts: deletedPosts,
-        deletedBy: admin.username
-      }),
-      { status: 200, headers }
-    );
-
-  } catch (error) {
-    console.error("Delete community error:", error);
-    return new Response(
-      JSON.stringify({ error: "Failed to delete community" }),
-      { status: 500, headers }
-    );
-  }
-}
-
-// UPDATED DOCUMENTATION
-async function handleDefault(req, headers) {
-  const docs = {
-    message: "Blog API v6.0 - Now with Enhanced Media Support! 🎥🎵🌐",
-    endpoints: {
-      // Authentication
-      "POST /api/auth/login": "Login with username/password",
-      "POST /api/auth/register": "Register new account (requires admin approval)",
-      "POST /api/auth/logout": "Logout (invalidate session)",
-      
-      // Community endpoints (public reading, auth required for creation)
-      "GET /api/communities": "Get all communities with pagination and post counts",
-      "POST /api/communities": "Create a new community (requires authentication)",
-      "GET /api/communities/{name}": "Get specific community details",
-      "GET /api/communities/{name}/posts": "Get all posts in a community",
-      
-      // Community Following (requires auth)
-      "POST /api/communities/follow": "Follow or unfollow a community",
-      "GET /api/communities/following": "Get user's followed communities",
-      "GET /api/feeds/following": "Get posts from followed communities",
-      
-      // Admin community endpoints
-      "GET /api/admin/communities": "Get all communities for admin management",
-      "POST /api/admin/communities/delete": "Delete community and all its posts",
-      
-      // Admin endpoints (require admin privileges)
-      "GET /api/admin/pending-users": "Get all users pending approval",
-      "GET /api/admin/users": "Get all approved users with post counts",
-      "POST /api/admin/approve-user": "Approve a pending user",
-      "POST /api/admin/reject-user": "Reject a pending user",
-      "POST /api/admin/promote-user": "Promote user to admin",
-      "POST /api/admin/demote-user": "Remove admin privileges (protects @dumbass)",
-      "POST /api/admin/delete-user": "Delete user and all their posts",
-      "GET /api/admin/stats": "Get admin dashboard statistics",
-      
-      // Enhanced Media Detection
-      "POST /api/media/detect": "Detect media type and generate embed info for YouTube, Dailymotion, Suno, images, videos, audio, and websites",
-      
-      // Search endpoint
-      "GET /api/search/posts": "Search public posts",
-      
-      // Feeds (requires auth) - now include community info
-      "GET /api/feeds/public": "Get public posts feed with community information",
-      "GET /api/feeds/private": "Get user's private posts",
-      "GET /api/feeds/following": "Get posts from followed communities",
-      
-      // Posts (requires auth) - now support community posting and enhanced media
-      "POST /api/posts/create": "Create new post with enhanced media detection (YouTube, Dailymotion, Suno, etc.)",
-      "GET /api/posts": "Get user's posts with pagination",
-      "GET /api/posts/{postId}": "Get specific post by ID",
-      "PUT /api/posts/{postId}/edit": "Edit specific post",
-      "DELETE /api/posts/{postId}": "Delete specific post",
-      
-      // Like endpoints
-      "POST /api/likes/toggle": "Like or unlike a post",
-      "GET /api/posts/{postId}/likes": "Get all likes for a specific post",
-      
-      // Replies/Comments (requires auth) - FULLY IMPLEMENTED
-      "POST /api/replies/create": "Create reply to a post",
-      "DELETE /api/replies/delete": "Delete a reply",
-      
-      // Profile (requires auth)
-      "GET /api/profile": "Get user profile with stats",
-      "PUT /api/profile/update": "Update user profile"
-    },
-    newFeaturesV6: {
-      enhancedMediaSupport: {
-        description: "Comprehensive media support with intelligent embedding! 🎥🎵🌐",
-        supportedPlatforms: [
-          "YouTube videos (youtube.com, youtu.be)",
-          "Dailymotion videos (dailymotion.com, dai.ly)",
-          "Suno AI music (suno.com/song/)",
-          "Direct images (jpg, png, gif, webp, svg)",
-          "Direct videos (mp4, webm, ogg, mov)",
-          "Direct audio (mp3, wav, ogg, m4a, aac, flac)",
-          "General websites with favicon and preview cards"
-        ],
-        features: [
-          "Automatic platform detection and embedding",
-          "Responsive video players with 16:9 aspect ratio",
-          "Custom Suno music cards with gradient backgrounds",
-          "Audio players for direct audio files",
-          "Interactive website preview cards with hover effects",
-          "Clickable image modals with full-screen viewing",
-          "Favicon integration for website previews",
-          "Mobile-optimized responsive design"
-        ]
-      },
-      adminUserManagement: {
-        description: "Full admin user management with protected admin! 👑",
-        features: [
-          "Promote regular users to admin status",
-          "Demote admins back to regular users",
-          "Protected admin (@dumbass) cannot be demoted by anyone",
-          "Self-demotion prevention for security",
-          "Track promotion/demotion history with timestamps",
-          "Admin action logging and attribution"
-        ]
-      },
-      communities: {
-        description: "Create and manage communities for organized discussions! 🏘️",
-        features: [
-          "Create communities with unique names and display names",
-          "Post to specific communities or general feed",
-          "View all posts within a community",
-          "Community metadata (member count, post count)",
-          "Private communities (coming soon)",
-          "Community moderation tools (admin only)"
-        ]
-      },
-      following: {
-        description: "Follow communities and get personalized feeds! 👥",
-        features: [
-          "Follow/unfollow any public community",
-          "Personal following feed with posts from followed communities",
-          "Track following count and community details",
-          "Toggle follow status with single API call"
-        ]
-      }
-    },
-    mediaSupport: {
-      youtube: {
-        patterns: ["youtube.com/watch?v=", "youtu.be/"],
-        embedding: "Full embedded player with controls"
-      },
-      dailymotion: {
-        patterns: ["dailymotion.com/video/", "dai.ly/"],
-        embedding: "Full embedded player with controls"
-      },
-      suno: {
-        patterns: ["suno.com/song/"],
-        embedding: "Custom music card with link to Suno"
-      },
-      directMedia: {
-        images: ["jpg", "jpeg", "png", "gif", "webp", "svg"],
-        videos: ["mp4", "webm", "ogg", "mov"],
-        audio: ["mp3", "wav", "ogg", "m4a", "aac", "flac"],
-        embedding: "Native browser controls with custom styling"
-      },
-      websites: {
-        pattern: "Any valid HTTP/HTTPS URL",
-        embedding: "Preview card with favicon, domain, and hover effects"
-      }
-    }
-  };
-
-  return new Response(
-    JSON.stringify(docs, null, 2),
-    { status: 200, headers }
-  );
-}
-
-// UTILITY FUNCTIONS
-
-async function enrichPostWithAuthorProfile(post, blogStore) {
-  if (!post || !post.author) {
-    return post;
-  }
-
-  try {
-    const authorProfile = await blogStore.get(`user_${post.author}`, { type: "json" });
-    
-    if (authorProfile) {
-      post.authorProfile = {
-        username: authorProfile.username,
-        bio: authorProfile.bio,
-        profilePictureUrl: authorProfile.profilePictureUrl,
-        isAdmin: authorProfile.isAdmin || false
-      };
-    } else {
-      post.authorProfile = {
-        username: post.author,
-        bio: null,
-        profilePictureUrl: null,
-        isAdmin: false
-      };
-    }
-  } catch (error) {
-    console.error(`Error loading author profile for ${post.author}:`, error);
-    post.authorProfile = {
-      username: post.author,
-      bio: null,
-      profilePictureUrl: null,
-      isAdmin: false
-    };
-  }
-
-  return post;
-}
-
-async function enrichPostsWithAuthorProfiles(posts, blogStore) {
-  if (!posts || !Array.isArray(posts)) {
-    return posts;
-  }
-
-  const enrichmentPromises = posts.map(post => enrichPostWithAuthorProfile(post, blogStore));
-  return await Promise.all(enrichmentPromises);
-}
-
-// AUTH HANDLERS
-async function handleRegister(req, blogStore, headers) {
-  if (req.method !== 'POST') {
-    return new Response(
-      JSON.stringify({ error: "Method not allowed" }),
-      { status: 405, headers }
-    );
-  }
-
-  try {
-    const { username, password, bio } = await req.json();
-
-    if (!username || !password) {
-      return new Response(
-        JSON.stringify({ error: "Username and password required" }),
-        { status: 400, headers }
-      );
-    }
-
-    if (username.length < 3 || password.length < 6) {
-      return new Response(
-        JSON.stringify({ error: "Username must be 3+ chars, password 6+ chars" }),
-        { status: 400, headers }
-      );
-    }
-
+    // Check for existing users
     const [existingUser, pendingUser] = await Promise.all([
       blogStore.get(`user_${username}`, { type: "json" }),
       blogStore.get(`pending_user_${username}`, { type: "json" })
     ]);
 
     if (existingUser || pendingUser) {
+      await logSecurityEvent(securityStore, {
+        type: 'registration_attempt_duplicate',
+        ip: clientIP,
+        username: username,
+        timestamp: new Date().toISOString()
+      });
+      
       return new Response(
         JSON.stringify({ error: "Username already exists or is pending approval" }),
         { status: 409, headers }
       );
     }
 
+    // Hash password securely
+    const saltRounds = 12;
+    const passwordHash = await bcrypt.hash(password, saltRounds);
+    const salt = await bcrypt.genSalt(saltRounds);
+
+    // Generate verification token
+    const verificationToken = crypto.randomBytes(32).toString('hex');
+    const verificationExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
     const pendingUserData = {
+      id: crypto.randomUUID(),
       username,
-      password,
+      email: email || null,
+      passwordHash,
+      passwordSalt: salt,
       bio: bio || `Hello! I'm ${username}`,
       createdAt: new Date().toISOString(),
       status: 'pending',
-      isAdmin: false
+      isAdmin: false,
+      emailVerified: false,
+      verificationToken,
+      verificationExpiry: verificationExpiry.toISOString(),
+      registrationIP: clientIP,
+      failedLoginAttempts: 0,
+      lockedUntil: null,
+      securityEvents: [],
+      settings: {
+        twoFactorEnabled: false,
+        sessionTimeout: SECURITY_CONFIG.ACCESS_TOKEN_LIFETIME
+      }
     };
 
     await blogStore.set(`pending_user_${username}`, JSON.stringify(pendingUserData));
+
+    // Log successful registration
+    await logSecurityEvent(securityStore, {
+      type: 'user_registration',
+      ip: clientIP,
+      username: username,
+      email: email || null,
+      timestamp: new Date().toISOString()
+    });
 
     return new Response(
       JSON.stringify({
         success: true,
         message: "Registration submitted for admin approval",
         status: "pending",
-        username: username
+        username: username,
+        emailVerificationRequired: !!email
       }),
       { status: 201, headers }
     );
@@ -1849,7 +322,7 @@ async function handleRegister(req, blogStore, headers) {
   }
 }
 
-async function handleLogin(req, blogStore, headers) {
+async function handleSecureLogin(req, blogStore, securityStore, headers, clientIP) {
   if (req.method !== 'POST') {
     return new Response(
       JSON.stringify({ error: "Method not allowed" }),
@@ -1858,7 +331,7 @@ async function handleLogin(req, blogStore, headers) {
   }
 
   try {
-    const { username, password } = await req.json();
+    const { username, password, rememberMe = false } = await req.json();
 
     if (!username || !password) {
       return new Response(
@@ -1867,16 +340,32 @@ async function handleLogin(req, blogStore, headers) {
       );
     }
 
+    // Check for account lockout
     const user = await blogStore.get(`user_${username}`, { type: "json" });
     
-    if (!user || user.password !== password) {
+    if (!user) {
+      // Check if user is pending
       const pendingUser = await blogStore.get(`pending_user_${username}`, { type: "json" });
       if (pendingUser) {
+        await logSecurityEvent(securityStore, {
+          type: 'login_attempt_pending',
+          ip: clientIP,
+          username: username,
+          timestamp: new Date().toISOString()
+        });
+        
         return new Response(
           JSON.stringify({ error: "Your account is pending admin approval" }),
           { status: 401, headers }
         );
       }
+      
+      await logSecurityEvent(securityStore, {
+        type: 'login_attempt_invalid_user',
+        ip: clientIP,
+        username: username,
+        timestamp: new Date().toISOString()
+      });
       
       return new Response(
         JSON.stringify({ error: "Invalid credentials" }),
@@ -1884,27 +373,144 @@ async function handleLogin(req, blogStore, headers) {
       );
     }
 
-    const sessionToken = `session_${Date.now()}_${Math.random().toString(36).substr(2, 12)}`;
+    // Check account lockout
+    if (user.lockedUntil && new Date(user.lockedUntil) > new Date()) {
+      await logSecurityEvent(securityStore, {
+        type: 'login_attempt_locked_account',
+        ip: clientIP,
+        username: username,
+        timestamp: new Date().toISOString()
+      });
+      
+      return new Response(
+        JSON.stringify({ 
+          error: "Account temporarily locked due to too many failed attempts",
+          lockedUntil: user.lockedUntil
+        }),
+        { status: 423, headers }
+      );
+    }
+
+    // Verify password
+    const passwordValid = await bcrypt.compare(password, user.passwordHash);
+    
+    if (!passwordValid) {
+      // Increment failed attempts
+      const failedAttempts = (user.failedLoginAttempts || 0) + 1;
+      const updatedUser = { ...user, failedLoginAttempts: failedAttempts };
+      
+      // Lock account if too many failures
+      if (failedAttempts >= SECURITY_CONFIG.MAX_FAILED_ATTEMPTS) {
+        updatedUser.lockedUntil = new Date(Date.now() + SECURITY_CONFIG.LOCKOUT_DURATION).toISOString();
+      }
+      
+      await blogStore.set(`user_${username}`, JSON.stringify(updatedUser));
+      
+      await logSecurityEvent(securityStore, {
+        type: 'login_attempt_invalid_password',
+        ip: clientIP,
+        username: username,
+        failedAttempts: failedAttempts,
+        accountLocked: failedAttempts >= SECURITY_CONFIG.MAX_FAILED_ATTEMPTS,
+        timestamp: new Date().toISOString()
+      });
+      
+      return new Response(
+        JSON.stringify({ error: "Invalid credentials" }),
+        { status: 401, headers }
+      );
+    }
+
+    // Successful login - reset failed attempts and clear lockout
+    const loginTime = new Date().toISOString();
+    const sessionId = crypto.randomUUID();
+    const deviceFingerprint = generateDeviceFingerprint(req);
+    
+    // Generate tokens
+    const tokenLifetime = rememberMe ? SECURITY_CONFIG.REMEMBER_ME_LIFETIME : SECURITY_CONFIG.REFRESH_TOKEN_LIFETIME;
+    
+    const accessToken = jwt.sign(
+      { 
+        userId: user.id,
+        username: user.username,
+        sessionId: sessionId,
+        type: 'access'
+      },
+      SECURITY_CONFIG.JWT_SECRET,
+      { expiresIn: SECURITY_CONFIG.ACCESS_TOKEN_LIFETIME }
+    );
+    
+    const refreshToken = jwt.sign(
+      {
+        userId: user.id,
+        username: user.username,
+        sessionId: sessionId,
+        type: 'refresh'
+      },
+      SECURITY_CONFIG.JWT_REFRESH_SECRET,
+      { expiresIn: tokenLifetime }
+    );
+
+    // Create session record
     const sessionData = {
-      token: sessionToken,
+      sessionId: sessionId,
+      userId: user.id,
       username: user.username,
-      createdAt: new Date().toISOString(),
-      expiresAt: new Date(Date.now() + API_CONFIG.SESSION_DURATION).toISOString(),
-      active: true
+      createdAt: loginTime,
+      lastActivity: loginTime,
+      expiresAt: new Date(Date.now() + (tokenLifetime * 1000)).toISOString(),
+      ip: clientIP,
+      userAgent: req.headers.get('User-Agent') || 'Unknown',
+      deviceFingerprint: deviceFingerprint,
+      active: true,
+      rememberMe: rememberMe
     };
 
+    // Store session
     const apiStore = getStore("blog-api-data");
-    await apiStore.set(`session_${sessionToken}`, JSON.stringify(sessionData));
+    await apiStore.set(`session_${sessionId}`, JSON.stringify(sessionData));
 
-    const { password: _, ...userProfile } = user;
+    // Clean up old sessions and enforce session limit
+    await cleanupUserSessions(apiStore, user.username, sessionId);
+
+    // Update user record
+    const updatedUser = {
+      ...user,
+      lastLogin: loginTime,
+      loginCount: (user.loginCount || 0) + 1,
+      failedLoginAttempts: 0,
+      lockedUntil: null,
+      lastIP: clientIP
+    };
+    
+    await blogStore.set(`user_${username}`, JSON.stringify(updatedUser));
+
+    // Log successful login
+    await logSecurityEvent(securityStore, {
+      type: 'user_login_success',
+      ip: clientIP,
+      username: username,
+      sessionId: sessionId,
+      deviceFingerprint: deviceFingerprint,
+      rememberMe: rememberMe,
+      timestamp: loginTime
+    });
+
+    // Remove sensitive data from response
+    const { passwordHash, passwordSalt, securityEvents, ...userProfile } = updatedUser;
 
     return new Response(
       JSON.stringify({
         success: true,
         message: "Login successful",
-        token: sessionToken,
+        accessToken: accessToken,
+        refreshToken: refreshToken,
         user: userProfile,
-        expiresAt: sessionData.expiresAt
+        session: {
+          id: sessionId,
+          expiresAt: sessionData.expiresAt,
+          rememberMe: rememberMe
+        }
       }),
       { status: 200, headers }
     );
@@ -1918,7 +524,7 @@ async function handleLogin(req, blogStore, headers) {
   }
 }
 
-async function handleLogout(req, store, headers) {
+async function handleTokenRefresh(req, store, headers) {
   if (req.method !== 'POST') {
     return new Response(
       JSON.stringify({ error: "Method not allowed" }),
@@ -1927,19 +533,132 @@ async function handleLogout(req, store, headers) {
   }
 
   try {
+    const { refreshToken } = await req.json();
+    
+    if (!refreshToken) {
+      return new Response(
+        JSON.stringify({ error: "Refresh token required" }),
+        { status: 400, headers }
+      );
+    }
+
+    // Verify refresh token
+    let decoded;
+    try {
+      decoded = jwt.verify(refreshToken, SECURITY_CONFIG.JWT_REFRESH_SECRET);
+    } catch (error) {
+      return new Response(
+        JSON.stringify({ error: "Invalid refresh token" }),
+        { status: 401, headers }
+      );
+    }
+
+    if (decoded.type !== 'refresh') {
+      return new Response(
+        JSON.stringify({ error: "Invalid token type" }),
+        { status: 401, headers }
+      );
+    }
+
+    // Check session exists and is active
+    const session = await store.get(`session_${decoded.sessionId}`, { type: "json" });
+    
+    if (!session || !session.active || new Date(session.expiresAt) < new Date()) {
+      return new Response(
+        JSON.stringify({ error: "Session expired or invalid" }),
+        { status: 401, headers }
+      );
+    }
+
+    // Generate new access token
+    const newAccessToken = jwt.sign(
+      { 
+        userId: decoded.userId,
+        username: decoded.username,
+        sessionId: decoded.sessionId,
+        type: 'access'
+      },
+      SECURITY_CONFIG.JWT_SECRET,
+      { expiresIn: SECURITY_CONFIG.ACCESS_TOKEN_LIFETIME }
+    );
+
+    // Update session activity
+    session.lastActivity = new Date().toISOString();
+    await store.set(`session_${decoded.sessionId}`, JSON.stringify(session));
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        accessToken: newAccessToken,
+        expiresIn: SECURITY_CONFIG.ACCESS_TOKEN_LIFETIME
+      }),
+      { status: 200, headers }
+    );
+
+  } catch (error) {
+    console.error("Token refresh error:", error);
+    return new Response(
+      JSON.stringify({ error: "Token refresh failed" }),
+      { status: 500, headers }
+    );
+  }
+}
+
+async function handleSecureLogout(req, store, securityStore, headers) {
+  if (req.method !== 'POST') {
+    return new Response(
+      JSON.stringify({ error: "Method not allowed" }),
+      { status: 405, headers }
+    );
+  }
+
+  try {
+    const { sessionId, logoutAll = false } = await req.json();
     const authHeader = req.headers.get("Authorization");
-    if (authHeader && authHeader.startsWith("Bearer ")) {
-      const token = authHeader.substring(7);
+    
+    let targetSessionId = sessionId;
+    
+    // If no sessionId provided, try to get from token
+    if (!targetSessionId && authHeader && authHeader.startsWith("Bearer ")) {
+      try {
+        const token = authHeader.substring(7);
+        const decoded = jwt.verify(token, SECURITY_CONFIG.JWT_SECRET);
+        targetSessionId = decoded.sessionId;
+      } catch (error) {
+        // Invalid token, continue with logout anyway
+      }
+    }
+
+    if (targetSessionId) {
+      const session = await store.get(`session_${targetSessionId}`, { type: "json" });
       
-      const sessionData = await store.get(`session_${token}`, { type: "json" });
-      if (sessionData) {
-        sessionData.active = false;
-        await store.set(`session_${token}`, JSON.stringify(sessionData));
+      if (session) {
+        if (logoutAll) {
+          // Logout from all sessions for this user
+          await logoutAllUserSessions(store, session.username);
+        } else {
+          // Logout from specific session
+          session.active = false;
+          session.loggedOutAt = new Date().toISOString();
+          await store.set(`session_${targetSessionId}`, JSON.stringify(session));
+        }
+
+        // Log logout event
+        await logSecurityEvent(securityStore, {
+          type: logoutAll ? 'user_logout_all' : 'user_logout',
+          username: session.username,
+          sessionId: targetSessionId,
+          ip: getClientIP(req),
+          timestamp: new Date().toISOString()
+        });
       }
     }
 
     return new Response(
-      JSON.stringify({ success: true, message: "Logged out successfully" }),
+      JSON.stringify({ 
+        success: true, 
+        message: logoutAll ? "Logged out from all devices" : "Logged out successfully" 
+      }),
       { status: 200, headers }
     );
 
@@ -1952,172 +671,601 @@ async function handleLogout(req, store, headers) {
   }
 }
 
-// Validate authentication
-async function validateAuth(req, store, blogStore) {
+async function handleChangePassword(req, blogStore, securityStore, headers, user, clientIP) {
+  if (req.method !== 'POST') {
+    return new Response(
+      JSON.stringify({ error: "Method not allowed" }),
+      { status: 405, headers }
+    );
+  }
+
+  try {
+    const { currentPassword, newPassword } = await req.json();
+
+    if (!currentPassword || !newPassword) {
+      return new Response(
+        JSON.stringify({ error: "Current password and new password required" }),
+        { status: 400, headers }
+      );
+    }
+
+    // Validate new password
+    const validation = validatePassword(newPassword);
+    if (!validation.valid) {
+      return new Response(
+        JSON.stringify({ error: validation.error }),
+        { status: 400, headers }
+      );
+    }
+
+    // Get current user data
+    const userData = await blogStore.get(`user_${user.username}`, { type: "json" });
+    if (!userData) {
+      return new Response(
+        JSON.stringify({ error: "User not found" }),
+        { status: 404, headers }
+      );
+    }
+
+    // Verify current password
+    const currentPasswordValid = await bcrypt.compare(currentPassword, userData.passwordHash);
+    if (!currentPasswordValid) {
+      await logSecurityEvent(securityStore, {
+        type: 'password_change_failed_verification',
+        username: user.username,
+        ip: clientIP,
+        timestamp: new Date().toISOString()
+      });
+      
+      return new Response(
+        JSON.stringify({ error: "Current password is incorrect" }),
+        { status: 401, headers }
+      );
+    }
+
+    // Check if new password is different from current
+    const samePassword = await bcrypt.compare(newPassword, userData.passwordHash);
+    if (samePassword) {
+      return new Response(
+        JSON.stringify({ error: "New password must be different from current password" }),
+        { status: 400, headers }
+      );
+    }
+
+    // Hash new password
+    const saltRounds = 12;
+    const newPasswordHash = await bcrypt.hash(newPassword, saltRounds);
+    const newSalt = await bcrypt.genSalt(saltRounds);
+
+    // Update user with new password
+    const updatedUser = {
+      ...userData,
+      passwordHash: newPasswordHash,
+      passwordSalt: newSalt,
+      passwordChangedAt: new Date().toISOString(),
+      passwordChangedBy: user.username,
+      passwordChangeIP: clientIP
+    };
+
+    await blogStore.set(`user_${user.username}`, JSON.stringify(updatedUser));
+
+    // Log password change
+    await logSecurityEvent(securityStore, {
+      type: 'password_changed',
+      username: user.username,
+      ip: clientIP,
+      timestamp: new Date().toISOString()
+    });
+
+    // Invalidate all sessions except current one (force re-login)
+    const apiStore = getStore("blog-api-data");
+    await invalidateUserSessions(apiStore, user.username, user.sessionId);
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        message: "Password changed successfully. Please log in again on other devices."
+      }),
+      { status: 200, headers }
+    );
+
+  } catch (error) {
+    console.error("Change password error:", error);
+    return new Response(
+      JSON.stringify({ error: "Failed to change password" }),
+      { status: 500, headers }
+    );
+  }
+}
+
+// ==============================================
+// VALIDATION AND SECURITY UTILITIES
+// ==============================================
+
+function validateRegistrationInput({ username, password, bio, email }) {
+  // Username validation
+  if (!username || typeof username !== 'string') {
+    return { valid: false, error: "Username is required" };
+  }
+  
+  if (username.length < 3 || username.length > 20) {
+    return { valid: false, error: "Username must be 3-20 characters long" };
+  }
+  
+  if (!/^[a-zA-Z0-9_]+$/.test(username)) {
+    return { valid: false, error: "Username can only contain letters, numbers, and underscores" };
+  }
+
+  // Password validation
+  const passwordValidation = validatePassword(password);
+  if (!passwordValidation.valid) {
+    return passwordValidation;
+  }
+
+  // Bio validation
+  if (bio && bio.length > 500) {
+    return { valid: false, error: "Bio must be 500 characters or less" };
+  }
+
+  // Email validation (optional)
+  if (email && !isValidEmail(email)) {
+    return { valid: false, error: "Please provide a valid email address" };
+  }
+
+  return { valid: true };
+}
+
+function validatePassword(password) {
+  if (!password || typeof password !== 'string') {
+    return { valid: false, error: "Password is required" };
+  }
+
+  const config = SECURITY_CONFIG.PASSWORD_REQUIREMENTS;
+  
+  if (password.length < config.minLength) {
+    return { valid: false, error: `Password must be at least ${config.minLength} characters long` };
+  }
+  
+  if (password.length > config.maxLength) {
+    return { valid: false, error: `Password must be less than ${config.maxLength} characters long` };
+  }
+  
+  if (config.requireUppercase && !/[A-Z]/.test(password)) {
+    return { valid: false, error: "Password must contain at least one uppercase letter" };
+  }
+  
+  if (config.requireLowercase && !/[a-z]/.test(password)) {
+    return { valid: false, error: "Password must contain at least one lowercase letter" };
+  }
+  
+  if (config.requireNumbers && !/\d/.test(password)) {
+    return { valid: false, error: "Password must contain at least one number" };
+  }
+  
+  if (config.requireSpecialChars && !/[!@#$%^&*(),.?":{}|<>]/.test(password)) {
+    return { valid: false, error: "Password must contain at least one special character (!@#$%^&*(),.?\":{}|<>)" };
+  }
+
+  // Check for common weak passwords
+  const commonPasswords = [
+    'password', '123456789', 'qwertyuiop', 'password123', 
+    'admin', 'letmein', 'welcome', 'monkey', '1234567890'
+  ];
+  
+  if (commonPasswords.includes(password.toLowerCase())) {
+    return { valid: false, error: "Password is too common. Please choose a more secure password" };
+  }
+
+  return { valid: true };
+}
+
+function isValidEmail(email) {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email);
+}
+
+async function validateSecureAuth(req, store, blogStore) {
   const authHeader = req.headers.get("Authorization");
   const apiKey = req.headers.get("X-API-Key");
 
+  // Master API key authentication
   if (apiKey) {
-    if (apiKey === API_CONFIG.MASTER_API_KEY) {
+    if (apiKey === SECURITY_CONFIG.MASTER_API_KEY) {
       return { 
         valid: true, 
-        user: { username: "admin", permissions: ["read", "write", "admin"], isAdmin: true },
+        user: { 
+          username: "system", 
+          permissions: ["read", "write", "admin"], 
+          isAdmin: true,
+          sessionId: "master"
+        },
         authType: "apikey"
       };
     }
     return { valid: false, error: "Invalid API key", status: 401 };
   }
 
+  // JWT token authentication
   if (authHeader && authHeader.startsWith("Bearer ")) {
     const token = authHeader.substring(7);
     
     try {
-      const sessionData = await store.get(`session_${token}`, { type: "json" });
+      const decoded = jwt.verify(token, SECURITY_CONFIG.JWT_SECRET);
       
-      if (!sessionData || !sessionData.active || new Date() > new Date(sessionData.expiresAt)) {
+      if (decoded.type !== 'access') {
+        return { valid: false, error: "Invalid token type", status: 401 };
+      }
+
+      // Check session exists and is active
+      const session = await store.get(`session_${decoded.sessionId}`, { type: "json" });
+      
+      if (!session || !session.active || new Date(session.expiresAt) < new Date()) {
         return { valid: false, error: "Session expired", status: 401 };
       }
 
-      const userProfile = await blogStore.get(`user_${sessionData.username}`, { type: "json" });
+      // Get user profile
+      const userProfile = await blogStore.get(`user_${decoded.username}`, { type: "json" });
       
+      if (!userProfile) {
+        return { valid: false, error: "User not found", status: 404 };
+      }
+
+      // Check if account is locked
+      if (userProfile.lockedUntil && new Date(userProfile.lockedUntil) > new Date()) {
+        return { valid: false, error: "Account locked", status: 423 };
+      }
+
       return { 
         valid: true, 
-        user: userProfile,
-        authType: "session"
+        user: { 
+          ...userProfile, 
+          sessionId: decoded.sessionId 
+        },
+        authType: "jwt"
       };
 
     } catch (error) {
-      console.error("Session validation error:", error);
-      return { valid: false, error: "Authentication error", status: 500 };
+      if (error.name === 'TokenExpiredError') {
+        return { valid: false, error: "Token expired", status: 401 };
+      } else if (error.name === 'JsonWebTokenError') {
+        return { valid: false, error: "Invalid token", status: 401 };
+      } else {
+        return { valid: false, error: "Authentication error", status: 500 };
+      }
     }
   }
 
   return { valid: false, error: "Authentication required", status: 401 };
 }
 
-// PLACEHOLDER HANDLERS (basic implementations)
-async function handlePendingUsers(req, blogStore, headers, admin) {
-  return new Response(
-    JSON.stringify({ success: true, pendingUsers: [] }),
-    { status: 200, headers }
-  );
-}
+// ==============================================
+// RATE LIMITING AND SECURITY UTILITIES
+// ==============================================
 
-async function handleAllUsers(req, blogStore, headers, admin) {
-  return new Response(
-    JSON.stringify({ success: true, users: [] }),
-    { status: 200, headers }
-  );
-}
-
-async function handleApproveUser(req, blogStore, headers, admin) {
-  return new Response(
-    JSON.stringify({ success: true, message: "User approved" }),
-    { status: 200, headers }
-  );
-}
-
-async function handleRejectUser(req, blogStore, headers, admin) {
-  return new Response(
-    JSON.stringify({ success: true, message: "User rejected" }),
-    { status: 200, headers }
-  );
-}
-
-async function handleDeleteUser(req, blogStore, headers, admin) {
-  return new Response(
-    JSON.stringify({ success: true, message: "User deleted" }),
-    { status: 200, headers }
-  );
-}
-
-async function handleAdminStats(req, blogStore, headers, admin) {
-  return new Response(
-    JSON.stringify({ success: true, stats: {} }),
-    { status: 200, headers }
-  );
-}
-
-async function handleSearchPosts(req, blogStore, headers, user) {
-  return new Response(
-    JSON.stringify({ success: true, posts: [] }),
-    { status: 200, headers }
-  );
-}
-
-async function handleEditPost(req, blogStore, headers, user, path) {
-  return new Response(
-    JSON.stringify({ success: true, message: "Post edited" }),
-    { status: 200, headers }
-  );
-}
-
-async function handlePostLikes(req, blogStore, headers, user, path) {
-  return new Response(
-    JSON.stringify({ success: true, likes: [] }),
-    { status: 200, headers }
-  );
-}
-
-async function handleToggleLike(req, blogStore, headers, user) {
-  return new Response(
-    JSON.stringify({ success: true, message: "Like toggled" }),
-    { status: 200, headers }
-  );
-}
-
-async function handleProfile(req, blogStore, headers, user) {
-  return new Response(
-    JSON.stringify({ success: true, profile: user }),
-    { status: 200, headers }
-  );
-}
-
-async function handleProfileUpdate(req, blogStore, headers, user) {
-  return new Response(
-    JSON.stringify({ success: true, message: "Profile updated" }),
-    { status: 200, headers }
-  );
-}
-
-async function handlePosts(req, blogStore, headers, user) {
-  return new Response(
-    JSON.stringify({ success: true, posts: [] }),
-    { status: 200, headers }
-  );
-}
-
-async function handlePostOperations(req, blogStore, headers, user, path) {
-  return new Response(
-    JSON.stringify({ success: true, post: {} }),
-    { status: 200, headers }
-  );
-}
-
-// Utility functions
-function getPaginationParams(url) {
-  const page = Math.max(1, parseInt(url.searchParams.get('page')) || 1);
-  const limit = Math.min(API_CONFIG.MAX_PAGE_SIZE, Math.max(1, parseInt(url.searchParams.get('limit')) || API_CONFIG.DEFAULT_PAGE_SIZE));
-  const skip = (page - 1) * limit;
+async function checkRateLimit(securityStore, clientIP, path, method) {
+  const now = Date.now();
+  const rateLimitKey = `rate_limit_${clientIP}_${path}_${method}`;
   
-  return { page, limit, skip };
+  try {
+    const rateLimitData = await securityStore.get(rateLimitKey, { type: "json" }) || {
+      count: 0,
+      windowStart: now,
+      blocked: false
+    };
+
+    // Determine rate limit for this endpoint
+    let limit = SECURITY_CONFIG.RATE_LIMITS.API_CALLS;
+    
+    if (path.includes('auth/login')) {
+      limit = SECURITY_CONFIG.RATE_LIMITS.LOGIN_ATTEMPTS;
+    } else if (path.includes('auth/register')) {
+      limit = SECURITY_CONFIG.RATE_LIMITS.REGISTRATION;
+    } else if (path.includes('forgot-password')) {
+      limit = SECURITY_CONFIG.RATE_LIMITS.PASSWORD_RESET;
+    }
+
+    // Reset window if expired
+    if (now - rateLimitData.windowStart > limit.window) {
+      rateLimitData.count = 0;
+      rateLimitData.windowStart = now;
+      rateLimitData.blocked = false;
+    }
+
+    // Check if blocked
+    if (rateLimitData.blocked || rateLimitData.count >= limit.max) {
+      rateLimitData.blocked = true;
+      await securityStore.set(rateLimitKey, JSON.stringify(rateLimitData));
+      
+      const retryAfter = Math.ceil((limit.window - (now - rateLimitData.windowStart)) / 1000);
+      return { allowed: false, retryAfter };
+    }
+
+    // Increment counter
+    rateLimitData.count++;
+    await securityStore.set(rateLimitKey, JSON.stringify(rateLimitData));
+
+    return { allowed: true };
+    
+  } catch (error) {
+    console.error('Rate limit check error:', error);
+    // Allow request if rate limiting fails
+    return { allowed: true };
+  }
 }
 
-function sortPostsByTimestamp(posts) {
-  return posts.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+async function logSecurityEvent(securityStore, event) {
+  try {
+    const eventId = crypto.randomUUID();
+    const logEntry = {
+      id: eventId,
+      ...event,
+      severity: getEventSeverity(event.type)
+    };
+    
+    await securityStore.set(`security_log_${eventId}`, JSON.stringify(logEntry));
+    
+    // Also maintain a daily log index for easier querying
+    const dateKey = new Date(event.timestamp).toISOString().split('T')[0];
+    const dailyLogKey = `daily_security_log_${dateKey}`;
+    
+    const dailyLog = await securityStore.get(dailyLogKey, { type: "json" }) || [];
+    dailyLog.push(eventId);
+    
+    // Keep only last 100 events per day to prevent storage bloat
+    if (dailyLog.length > 100) {
+      dailyLog.splice(0, dailyLog.length - 100);
+    }
+    
+    await securityStore.set(dailyLogKey, JSON.stringify(dailyLog));
+    
+  } catch (error) {
+    console.error('Security logging error:', error);
+  }
 }
 
-function createPaginationMeta(totalItems, page, limit) {
-  const totalPages = Math.ceil(totalItems / limit);
-  const hasMore = page < totalPages;
+function getEventSeverity(eventType) {
+  const highSeverity = [
+    'login_attempt_invalid_password',
+    'login_attempt_locked_account',
+    'unauthorized_admin_access',
+    'password_change_failed_verification'
+  ];
+  
+  const mediumSeverity = [
+    'login_attempt_invalid_user',
+    'login_attempt_pending',
+    'auth_failure'
+  ];
+  
+  if (highSeverity.includes(eventType)) return 'high';
+  if (mediumSeverity.includes(eventType)) return 'medium';
+  return 'low';
+}
+
+// ==============================================
+// SESSION MANAGEMENT
+// ==============================================
+
+async function cleanupUserSessions(store, username, currentSessionId) {
+  try {
+    // Get all sessions for user
+    const { blobs } = await store.list({ prefix: "session_" });
+    const userSessions = [];
+    
+    for (const blob of blobs) {
+      try {
+        const session = await store.get(blob.key, { type: "json" });
+        if (session && session.username === username && session.active) {
+          userSessions.push({ key: blob.key, session });
+        }
+      } catch (error) {
+        // Clean up corrupted sessions
+        await store.delete(blob.key);
+      }
+    }
+    
+    // Sort by last activity (newest first)
+    userSessions.sort((a, b) => new Date(b.session.lastActivity) - new Date(a.session.lastActivity));
+    
+    // Keep only the most recent sessions (including current)
+    const sessionsToKeep = SECURITY_CONFIG.MAX_CONCURRENT_SESSIONS;
+    const sessionsToRemove = userSessions.slice(sessionsToKeep);
+    
+    for (const { key } of sessionsToRemove) {
+      // Don't remove current session
+      if (!key.includes(currentSessionId)) {
+        await store.delete(key);
+      }
+    }
+    
+  } catch (error) {
+    console.error('Session cleanup error:', error);
+  }
+}
+
+async function logoutAllUserSessions(store, username) {
+  try {
+    const { blobs } = await store.list({ prefix: "session_" });
+    
+    for (const blob of blobs) {
+      try {
+        const session = await store.get(blob.key, { type: "json" });
+        if (session && session.username === username && session.active) {
+          session.active = false;
+          session.loggedOutAt = new Date().toISOString();
+          await store.set(blob.key, JSON.stringify(session));
+        }
+      } catch (error) {
+        console.error(`Error logging out session ${blob.key}:`, error);
+      }
+    }
+    
+  } catch (error) {
+    console.error('Logout all sessions error:', error);
+  }
+}
+
+async function invalidateUserSessions(store, username, exceptSessionId) {
+  try {
+    const { blobs } = await store.list({ prefix: "session_" });
+    
+    for (const blob of blobs) {
+      try {
+        const session = await store.get(blob.key, { type: "json" });
+        if (session && session.username === username && session.active && session.sessionId !== exceptSessionId) {
+          session.active = false;
+          session.invalidatedAt = new Date().toISOString();
+          await store.set(blob.key, JSON.stringify(session));
+        }
+      } catch (error) {
+        console.error(`Error invalidating session ${blob.key}:`, error);
+      }
+    }
+    
+  } catch (error) {
+    console.error('Invalidate sessions error:', error);
+  }
+}
+
+async function updateUserActivity(store, username) {
+  try {
+    // Update all active sessions for user
+    const { blobs } = await store.list({ prefix: "session_" });
+    
+    for (const blob of blobs) {
+      try {
+        const session = await store.get(blob.key, { type: "json" });
+        if (session && session.username === username && session.active) {
+          session.lastActivity = new Date().toISOString();
+          await store.set(blob.key, JSON.stringify(session));
+        }
+      } catch (error) {
+        console.error(`Error updating session activity ${blob.key}:`, error);
+      }
+    }
+    
+  } catch (error) {
+    console.error('Update user activity error:', error);
+  }
+}
+
+// ==============================================
+// UTILITY FUNCTIONS
+// ==============================================
+
+function getClientIP(req) {
+  // Check various headers for real IP
+  return req.headers.get('cf-connecting-ip') || 
+         req.headers.get('x-forwarded-for')?.split(',')[0] || 
+         req.headers.get('x-real-ip') || 
+         req.headers.get('x-client-ip') || 
+         'unknown';
+}
+
+function generateDeviceFingerprint(req) {
+  const userAgent = req.headers.get('User-Agent') || '';
+  const acceptLanguage = req.headers.get('Accept-Language') || '';
+  const acceptEncoding = req.headers.get('Accept-Encoding') || '';
+  
+  const fingerprint = crypto
+    .createHash('sha256')
+    .update(userAgent + acceptLanguage + acceptEncoding)
+    .digest('hex')
+    .substring(0, 16);
+    
+  return fingerprint;
+}
+
+function getCorsHeaders(req) {
+  const origin = req.headers.get('Origin');
+  const allowedOrigin = SECURITY_CONFIG.ALLOWED_ORIGINS.includes(origin) ? origin : SECURITY_CONFIG.ALLOWED_ORIGINS[0];
   
   return {
-    page,
-    limit,
-    total: totalItems,
-    totalPages,
-    hasMore,
-    nextPage: hasMore ? page + 1 : null,
-    prevPage: page > 1 ? page - 1 : null
+    "Access-Control-Allow-Origin": allowedOrigin,
+    "Access-Control-Allow-Headers": "Content-Type, Authorization, X-API-Key",
+    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+    "Access-Control-Allow-Credentials": "true",
+    "Content-Type": "application/json",
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "X-XSS-Protection": "1; mode=block",
+    "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+    "Referrer-Policy": "strict-origin-when-cross-origin"
   };
+}
+
+// ==============================================
+// PLACEHOLDER HANDLERS (to be implemented)
+// ==============================================
+
+async function handleForgotPassword(req, blogStore, securityStore, headers, clientIP) {
+  // TODO: Implement password reset functionality
+  return new Response(
+    JSON.stringify({ message: "Password reset functionality coming soon" }),
+    { status: 501, headers }
+  );
+}
+
+async function handleEmailVerification(req, blogStore, headers) {
+  // TODO: Implement email verification
+  return new Response(
+    JSON.stringify({ message: "Email verification functionality coming soon" }),
+    { status: 501, headers }
+  );
+}
+
+async function handleUserSessions(req, store, headers, user) {
+  // TODO: Implement user session management
+  return new Response(
+    JSON.stringify({ message: "Session management functionality coming soon" }),
+    { status: 501, headers }
+  );
+}
+
+async function handleLoginHistory(req, securityStore, headers, user) {
+  // TODO: Implement login history
+  return new Response(
+    JSON.stringify({ message: "Login history functionality coming soon" }),
+    { status: 501, headers }
+  );
+}
+
+async function handleAdminEndpoints(path, req, blogStore, securityStore, headers, user) {
+  // TODO: Implement admin endpoints
+  return new Response(
+    JSON.stringify({ message: "Admin endpoints functionality coming soon" }),
+    { status: 501, headers }
+  );
+}
+
+async function handleAuthenticatedEndpoints(path, req, blogStore, store, headers, user) {
+  // TODO: Implement authenticated endpoints (posts, communities, etc.)
+  return new Response(
+    JSON.stringify({ message: "Authenticated endpoints functionality coming soon" }),
+    { status: 501, headers }
+  );
+}
+
+async function handleGetCommunities(req, blogStore, headers) {
+  // TODO: Implement get communities
+  return new Response(
+    JSON.stringify({ message: "Get communities functionality coming soon" }),
+    { status: 501, headers }
+  );
+}
+
+async function handleCommunityPosts(req, blogStore, headers, communityName) {
+  // TODO: Implement community posts
+  return new Response(
+    JSON.stringify({ message: "Community posts functionality coming soon" }),
+    { status: 501, headers }
+  );
+}
+
+async function handleGetCommunity(req, blogStore, headers, communityName) {
+  // TODO: Implement get community
+  return new Response(
+    JSON.stringify({ message: "Get community functionality coming soon" }),
+    { status: 501, headers }
+  );
 }
