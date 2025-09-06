@@ -11,6 +11,8 @@ let adminData = null;
 let currentPostType = 'text';
 let inlineLoginFormOpen = false;
 let currentFeedTab = 'general'; // Track current feed tab - only 'general' and 'followed' now
+let followedCommunities = new Set();
+let markdownRenderer;
 
 // Menu functions
 function toggleMenu() {
@@ -33,33 +35,33 @@ function updateMenuContent() {
     const menuLogout = document.getElementById('menuLogout');
     
     if (currentUser) {
-    // Update menu avatar to use profile picture
-    if (currentUser.profile?.profilePicture) {
-        menuHeader.innerHTML = `
-            <div class="menu-user-info">
-                <img src="${currentUser.profile.profilePicture}" 
-                     alt="Profile" 
-                     class="profile-avatar"
-                     style="border-radius: 50%; object-fit: cover;"
-                     onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
-                <div class="profile-avatar" style="display: none;">${currentUser.username.charAt(0).toUpperCase()}</div>
-                <div class="menu-user-details">
-                    <h4>@${escapeHtml(currentUser.username)}</h4>
-                    <p>${currentUser.profile?.isAdmin ? 'Administrator' : 'Member'}</p>
+        // Update menu avatar to use profile picture
+        if (currentUser.profile?.profilePicture) {
+            menuHeader.innerHTML = `
+                <div class="menu-user-info">
+                    <img src="${currentUser.profile.profilePicture}" 
+                         alt="Profile" 
+                         class="profile-avatar"
+                         style="border-radius: 50%; object-fit: cover;"
+                         onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                    <div class="profile-avatar" style="display: none;">${currentUser.username.charAt(0).toUpperCase()}</div>
+                    <div class="menu-user-details">
+                        <h4>@${escapeHtml(currentUser.username)}</h4>
+                        <p>${currentUser.profile?.isAdmin ? 'Administrator' : 'Member'}</p>
+                    </div>
                 </div>
-            </div>
-        `;
-    } else {
-        menuHeader.innerHTML = `
-            <div class="menu-user-info">
-                <div class="profile-avatar">${currentUser.username.charAt(0).toUpperCase()}</div>
-                <div class="menu-user-details">
-                    <h4>@${escapeHtml(currentUser.username)}</h4>
-                    <p>${currentUser.profile?.isAdmin ? 'Administrator' : 'Member'}</p>
+            `;
+        } else {
+            menuHeader.innerHTML = `
+                <div class="menu-user-info">
+                    <div class="profile-avatar">${currentUser.username.charAt(0).toUpperCase()}</div>
+                    <div class="menu-user-details">
+                        <h4>@${escapeHtml(currentUser.username)}</h4>
+                        <p>${currentUser.profile?.isAdmin ? 'Administrator' : 'Member'}</p>
+                    </div>
                 </div>
-            </div>
-        `;
-    }
+            `;
+        }
         
         // Show/hide menu items based on auth status
         document.getElementById('menuProfile').style.display = 'flex';
@@ -427,80 +429,105 @@ function setupEventListeners() {
     });
 }
 
+// Data loading functions
 async function loadUser() {
-  try {
-    currentUser = await secureAPI.loadUserData();
-    if (currentUser) {
-      await loadFollowedCommunities();
+    try {
+        // Simple user loading - replace with your actual auth logic
+        const storedUser = localStorage.getItem('currentUser');
+        if (storedUser) {
+            currentUser = JSON.parse(storedUser);
+        }
+    } catch (error) {
+        console.error('Error loading user:', error);
+        currentUser = null;
     }
-  } catch (error) {
-    console.error('Error loading user:', error);
-    currentUser = null;
-  }
-}
-// Add these functions before the DOMContentLoaded event
-
-async function loadUser() {
-  try {
-    // Simple user loading - replace with your actual auth logic
-    const storedUser = localStorage.getItem('currentUser');
-    if (storedUser) {
-      currentUser = JSON.parse(storedUser);
-    }
-  } catch (error) {
-    console.error('Error loading user:', error);
-    currentUser = null;
-  }
 }
 
 async function loadCommunities() {
-  try {
-    // Load communities from your API or storage
-    const response = await fetch('/.netlify/functions/blobs?list=true&prefix=community_');
-    if (response.ok) {
-      const data = await response.json();
-      communities = data.keys.map(key => ({ name: key.replace('community_', '') }));
+    try {
+        // Load communities from your API or storage
+        const response = await fetch('/.netlify/functions/blobs?list=true&prefix=community_');
+        if (response.ok) {
+            const data = await response.json();
+            communities = data.keys.map(key => ({ name: key.replace('community_', '') }));
+        }
+    } catch (error) {
+        console.error('Error loading communities:', error);
+        communities = [];
     }
-  } catch (error) {
-    console.error('Error loading communities:', error);
-    communities = [];
-  }
 }
 
 async function loadPosts() {
-  try {
-    // Load posts from your API or storage
-    const response = await fetch('/.netlify/functions/blobs?list=true&prefix=post_');
-    if (response.ok) {
-      const data = await response.json();
-      posts = []; // You'll need to implement actual post loading
+    try {
+        // Load posts from your API or storage
+        const response = await fetch('/.netlify/functions/blobs?list=true&prefix=post_');
+        if (response.ok) {
+            const data = await response.json();
+            posts = []; // You'll need to implement actual post loading
+        }
+    } catch (error) {
+        console.error('Error loading posts:', error);
+        posts = [];
     }
-  } catch (error) {
-    console.error('Error loading posts:', error);
-    posts = [];
-  }
 }
 
 async function loadFollowedCommunities() {
-  try {
-    if (currentUser) {
-      followedCommunities = new Set(); // You'll need to implement this
+    try {
+        if (currentUser) {
+            followedCommunities = new Set(); // You'll need to implement this
+        }
+    } catch (error) {
+        console.error('Error loading followed communities:', error);
+        followedCommunities = new Set();
     }
-  } catch (error) {
-    console.error('Error loading followed communities:', error);
-    followedCommunities = new Set();
-  }
 }
 
 async function loadAdminStats() {
-  try {
-    if (currentUser?.profile?.isAdmin) {
-      // Load admin stats
-      console.log('Loading admin stats...');
+    try {
+        if (currentUser?.profile?.isAdmin) {
+            // Load admin stats
+            console.log('Loading admin stats...');
+        }
+    } catch (error) {
+        console.error('Error loading admin stats:', error);
     }
-  } catch (error) {
-    console.error('Error loading admin stats:', error);
-  }
+}
+
+// Placeholder functions for missing dependencies
+function logout() {
+    currentUser = null;
+    localStorage.removeItem('currentUser');
+    location.reload();
+}
+
+function handleAuth(e) {
+    e.preventDefault();
+    console.log('Auth handler called');
+}
+
+function handleCreateCommunity(e) {
+    e.preventDefault();
+    console.log('Create community handler called');
+}
+
+function handleCreatePost(e) {
+    e.preventDefault();
+    console.log('Create post handler called');
+}
+
+function handleInlineLogin(e) {
+    e.preventDefault();
+    console.log('Inline login handler called');
+}
+
+function toggleFollowStatus(communityName, follow) {
+    // Placeholder - implement actual follow logic
+    return Promise.resolve({ success: true, following: follow, memberCount: 1 });
+}
+
+function checkIfFollowing(communityName) {
+    // Placeholder - implement actual check
+    return Promise.resolve(false);
 }
 
 // Initialize app
@@ -517,36 +544,24 @@ document.addEventListener('DOMContentLoaded', async () => {
             breaks: true,
             gfm: true
         });
-    }
-    
-    await loadUser();
-    await loadCommunities();
-    await loadPosts();
-    updateUI();
-    setupEventListeners();
-    
-    // Load admin stats if user is admin
-    if (currentUser?.profile?.isAdmin) {
-        await loadAdminStats();
-    }
-});
-    
-    // Custom renderer for enhanced features
-    markdownRenderer = new marked.Renderer();
-    
-    // Custom link renderer to handle media embeds
-    markdownRenderer.link = function(href, title, text) {
-        const mediaHtml = renderMediaFromUrl(href);
-        if (mediaHtml) return mediaHtml;
         
-        return `<a href="${href}" target="_blank" rel="noopener noreferrer" ${title ? `title="${title}"` : ''}>${text}</a>`;
-    };
+        // Custom renderer for enhanced features
+        markdownRenderer = new marked.Renderer();
+        
+        // Custom link renderer to handle media embeds
+        markdownRenderer.link = function(href, title, text) {
+            const mediaHtml = renderMediaFromUrl(href);
+            if (mediaHtml) return mediaHtml;
+            
+            return `<a href="${href}" target="_blank" rel="noopener noreferrer" ${title ? `title="${title}"` : ''}>${text}</a>`;
+        };
+        
+        // Custom image renderer
+        markdownRenderer.image = function(href, title, text) {
+            return `<img src="${href}" alt="${text || 'Image'}" ${title ? `title="${title}"` : ''} onclick="openImageModal('${href}')" style="cursor: pointer;">`;
+        };
+    }
     
-    // Custom image renderer
-    markdownRenderer.image = function(href, title, text) {
-        return `<img src="${href}" alt="${text || 'Image'}" ${title ? `title="${title}"` : ''} onclick="openImageModal('${href}')" style="cursor: pointer;">`;
-    };
-
     await loadUser();
     await loadCommunities();
     await loadPosts();
