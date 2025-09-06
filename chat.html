@@ -882,7 +882,7 @@
         The chat will automatically detect your login session.</p>
         <div style="display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;">
             <button class="btn btn-primary" onclick="redirectToLogin()">Go to Main App</button>
-            <button class="btn btn-secondary" onclick="checkSessionToken()">🔄 Check Session</button>
+            <button class="btn btn-secondary" onclick="checkMainAppSession()">🔄 Check Session</button>
         </div>
         <div id="sessionStatus" class="session-status" style="display: none;"></div>
     </div>
@@ -953,7 +953,7 @@
                         <span class="status-indicator status-disconnected" id="statusIndicator"></span>
                         <span id="statusText">Disconnected</span>
                     </div>
-                    <button class="action-btn" onclick="checkSessionToken()" title="Check Session">
+                    <button class="action-btn" onclick="checkMainAppSession()" title="Check Session">
                         🔄
                     </button>
                 </div>
@@ -1116,11 +1116,16 @@
                         params.append('limit', '50');
                     }
 
+                    const authToken = await getAuthToken();
+                    if (!authToken) {
+                        throw new Error('No authentication token available');
+                    }
+
                     const response = await fetch(`/.netlify/functions/chat-api/rooms/${this.roomId}/messages?${params}`, {
                         method: 'GET',
                         headers: {
                             'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${getSessionToken()}`
+                            'Authorization': `Bearer ${authToken}`
                         }
                     });
 
@@ -1321,11 +1326,16 @@
                 lastActivity = Date.now();
                 
                 try {
+                    const authToken = await getAuthToken();
+                    if (!authToken) {
+                        throw new Error('No authentication token available');
+                    }
+
                     const response = await fetch(`/.netlify/functions/chat-api/rooms/${this.roomId}/messages`, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${getSessionToken()}`
+                            'Authorization': `Bearer ${authToken}`
                         },
                         body: JSON.stringify({ content })
                     });
@@ -1376,6 +1386,51 @@
 
         const chatManager = new ChatManager();
 
+        // FIXED: Authentication integration with main app
+        async function getAuthToken() {
+            // First try to get the main app's current user session
+            try {
+                const response = await fetch('/.netlify/functions/blobs?key=current_user', {
+                    method: 'GET',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                if (response.ok) {
+                    const result = await response.json();
+                    if (result.data && result.data.username) {
+                        console.log('🔑 Found main app session for user:', result.data.username);
+                        
+                        // Store user info for chat
+                        currentUser = {
+                            username: result.data.username,
+                            ...result.data
+                        };
+                        
+                        // Create a simple auth token from user data
+                        const authToken = btoa(JSON.stringify({
+                            username: result.data.username,
+                            timestamp: Date.now()
+                        }));
+                        
+                        console.log('🎫 Generated auth token for chat API');
+                        return authToken;
+                    }
+                }
+            } catch (error) {
+                console.error('❌ Error checking main app session:', error);
+            }
+            
+            // Fallback: check for old session token method
+            const sessionToken = localStorage.getItem('sessionToken');
+            if (sessionToken) {
+                console.log('🔑 Using fallback session token');
+                return sessionToken;
+            }
+            
+            console.log('❌ No valid authentication found');
+            return null;
+        }
+
         // Initialize app
         function initializeApp() {
             console.log('🚀 Initializing chat app...');
@@ -1384,32 +1439,12 @@
                 Notification.requestPermission();
             }
             
-            const token = getSessionToken();
-            if (token) {
-                console.log('📱 Found session token, checking validity...');
-                checkSessionToken();
-            } else {
-                console.log('❌ No session token found');
-                showAuthRequired();
-            }
+            checkMainAppSession();
         }
 
-        function getSessionToken() {
-            const sessionToken = localStorage.getItem('sessionToken');
-            console.log('🔑 Getting session token:', sessionToken ? 'Token exists' : 'No token');
-            return sessionToken;
-        }
-
-        async function checkSessionToken() {
-            console.log('🔍 Checking session token validity...');
+        async function checkMainAppSession() {
+            console.log('🔍 Checking main app session...');
             
-            const token = getSessionToken();
-            if (!token) {
-                console.log('❌ No token to check');
-                showAuthRequired();
-                return;
-            }
-
             const statusEl = document.getElementById('sessionStatus');
             if (statusEl) {
                 statusEl.style.display = 'block';
@@ -1419,46 +1454,43 @@
             }
 
             try {
-                const response = await fetch('/.netlify/functions/api/profile', {
+                // Check if user is logged into main app
+                const response = await fetch('/.netlify/functions/blobs?key=current_user', {
                     method: 'GET',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
-                    }
+                    headers: { 'Content-Type': 'application/json' }
                 });
-
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}`);
-                }
-
-                const data = await response.json();
-                console.log('📝 Session check response:', data);
-
-                if (data.success && data.profile) {
-                    console.log('✅ Valid session for user:', data.profile.username);
-                    currentUser = {
-                        username: data.profile.username,
-                        ...data.profile
-                    };
-                    
-                    if (statusEl) {
-                        statusEl.textContent = `✅ Logged in as ${data.profile.username}`;
-                        statusEl.style.background = 'var(--success-color)';
-                        statusEl.style.color = 'white';
-                        setTimeout(() => {
-                            statusEl.style.display = 'none';
-                        }, 2000);
+                
+                if (response.ok) {
+                    const result = await response.json();
+                    if (result.data && result.data.username) {
+                        console.log('✅ Main app session found for user:', result.data.username);
+                        
+                        currentUser = {
+                            username: result.data.username,
+                            ...result.data
+                        };
+                        
+                        if (statusEl) {
+                            statusEl.textContent = `✅ Logged in as ${result.data.username}`;
+                            statusEl.style.background = 'var(--success-color)';
+                            statusEl.style.color = 'white';
+                            setTimeout(() => {
+                                statusEl.style.display = 'none';
+                            }, 2000);
+                        }
+                        
+                        showChatApp();
+                        return;
                     }
-                    
-                    showChatApp();
-                } else {
-                    throw new Error('Invalid response format');
                 }
+                
+                throw new Error('No main app session found');
+                
             } catch (error) {
-                console.error('💥 Error checking session:', error);
+                console.error('💥 Error checking main app session:', error);
                 
                 if (statusEl) {
-                    statusEl.textContent = '❌ Session expired or invalid';
+                    statusEl.textContent = '❌ Please log in to the main app first';
                     statusEl.style.background = 'var(--danger-color)';
                     statusEl.style.color = 'white';
                 }
@@ -1485,7 +1517,8 @@
             if (sessionCheckInterval) {
                 clearInterval(sessionCheckInterval);
             }
-            sessionCheckInterval = setInterval(checkSessionToken, 5 * 60 * 1000);
+            // Check session more frequently
+            sessionCheckInterval = setInterval(checkMainAppSession, 30 * 1000); // Check every 30 seconds
         }
 
         function handleLogout() {
@@ -1536,11 +1569,16 @@
             console.log('🏠 Loading user servers...');
             
             try {
+                const authToken = await getAuthToken();
+                if (!authToken) {
+                    throw new Error('No authentication token');
+                }
+
                 const response = await fetch('/.netlify/functions/chat-api/servers', {
                     method: 'GET',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${getSessionToken()}`
+                        'Authorization': `Bearer ${authToken}`
                     }
                 });
 
@@ -1570,11 +1608,16 @@
             console.log('🌐 Loading public servers...');
             
             try {
+                const authToken = await getAuthToken();
+                if (!authToken) {
+                    throw new Error('No authentication token');
+                }
+
                 const response = await fetch('/.netlify/functions/chat-api/servers/public', {
                     method: 'GET',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${getSessionToken()}`
+                        'Authorization': `Bearer ${authToken}`
                     }
                 });
 
@@ -1691,11 +1734,16 @@
             console.log('🚀 Joining public server:', serverId);
             
             try {
+                const authToken = await getAuthToken();
+                if (!authToken) {
+                    throw new Error('No authentication token');
+                }
+
                 const response = await fetch(`/.netlify/functions/chat-api/servers/${serverId}/join`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${getSessionToken()}`
+                        'Authorization': `Bearer ${authToken}`
                     }
                 });
 
@@ -1726,11 +1774,16 @@
             console.log('📋 Loading rooms for server:', serverId);
             
             try {
+                const authToken = await getAuthToken();
+                if (!authToken) {
+                    throw new Error('No authentication token');
+                }
+
                 const response = await fetch(`/.netlify/functions/chat-api/servers/${serverId}/rooms`, {
                     method: 'GET',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${getSessionToken()}`
+                        'Authorization': `Bearer ${authToken}`
                     }
                 });
 
@@ -1807,11 +1860,16 @@
                 const params = new URLSearchParams();
                 params.append('limit', '50');
                 
+                const authToken = await getAuthToken();
+                if (!authToken) {
+                    throw new Error('No authentication token');
+                }
+
                 const response = await fetch(`/.netlify/functions/chat-api/rooms/${roomId}/messages?${params}`, {
                     method: 'GET',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${getSessionToken()}`
+                        'Authorization': `Bearer ${authToken}`
                     }
                 });
 
@@ -2041,11 +2099,16 @@
             console.log('🚀 Attempting to join server with code:', serverId);
             
             try {
+                const authToken = await getAuthToken();
+                if (!authToken) {
+                    throw new Error('No authentication token');
+                }
+
                 const response = await fetch(`/.netlify/functions/chat-api/servers/${serverId}/join`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${getSessionToken()}`
+                        'Authorization': `Bearer ${authToken}`
                     }
                 });
 
@@ -2108,11 +2171,16 @@
             console.log('🚀 Creating server:', { name, description, isPrivate });
             
             try {
+                const authToken = await getAuthToken();
+                if (!authToken) {
+                    throw new Error('No authentication token');
+                }
+
                 const response = await fetch('/.netlify/functions/chat-api/servers', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${getSessionToken()}`
+                        'Authorization': `Bearer ${authToken}`
                     },
                     body: JSON.stringify({
                         name: name,
@@ -2166,11 +2234,16 @@
             console.log('📋 Creating room:', roomName, 'in server:', currentServer.id);
             
             try {
+                const authToken = await getAuthToken();
+                if (!authToken) {
+                    throw new Error('No authentication token');
+                }
+
                 const response = await fetch(`/.netlify/functions/chat-api/servers/${currentServer.id}/rooms`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${getSessionToken()}`
+                        'Authorization': `Bearer ${authToken}`
                     },
                     body: JSON.stringify({
                         name: roomName,
@@ -2346,19 +2419,29 @@ Created: ${currentServer.createdAt ? new Date(currentServer.createdAt).toLocaleD
             // Handle navigation if needed
         });
 
+        // FIXED: Listen for main app login/logout events
         window.addEventListener('storage', function(e) {
             console.log('🔄 Storage event detected:', e.key, e.newValue ? 'Set' : 'Removed');
             
-            if (e.key === 'sessionToken') {
+            // Check for any authentication-related storage changes
+            if (e.key === 'sessionToken' || e.key === 'current_user') {
                 if (e.newValue) {
-                    console.log('🎉 New session token detected from main app');
+                    console.log('🎉 Authentication change detected from main app');
                     setTimeout(() => {
-                        checkSessionToken();
+                        checkMainAppSession();
                     }, 1000);
                 } else {
-                    console.log('❌ Session token removed, user logged out');
+                    console.log('❌ Authentication removed, user logged out');
                     handleLogout();
                 }
+            }
+        });
+
+        // Listen for manual session checks from main app
+        window.addEventListener('message', function(event) {
+            if (event.data && event.data.type === 'SESSION_UPDATE') {
+                console.log('🔄 Received session update message from main app');
+                checkMainAppSession();
             }
         });
 
