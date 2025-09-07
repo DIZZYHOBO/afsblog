@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Lemmy - Dive into anything</title>
+    <title>Lemmy Mobile</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐀</text></svg>">
     <style>
         * {
@@ -83,6 +83,7 @@
             align-items: center;
             justify-content: center;
             color: var(--text-primary);
+            font-size: 20px;
         }
 
         .logo {
@@ -229,6 +230,7 @@
             margin-bottom: 8px;
             font-size: 12px;
             color: var(--text-secondary);
+            flex-wrap: wrap;
         }
 
         .community-icon {
@@ -236,6 +238,7 @@
             height: 20px;
             border-radius: 50%;
             background: var(--reddit-blue);
+            flex-shrink: 0;
         }
 
         .post-title {
@@ -251,16 +254,15 @@
             color: var(--text-secondary);
             line-height: 1.5;
             margin-bottom: 8px;
-            max-height: 200px;
             overflow: hidden;
+            word-break: break-word;
         }
 
         .post-image {
             width: 100%;
             margin: 8px 0;
             border-radius: 8px;
-            max-height: 400px;
-            object-fit: cover;
+            display: block;
         }
 
         .post-footer {
@@ -268,6 +270,7 @@
             align-items: center;
             gap: 16px;
             padding: 8px 16px;
+            flex-wrap: wrap;
         }
 
         .vote-buttons {
@@ -286,6 +289,7 @@
             align-items: center;
             justify-content: center;
             transition: color 0.2s;
+            font-size: 16px;
         }
 
         .vote-btn.upvoted {
@@ -387,18 +391,12 @@
             bottom: 0;
             background: rgba(0,0,0,0.5);
             z-index: 2000;
-            animation: fadeIn 0.2s;
         }
 
         .modal.active {
             display: flex;
             align-items: center;
             justify-content: center;
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
         }
 
         .modal-content {
@@ -408,12 +406,6 @@
             max-width: 400px;
             max-height: 80vh;
             overflow-y: auto;
-            animation: slideUp 0.3s;
-        }
-
-        @keyframes slideUp {
-            from { transform: translateY(20px); opacity: 0; }
-            to { transform: translateY(0); opacity: 1; }
         }
 
         .modal-header {
@@ -473,6 +465,7 @@
         .form-textarea {
             min-height: 100px;
             resize: vertical;
+            font-family: inherit;
         }
 
         .btn {
@@ -520,6 +513,21 @@
             left: 0;
         }
 
+        .drawer-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.3);
+            z-index: 2000;
+        }
+
+        .drawer-overlay.active {
+            display: block;
+        }
+
         .drawer-header {
             padding: 20px;
             border-bottom: 1px solid var(--border-color);
@@ -529,7 +537,6 @@
             display: flex;
             align-items: center;
             gap: 12px;
-            margin-bottom: 16px;
         }
 
         .drawer-user-avatar {
@@ -565,73 +572,22 @@
             padding: 12px 20px;
             color: var(--text-primary);
             text-decoration: none;
-            transition: background 0.2s;
             cursor: pointer;
             background: none;
             border: none;
             width: 100%;
             text-align: left;
+            font-size: 14px;
         }
 
         .drawer-item:hover {
             background: var(--bg-secondary);
         }
 
-        .drawer-item-icon {
-            font-size: 20px;
-            width: 24px;
-        }
-
         .drawer-divider {
             height: 1px;
             background: var(--border-color);
             margin: 8px 0;
-        }
-
-        /* Community List */
-        .community-list {
-            padding: 8px 0;
-        }
-
-        .community-item {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 12px 16px;
-            cursor: pointer;
-            transition: background 0.2s;
-        }
-
-        .community-item:hover {
-            background: var(--bg-secondary);
-        }
-
-        .community-avatar {
-            width: 32px;
-            height: 32px;
-            border-radius: 50%;
-            background: var(--reddit-blue);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-weight: bold;
-            font-size: 14px;
-        }
-
-        .community-info {
-            flex: 1;
-        }
-
-        .community-name {
-            font-size: 14px;
-            font-weight: 500;
-            color: var(--text-primary);
-        }
-
-        .community-members {
-            font-size: 12px;
-            color: var(--text-secondary);
         }
 
         /* Post Detail */
@@ -656,11 +612,51 @@
             line-height: 1.6;
             color: var(--text-primary);
             margin-bottom: 16px;
+            word-break: break-word;
         }
 
         /* Comments */
         .comments-section {
-            padding: 16px;
+            padding: 0 16px 16px;
+        }
+
+        .comment-box {
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 16px;
+        }
+
+        .comment-input {
+            width: 100%;
+            min-height: 60px;
+            padding: 8px;
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-size: 14px;
+            font-family: inherit;
+            resize: vertical;
+            outline: none;
+        }
+
+        .comment-actions {
+            display: flex;
+            justify-content: flex-end;
+            margin-top: 8px;
+            gap: 8px;
+        }
+
+        .comment-btn {
+            padding: 6px 16px;
+            background: var(--reddit-orange);
+            color: white;
+            border: none;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
         }
 
         .comments-header {
@@ -676,8 +672,8 @@
         }
 
         .comment {
-            margin-bottom: 16px;
-            padding-left: 16px;
+            margin-bottom: 12px;
+            padding-left: 12px;
             border-left: 2px solid var(--border-color);
         }
 
@@ -685,7 +681,7 @@
             display: flex;
             align-items: center;
             gap: 8px;
-            margin-bottom: 8px;
+            margin-bottom: 6px;
             font-size: 12px;
             color: var(--text-secondary);
         }
@@ -700,66 +696,13 @@
             line-height: 1.5;
             color: var(--text-primary);
             margin-bottom: 8px;
+            word-break: break-word;
         }
 
-        .comment-actions {
+        .comment-footer {
             display: flex;
             align-items: center;
-            gap: 16px;
-        }
-
-        /* Reply Box */
-        .reply-box {
-            margin: 16px;
-            padding: 16px;
-            background: var(--bg-secondary);
-            border-radius: 8px;
-        }
-
-        .reply-textarea {
-            width: 100%;
-            min-height: 80px;
-            padding: 10px;
-            background: var(--bg-primary);
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            color: var(--text-primary);
-            font-size: 14px;
-            font-family: inherit;
-            resize: vertical;
-            outline: none;
-        }
-
-        .reply-textarea:focus {
-            border-color: var(--reddit-blue);
-        }
-
-        .reply-actions {
-            display: flex;
-            gap: 8px;
-            margin-top: 8px;
-        }
-
-        .reply-btn {
-            padding: 8px 16px;
-            background: var(--reddit-orange);
-            color: white;
-            border: none;
-            border-radius: 20px;
-            font-size: 14px;
-            font-weight: 500;
-            cursor: pointer;
-        }
-
-        .cancel-btn {
-            padding: 8px 16px;
-            background: var(--bg-tertiary);
-            color: var(--text-primary);
-            border: none;
-            border-radius: 20px;
-            font-size: 14px;
-            font-weight: 500;
-            cursor: pointer;
+            gap: 12px;
         }
 
         /* Markdown Content */
@@ -785,22 +728,12 @@
             text-decoration: underline;
         }
 
-        .markdown-content h1,
-        .markdown-content h2,
-        .markdown-content h3 {
-            margin: 16px 0 8px 0;
-            font-weight: 600;
-        }
-
-        .markdown-content p {
+        .markdown-content pre {
+            background: var(--bg-secondary);
+            padding: 12px;
+            border-radius: 8px;
+            overflow-x: auto;
             margin: 8px 0;
-        }
-
-        .markdown-content blockquote {
-            border-left: 3px solid var(--border-color);
-            padding-left: 16px;
-            margin: 8px 0;
-            color: var(--text-secondary);
         }
 
         .markdown-content code {
@@ -811,15 +744,14 @@
             font-size: 0.9em;
         }
 
-        .markdown-content pre {
-            background: var(--bg-secondary);
-            padding: 12px;
-            border-radius: 8px;
-            overflow-x: auto;
+        .markdown-content blockquote {
+            border-left: 3px solid var(--border-color);
+            padding-left: 16px;
             margin: 8px 0;
+            color: var(--text-secondary);
         }
 
-        /* Create Post */
+        /* Create Post Button */
         .create-post-btn {
             position: fixed;
             bottom: 70px;
@@ -878,7 +810,7 @@
             font-size: 14px;
         }
 
-        /* Toast Notification */
+        /* Toast */
         .toast {
             position: fixed;
             bottom: 80px;
@@ -893,11 +825,58 @@
             z-index: 3000;
             opacity: 0;
             transition: all 0.3s;
+            pointer-events: none;
         }
 
         .toast.show {
             transform: translateX(-50%) translateY(0);
             opacity: 1;
+        }
+
+        /* Community List */
+        .community-list {
+            padding: 8px 0;
+        }
+
+        .community-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .community-item:hover {
+            background: var(--bg-secondary);
+        }
+
+        .community-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: var(--reddit-blue);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 14px;
+        }
+
+        .community-info {
+            flex: 1;
+        }
+
+        .community-name {
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+
+        .community-members {
+            font-size: 12px;
+            color: var(--text-secondary);
         }
 
         /* Responsive */
@@ -929,21 +908,21 @@
             </div>
         </header>
 
-        <!-- Navigation Tabs -->
+        <!-- Feed Tabs - No Home tab -->
         <div class="nav-tabs" id="navTabs">
-            <button class="nav-tab active" data-feed="home">Home</button>
-            <button class="nav-tab" data-feed="local">Local</button>
-            <button class="nav-tab" data-feed="all">All</button>
-            <button class="nav-tab" data-feed="subscribed">Subscribed</button>
+            <button class="nav-tab active" data-feed="Local">Local</button>
+            <button class="nav-tab" data-feed="All">All</button>
+            <button class="nav-tab" data-feed="Subscribed">Subscribed</button>
         </div>
 
-        <!-- Sort Bar -->
+        <!-- Sort Options -->
         <div class="sort-bar" id="sortBar">
             <button class="sort-pill active" data-sort="Hot">🔥 Hot</button>
             <button class="sort-pill" data-sort="Active">⚡ Active</button>
             <button class="sort-pill" data-sort="New">🆕 New</button>
-            <button class="sort-pill" data-sort="Top">📈 Top</button>
-            <button class="sort-pill" data-sort="MostComments">💬 Most Comments</button>
+            <button class="sort-pill" data-sort="TopDay">📈 Top Day</button>
+            <button class="sort-pill" data-sort="TopWeek">📊 Top Week</button>
+            <button class="sort-pill" data-sort="TopMonth">📉 Top Month</button>
         </div>
 
         <!-- Main Content -->
@@ -958,9 +937,9 @@
 
         <!-- Bottom Navigation -->
         <nav class="bottom-nav">
-            <button class="nav-item active" data-page="home">
+            <button class="nav-item active" data-page="feed">
                 <span class="nav-item-icon">🏠</span>
-                <span class="nav-item-label">Home</span>
+                <span class="nav-item-label">Feed</span>
             </button>
             <button class="nav-item" data-page="communities">
                 <span class="nav-item-icon">👥</span>
@@ -981,42 +960,37 @@
         </nav>
 
         <!-- Drawer Menu -->
+        <div class="drawer-overlay" id="drawerOverlay" onclick="app.toggleDrawer()"></div>
         <div class="drawer" id="drawer">
             <div class="drawer-header">
                 <div class="drawer-user" id="drawerUser">
                     <div class="drawer-user-avatar">?</div>
                     <div>
                         <div class="drawer-username">Guest</div>
-                        <div class="drawer-karma">Login to see karma</div>
+                        <div class="drawer-karma">Not logged in</div>
                     </div>
                 </div>
             </div>
             <div class="drawer-menu">
                 <button class="drawer-item" onclick="app.navigateTo('profile')">
-                    <span class="drawer-item-icon">👤</span>
-                    <span>My Profile</span>
+                    👤 My Profile
                 </button>
                 <button class="drawer-item" onclick="app.navigateTo('saved')">
-                    <span class="drawer-item-icon">🔖</span>
-                    <span>Saved</span>
+                    🔖 Saved Posts
                 </button>
                 <button class="drawer-item" onclick="app.navigateTo('settings')">
-                    <span class="drawer-item-icon">⚙️</span>
-                    <span>Settings</span>
+                    ⚙️ Settings
                 </button>
                 <div class="drawer-divider"></div>
                 <button class="drawer-item" onclick="app.toggleTheme()">
-                    <span class="drawer-item-icon">🌙</span>
-                    <span>Dark Mode</span>
+                    🌙 Dark Mode
                 </button>
                 <button class="drawer-item" onclick="app.showInstancePicker()">
-                    <span class="drawer-item-icon">🌐</span>
-                    <span>Change Instance</span>
+                    🌐 Change Instance
                 </button>
                 <div class="drawer-divider"></div>
                 <button class="drawer-item" id="authBtn" onclick="app.handleAuth()">
-                    <span class="drawer-item-icon">🔑</span>
-                    <span>Login</span>
+                    🔑 Login
                 </button>
             </div>
         </div>
@@ -1042,7 +1016,6 @@
                         <input type="password" class="form-input" id="passwordInput" placeholder="Enter password">
                     </div>
                     <button class="btn" onclick="app.login()">Login</button>
-                    <button class="btn btn-secondary" style="margin-top: 8px" onclick="app.showRegister()">Create Account</button>
                 </div>
             </div>
         </div>
@@ -1070,8 +1043,8 @@
                         <input type="url" class="form-input" id="postUrl" placeholder="https://example.com">
                     </div>
                     <div class="form-group">
-                        <label class="form-label">Body (optional)</label>
-                        <textarea class="form-textarea" id="postBody" placeholder="Enter post content (markdown supported)"></textarea>
+                        <label class="form-label">Body (optional - Markdown supported)</label>
+                        <textarea class="form-textarea" id="postBody" placeholder="Write your post content here..."></textarea>
                     </div>
                     <button class="btn" onclick="app.createPost()">Submit Post</button>
                 </div>
@@ -1083,226 +1056,229 @@
     </div>
 
     <script>
-        // Clean localStorage on load
-        try {
-            const auth = localStorage.getItem('lemmy_auth');
-            const user = localStorage.getItem('lemmy_user');
-            if (auth === 'undefined' || auth === 'null' || user === 'undefined' || user === 'null') {
-                localStorage.removeItem('lemmy_auth');
-                localStorage.removeItem('lemmy_user');
-            }
-        } catch (e) {
-            localStorage.clear();
-        }
-
-        // Lemmy API Client
+        // Lemmy API Client - Based on official Lemmy JS Client v0.19 docs
         class LemmyClient {
             constructor(instanceUrl = 'https://lemmy.world') {
                 this.baseUrl = instanceUrl;
                 this.auth = null;
-                this.user = null;
+                this.site = null;
             }
 
             async request(endpoint, options = {}) {
                 const url = `${this.baseUrl}/api/v3${endpoint}`;
                 
                 try {
-                    let response;
-                    
-                    if (options.method === 'POST' || options.method === 'PUT') {
-                        const headers = { 'Content-Type': 'application/json' };
-                        let body = options.body;
+                    let fetchOptions = {
+                        method: options.method || 'GET',
+                        headers: {}
+                    };
+
+                    // Add body for POST/PUT requests
+                    if (options.body && (fetchOptions.method === 'POST' || fetchOptions.method === 'PUT')) {
+                        fetchOptions.headers['Content-Type'] = 'application/json';
                         
-                        if (this.auth && body) {
-                            const bodyData = JSON.parse(body);
+                        // Add auth to body if available
+                        if (this.auth) {
+                            const bodyData = typeof options.body === 'string' ? 
+                                JSON.parse(options.body) : options.body;
                             bodyData.auth = this.auth;
-                            body = JSON.stringify(bodyData);
+                            fetchOptions.body = JSON.stringify(bodyData);
+                        } else {
+                            fetchOptions.body = typeof options.body === 'string' ? 
+                                options.body : JSON.stringify(options.body);
                         }
-                        
-                        response = await fetch(url, {
-                            method: options.method,
-                            headers: headers,
-                            body: body
-                        });
-                    } else {
-                        response = await fetch(url);
                     }
+
+                    const response = await fetch(url, fetchOptions);
                     
                     if (!response.ok) {
-                        throw new Error(`HTTP error! status: ${response.status}`);
+                        const error = await response.text();
+                        throw new Error(error || `HTTP ${response.status}`);
                     }
+
                     return await response.json();
                 } catch (error) {
+                    console.error('API Error:', error);
                     throw error;
                 }
             }
 
+            // Authentication
             async login(username_or_email, password) {
                 const response = await this.request('/user/login', {
                     method: 'POST',
-                    body: JSON.stringify({ username_or_email, password })
+                    body: { username_or_email, password }
                 });
-                
-                if (response && response.jwt) {
+
+                if (response.jwt) {
                     this.auth = response.jwt;
-                    localStorage.setItem('lemmy_auth', this.auth);
-                    
-                    let userData = response.my_user || { local_user_view: response.local_user_view } || { username: username_or_email };
-                    this.user = userData;
-                    localStorage.setItem('lemmy_user', JSON.stringify(userData));
+                    localStorage.setItem('lemmy_jwt', this.auth);
+                    localStorage.setItem('lemmy_instance', this.baseUrl);
                 }
-                
+
                 return response;
             }
 
-            async getPosts(params = {}) {
-                const queryParams = new URLSearchParams({
-                    type_: params.type || 'Local',
-                    sort: params.sort || 'Hot',
-                    page: params.page || 1,
-                    limit: params.limit || 20
-                });
+            async logout() {
+                this.auth = null;
+                localStorage.removeItem('lemmy_jwt');
+                localStorage.removeItem('lemmy_instance');
+            }
+
+            loadAuth() {
+                const jwt = localStorage.getItem('lemmy_jwt');
+                const instance = localStorage.getItem('lemmy_instance');
                 
-                if (this.auth) queryParams.append('auth', this.auth);
-                return await this.request(`/post/list?${queryParams}`);
+                if (jwt) {
+                    this.auth = jwt;
+                    if (instance) this.baseUrl = instance;
+                    return true;
+                }
+                return false;
+            }
+
+            // Posts - Using correct ListingType enum values from API docs
+            async getPosts(options = {}) {
+                const params = new URLSearchParams({
+                    type_: options.type_ || 'Local',
+                    sort: options.sort || 'Hot',
+                    page: options.page || 1,
+                    limit: options.limit || 20
+                });
+
+                if (this.auth) {
+                    params.append('auth', this.auth);
+                }
+
+                return await this.request(`/post/list?${params}`);
             }
 
             async getPost(id) {
-                const queryParams = new URLSearchParams({ id });
-                if (this.auth) queryParams.append('auth', this.auth);
-                return await this.request(`/post?${queryParams}`);
-            }
-
-            async getComments(post_id, params = {}) {
-                const queryParams = new URLSearchParams({
-                    post_id,
-                    type_: params.type || 'All',
-                    sort: params.sort || 'Hot',
-                    page: params.page || 1,
-                    limit: params.limit || 50
-                });
-                
-                if (this.auth) queryParams.append('auth', this.auth);
-                return await this.request(`/comment/list?${queryParams}`);
-            }
-
-            async getCommunities(params = {}) {
-                const queryParams = new URLSearchParams({
-                    type_: params.type || 'Local',
-                    sort: params.sort || 'Hot',
-                    page: params.page || 1,
-                    limit: params.limit || 50
-                });
-                
-                if (this.auth) queryParams.append('auth', this.auth);
-                return await this.request(`/community/list?${queryParams}`);
+                const params = new URLSearchParams({ id });
+                if (this.auth) params.append('auth', this.auth);
+                return await this.request(`/post?${params}`);
             }
 
             async createPost(community_id, name, body, url) {
                 return await this.request('/post', {
                     method: 'POST',
-                    body: JSON.stringify({ community_id, name, body, url })
+                    body: { community_id, name, body, url }
                 });
             }
 
-            async createComment(post_id, content, parent_id) {
-                return await this.request('/comment', {
-                    method: 'POST',
-                    body: JSON.stringify({ post_id, content, parent_id })
-                });
-            }
-
-            async vote(post_id, score) {
+            async likePost(post_id, score) {
                 return await this.request('/post/like', {
                     method: 'POST',
-                    body: JSON.stringify({ post_id, score })
-                });
-            }
-
-            async voteComment(comment_id, score) {
-                return await this.request('/comment/like', {
-                    method: 'POST',
-                    body: JSON.stringify({ comment_id, score })
+                    body: { post_id, score }
                 });
             }
 
             async savePost(post_id, save) {
                 return await this.request('/post/save', {
                     method: 'PUT',
-                    body: JSON.stringify({ post_id, save })
+                    body: { post_id, save }
                 });
             }
 
-            loadAuth() {
-                try {
-                    const auth = localStorage.getItem('lemmy_auth');
-                    const userStr = localStorage.getItem('lemmy_user');
-                    
-                    if (auth && userStr && auth !== 'undefined' && auth !== 'null') {
-                        this.auth = auth;
-                        this.user = JSON.parse(userStr);
-                        return true;
-                    }
-                } catch (error) {
-                    localStorage.removeItem('lemmy_auth');
-                    localStorage.removeItem('lemmy_user');
-                }
-                return false;
+            // Comments
+            async getComments(post_id, options = {}) {
+                const params = new URLSearchParams({
+                    post_id,
+                    type_: options.type_ || 'All',
+                    sort: options.sort || 'Hot',
+                    max_depth: options.max_depth || 8,
+                    page: options.page || 1,
+                    limit: options.limit || 50
+                });
+
+                if (this.auth) params.append('auth', this.auth);
+                return await this.request(`/comment/list?${params}`);
             }
 
-            logout() {
-                this.auth = null;
-                this.user = null;
-                localStorage.removeItem('lemmy_auth');
-                localStorage.removeItem('lemmy_user');
+            async createComment(post_id, content, parent_id) {
+                return await this.request('/comment', {
+                    method: 'POST',
+                    body: { post_id, content, parent_id }
+                });
+            }
+
+            async likeComment(comment_id, score) {
+                return await this.request('/comment/like', {
+                    method: 'POST',
+                    body: { comment_id, score }
+                });
+            }
+
+            // Communities
+            async getCommunities(options = {}) {
+                const params = new URLSearchParams({
+                    type_: options.type_ || 'Local',
+                    sort: options.sort || 'Hot',
+                    page: options.page || 1,
+                    limit: options.limit || 50
+                });
+
+                if (this.auth) params.append('auth', this.auth);
+                return await this.request(`/community/list?${params}`);
+            }
+
+            // Site
+            async getSite() {
+                const params = new URLSearchParams();
+                if (this.auth) params.append('auth', this.auth);
+                return await this.request(`/site?${params}`);
             }
         }
 
-        // Main App
+        // Main Application
         class LemmyApp {
             constructor() {
                 this.client = new LemmyClient();
-                this.currentView = 'home';
-                this.currentFeed = 'local';
-                this.currentSort = 'Hot';
+                this.currentFeed = 'Local'; // ListingType enum value
+                this.currentSort = 'Hot';   // SortType enum value
+                this.currentPage = 1;
                 this.posts = [];
                 this.communities = [];
                 this.currentPost = null;
-                this.currentPage = 1;
                 this.isLoading = false;
+                this.currentView = 'feed';
+                this.myUser = null;
+                
                 this.init();
             }
 
             async init() {
+                // Check for saved auth
                 if (this.client.loadAuth()) {
-                    this.updateUserUI();
+                    await this.loadUserInfo();
                 }
+
+                // Setup event listeners
                 this.setupEventListeners();
+
+                // Load initial posts
                 await this.loadPosts();
             }
 
             setupEventListeners() {
-                // Navigation tabs for feed selection
+                // Feed tabs
                 document.querySelectorAll('.nav-tab').forEach(tab => {
                     tab.addEventListener('click', (e) => {
-                        // Remove active from all tabs
                         document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
-                        // Add active to clicked tab
                         e.target.classList.add('active');
-                        // Update current feed
                         this.currentFeed = e.target.dataset.feed;
-                        console.log('Switching to feed:', this.currentFeed);
-                        // Load posts for new feed
+                        this.currentPage = 1;
                         this.loadPosts();
                     });
                 });
 
-                // Sort pills
+                // Sort options
                 document.querySelectorAll('.sort-pill').forEach(pill => {
                     pill.addEventListener('click', (e) => {
                         document.querySelectorAll('.sort-pill').forEach(p => p.classList.remove('active'));
                         e.target.classList.add('active');
                         this.currentSort = e.target.dataset.sort;
+                        this.currentPage = 1;
                         this.loadPosts();
                     });
                 });
@@ -1315,121 +1291,71 @@
                     });
                 });
 
-                document.getElementById('searchInput').addEventListener('keypress', (e) => {
-                    if (e.key === 'Enter') {
-                        this.search(e.target.value);
-                    }
-                });
-
+                // Infinite scroll
                 window.addEventListener('scroll', () => {
-                    if (window.innerHeight + window.scrollY >= document.body.offsetHeight - 1000) {
-                        if (!this.isLoading && this.currentView === 'home') {
+                    if ((window.innerHeight + window.scrollY) >= document.body.offsetHeight - 1000) {
+                        if (!this.isLoading && this.currentView === 'feed') {
                             this.loadMorePosts();
                         }
                     }
                 });
 
-                document.addEventListener('click', (e) => {
-                    const drawer = document.getElementById('drawer');
-                    if (drawer.classList.contains('active') && !drawer.contains(e.target) && !e.target.classList.contains('menu-btn')) {
-                        this.toggleDrawer();
+                // Search
+                document.getElementById('searchInput').addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter' && e.target.value.trim()) {
+                        this.search(e.target.value);
                     }
                 });
             }
 
-            parseMarkdown(text) {
-                if (!text) return '';
-                
-                let html = this.escapeHtml(text);
-                
-                // Images first
-                html = html.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" />');
-                
-                // Links
-                html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
-                
-                // Bold/Italic
-                html = html.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>');
-                html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-                html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
-                
-                // Code
-                html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
-                html = html.replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
-                
-                // Headers
-                html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>');
-                html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>');
-                html = html.replace(/^# (.+)$/gm, '<h1>$1</h1>');
-                
-                // Line breaks
-                html = html.replace(/\n\n/g, '</p><p>');
-                html = html.replace(/\n/g, '<br>');
-                
-                if (!html.startsWith('<')) {
-                    html = '<p>' + html + '</p>';
+            async loadUserInfo() {
+                try {
+                    const site = await this.client.getSite();
+                    if (site.my_user) {
+                        this.myUser = site.my_user;
+                        this.updateUserUI();
+                    }
+                } catch (error) {
+                    console.error('Failed to load user info:', error);
                 }
-                
-                return html;
             }
 
             async loadPosts() {
                 if (this.isLoading) return;
                 this.isLoading = true;
-                this.currentPage = 1;
 
                 const content = document.getElementById('content');
-                content.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+                if (this.currentPage === 1) {
+                    content.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+                }
 
                 try {
-                    const typeMap = {
-                        'home': 'Local',
-                        'local': 'Local',
-                        'all': 'All',
-                        'subscribed': 'Subscribed'
-                    };
-
                     const response = await this.client.getPosts({
-                        type: typeMap[this.currentFeed],
+                        type_: this.currentFeed,
                         sort: this.currentSort,
                         page: this.currentPage
                     });
 
-                    this.posts = response.posts;
+                    if (this.currentPage === 1) {
+                        this.posts = response.posts || [];
+                    } else {
+                        this.posts = [...this.posts, ...(response.posts || [])];
+                    }
+
                     this.renderPosts();
                 } catch (error) {
-                    content.innerHTML = '<div class="error-message">Failed to load posts. Please try again.</div>';
+                    if (this.currentPage === 1) {
+                        content.innerHTML = '<div class="error-message">Failed to load posts. Please try again.</div>';
+                    }
+                    this.showToast('Failed to load posts');
                 } finally {
                     this.isLoading = false;
                 }
             }
 
             async loadMorePosts() {
-                if (this.isLoading) return;
-                this.isLoading = true;
                 this.currentPage++;
-
-                try {
-                    const typeMap = {
-                        'home': 'Local',
-                        'local': 'Local',
-                        'all': 'All',
-                        'subscribed': 'Subscribed'
-                    };
-
-                    const response = await this.client.getPosts({
-                        type: typeMap[this.currentFeed],
-                        sort: this.currentSort,
-                        page: this.currentPage
-                    });
-
-                    this.posts = [...this.posts, ...response.posts];
-                    this.renderPosts();
-                } catch (error) {
-                    this.showToast('Failed to load more posts');
-                } finally {
-                    this.isLoading = false;
-                }
+                await this.loadPosts();
             }
 
             renderPosts() {
@@ -1440,30 +1366,32 @@
                         <div class="empty-state">
                             <div class="empty-icon">📭</div>
                             <div class="empty-title">No posts yet</div>
-                            <div class="empty-message">Be the first to post in this community!</div>
+                            <div class="empty-message">Be the first to post!</div>
                         </div>
                     `;
                     return;
                 }
 
-                const postsHtml = this.posts.map(postView => {
+                const html = this.posts.map(postView => {
                     const post = postView.post;
                     const creator = postView.creator;
                     const community = postView.community;
                     const counts = postView.counts;
-                    const my_vote = postView.my_vote;
 
+                    // Parse body for preview
                     let bodyPreview = '';
                     if (post.body) {
-                        let previewText = post.body.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '[image]');
-                        if (previewText.length > 200) {
-                            previewText = previewText.substring(0, 200) + '...';
-                        }
-                        bodyPreview = this.parseMarkdown(previewText);
+                        bodyPreview = this.parseMarkdown(post.body.substring(0, 200));
+                        if (post.body.length > 200) bodyPreview += '...';
                     }
 
-                    const thumbnailHtml = post.thumbnail_url ? 
-                        '<img class="post-image" src="' + post.thumbnail_url + '" alt="Post thumbnail">' : '';
+                    // Handle images
+                    let imageHtml = '';
+                    if (post.thumbnail_url) {
+                        imageHtml = `<img class="post-image" src="${post.thumbnail_url}" alt="" loading="lazy">`;
+                    } else if (post.url && /\.(jpg|jpeg|png|gif|webp)$/i.test(post.url)) {
+                        imageHtml = `<img class="post-image" src="${post.url}" alt="" loading="lazy">`;
+                    }
 
                     return `
                         <div class="post-card" onclick="app.viewPost(${post.id})">
@@ -1477,47 +1405,56 @@
                                     <span>${this.formatTime(post.published)}</span>
                                 </div>
                                 <h3 class="post-title">${this.escapeHtml(post.name)}</h3>
-                                ${bodyPreview ? '<div class="post-body markdown-content">' + bodyPreview + '</div>' : ''}
-                                ${thumbnailHtml}
+                                ${bodyPreview ? `<div class="post-body markdown-content">${bodyPreview}</div>` : ''}
+                                ${imageHtml}
                             </div>
                             <div class="post-footer">
                                 <div class="vote-buttons">
-                                    <button class="vote-btn ${my_vote === 1 ? 'upvoted' : ''}" onclick="event.stopPropagation(); app.vote(${post.id}, 1)">▲</button>
+                                    <button class="vote-btn ${postView.my_vote === 1 ? 'upvoted' : ''}" 
+                                        onclick="event.stopPropagation(); app.votePost(${post.id}, ${postView.my_vote === 1 ? 0 : 1})">
+                                        ▲
+                                    </button>
                                     <span class="vote-count">${this.formatCount(counts.score)}</span>
-                                    <button class="vote-btn ${my_vote === -1 ? 'downvoted' : ''}" onclick="event.stopPropagation(); app.vote(${post.id}, -1)">▼</button>
+                                    <button class="vote-btn ${postView.my_vote === -1 ? 'downvoted' : ''}" 
+                                        onclick="event.stopPropagation(); app.votePost(${post.id}, ${postView.my_vote === -1 ? 0 : -1})">
+                                        ▼
+                                    </button>
                                 </div>
                                 <button class="post-action" onclick="event.stopPropagation(); app.viewPost(${post.id})">
                                     💬 ${this.formatCount(counts.comments)}
                                 </button>
-                                <button class="post-action" onclick="event.stopPropagation(); app.share(${post.id})">
+                                <button class="post-action" onclick="event.stopPropagation(); app.sharePost(${post.id})">
                                     🔗 Share
                                 </button>
-                                <button class="post-action" onclick="event.stopPropagation(); app.save(${post.id})">
-                                    🔖 Save
+                                <button class="post-action" onclick="event.stopPropagation(); app.savePost(${post.id}, ${!postView.saved})">
+                                    ${postView.saved ? '🔖' : '📌'} Save
                                 </button>
                             </div>
                         </div>
                     `;
                 }).join('');
 
-                content.innerHTML = postsHtml;
+                if (this.currentPage === 1) {
+                    content.innerHTML = html;
+                } else {
+                    content.insertAdjacentHTML('beforeend', html);
+                }
             }
 
             async viewPost(postId) {
-                this.currentView = 'post';
                 const content = document.getElementById('content');
                 content.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
 
                 try {
-                    const [postResponse, commentsResponse] = await Promise.all([
+                    const [postRes, commentsRes] = await Promise.all([
                         this.client.getPost(postId),
                         this.client.getComments(postId)
                     ]);
 
-                    this.currentPost = postResponse.post_view;
-                    this.renderPostDetail(postResponse.post_view, commentsResponse.comments);
+                    this.currentPost = postRes.post_view;
+                    this.renderPostDetail(postRes.post_view, commentsRes.comments);
                 } catch (error) {
-                    content.innerHTML = '<div class="error-message">Failed to load post.</div>';
+                    content.innerHTML = '<div class="error-message">Failed to load post</div>';
                 }
             }
 
@@ -1526,10 +1463,6 @@
                 const creator = postView.creator;
                 const community = postView.community;
                 const counts = postView.counts;
-
-                const bodyHtml = post.body ? this.parseMarkdown(post.body) : '';
-                const urlHtml = post.url && !post.body?.includes(post.url) ? 
-                    '<a href="' + post.url + '" target="_blank" style="color: var(--reddit-blue);">🔗 ' + post.url + '</a>' : '';
 
                 const content = document.getElementById('content');
                 content.innerHTML = `
@@ -1544,34 +1477,42 @@
                                 <span>${this.formatTime(post.published)}</span>
                             </div>
                             <h1 class="post-detail-title">${this.escapeHtml(post.name)}</h1>
-                            ${bodyHtml ? '<div class="post-detail-body markdown-content">' + bodyHtml + '</div>' : ''}
-                            ${urlHtml}
-                            <div class="post-footer">
+                            ${post.body ? `<div class="post-detail-body markdown-content">${this.parseMarkdown(post.body)}</div>` : ''}
+                            ${post.url ? `<a href="${post.url}" target="_blank" style="color: var(--reddit-blue)">🔗 ${post.url}</a>` : ''}
+                            
+                            <div class="post-footer" style="margin-top: 16px;">
                                 <div class="vote-buttons">
-                                    <button class="vote-btn ${postView.my_vote === 1 ? 'upvoted' : ''}" onclick="app.vote(${post.id}, 1)">▲</button>
+                                    <button class="vote-btn ${postView.my_vote === 1 ? 'upvoted' : ''}" 
+                                        onclick="app.votePost(${post.id}, ${postView.my_vote === 1 ? 0 : 1})">
+                                        ▲
+                                    </button>
                                     <span class="vote-count">${this.formatCount(counts.score)}</span>
-                                    <button class="vote-btn ${postView.my_vote === -1 ? 'downvoted' : ''}" onclick="app.vote(${post.id}, -1)">▼</button>
+                                    <button class="vote-btn ${postView.my_vote === -1 ? 'downvoted' : ''}" 
+                                        onclick="app.votePost(${post.id}, ${postView.my_vote === -1 ? 0 : -1})">
+                                        ▼
+                                    </button>
                                 </div>
-                                <button class="post-action" onclick="app.share(${post.id})">
+                                <button class="post-action" onclick="app.sharePost(${post.id})">
                                     🔗 Share
                                 </button>
-                                <button class="post-action" onclick="app.save(${post.id})">
-                                    🔖 Save
+                                <button class="post-action" onclick="app.savePost(${post.id}, ${!postView.saved})">
+                                    ${postView.saved ? '🔖' : '📌'} Save
                                 </button>
                             </div>
                         </div>
-                        
-                        <div class="reply-box">
-                            <textarea class="reply-textarea" id="postReplyText" placeholder="What are your thoughts?"></textarea>
-                            <div class="reply-actions">
-                                <button class="reply-btn" onclick="app.replyToPost(${post.id})">Comment</button>
-                            </div>
-                        </div>
-                        
+
                         <div class="comments-section">
+                            <div class="comment-box">
+                                <textarea class="comment-input" id="commentInput" placeholder="Add a comment..."></textarea>
+                                <div class="comment-actions">
+                                    <button class="comment-btn" onclick="app.postComment(${post.id})">Comment</button>
+                                </div>
+                            </div>
+
                             <div class="comments-header">
                                 <h2 class="comments-title">Comments (${counts.comments})</h2>
                             </div>
+                            
                             <div id="commentsContainer">
                                 ${this.renderComments(comments)}
                             </div>
@@ -1581,96 +1522,127 @@
             }
 
             renderComments(comments, parentId = null, depth = 0) {
-                const filtered = comments.filter(c => 
-                    (parentId === null && !c.comment.parent_id) || 
-                    (c.comment.parent_id === parentId)
-                );
+                return comments
+                    .filter(c => c.comment.path.split('.').length === depth + 2)
+                    .map(commentView => {
+                        const comment = commentView.comment;
+                        const creator = commentView.creator;
+                        const counts = commentView.counts;
 
-                return filtered.map(commentView => {
-                    const comment = commentView.comment;
-                    const creator = commentView.creator;
-                    const counts = commentView.counts;
+                        const childComments = comments.filter(c => 
+                            c.comment.path.startsWith(comment.path + '.'));
 
-                    const replies = this.renderComments(comments, comment.id, depth + 1);
-                    const parsedContent = this.parseMarkdown(comment.content);
-
-                    return `
-                        <div class="comment" style="margin-left: ${depth * 16}px">
-                            <div class="comment-header">
-                                <span class="comment-author">u/${creator.name}</span>
-                                <span>•</span>
-                                <span>${this.formatTime(comment.published)}</span>
-                            </div>
-                            <div class="comment-body markdown-content">${parsedContent}</div>
-                            <div class="comment-actions">
-                                <div class="vote-buttons">
-                                    <button class="vote-btn ${commentView.my_vote === 1 ? 'upvoted' : ''}" onclick="app.voteComment(${comment.id}, 1)">▲</button>
-                                    <span class="vote-count">${counts.score}</span>
-                                    <button class="vote-btn ${commentView.my_vote === -1 ? 'downvoted' : ''}" onclick="app.voteComment(${comment.id}, -1)">▼</button>
+                        return `
+                            <div class="comment" style="margin-left: ${Math.min(depth * 20, 60)}px">
+                                <div class="comment-header">
+                                    <span class="comment-author">u/${creator.name}</span>
+                                    <span>•</span>
+                                    <span>${this.formatTime(comment.published)}</span>
                                 </div>
-                                <button class="post-action" onclick="app.showReplyToComment(${comment.id}, ${comment.post_id})">
-                                    ↩️ Reply
-                                </button>
+                                <div class="comment-body markdown-content">
+                                    ${this.parseMarkdown(comment.content)}
+                                </div>
+                                <div class="comment-footer">
+                                    <div class="vote-buttons">
+                                        <button class="vote-btn ${commentView.my_vote === 1 ? 'upvoted' : ''}" 
+                                            onclick="app.voteComment(${comment.id}, ${commentView.my_vote === 1 ? 0 : 1})">
+                                            ▲
+                                        </button>
+                                        <span class="vote-count">${counts.score}</span>
+                                        <button class="vote-btn ${commentView.my_vote === -1 ? 'downvoted' : ''}" 
+                                            onclick="app.voteComment(${comment.id}, ${commentView.my_vote === -1 ? 0 : -1})">
+                                            ▼
+                                        </button>
+                                    </div>
+                                    <button class="post-action" onclick="app.replyToComment(${comment.id}, ${comment.post_id})">
+                                        ↩️ Reply
+                                    </button>
+                                </div>
+                                <div id="reply-${comment.id}"></div>
+                                ${childComments.length > 0 ? this.renderComments(comments, comment.id, depth + 1) : ''}
                             </div>
-                            <div id="reply-box-${comment.id}"></div>
-                            ${replies}
-                        </div>
-                    `;
-                }).join('');
+                        `;
+                    }).join('');
             }
 
-            async loadCommunities() {
-                const content = document.getElementById('content');
-                content.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+            async postComment(postId, parentId = null) {
+                const input = parentId ? 
+                    document.getElementById(`reply-input-${parentId}`) : 
+                    document.getElementById('commentInput');
+                    
+                const content = input?.value.trim();
+                
+                if (!content) {
+                    this.showToast('Please enter a comment');
+                    return;
+                }
+
+                if (!this.client.auth) {
+                    this.showToast('Please login to comment');
+                    return;
+                }
 
                 try {
-                    const response = await this.client.getCommunities({ limit: 100 });
-                    this.communities = response.communities;
-                    this.renderCommunities();
+                    await this.client.createComment(postId, content, parentId);
+                    input.value = '';
+                    this.showToast('Comment posted!');
+                    
+                    // Reload comments
+                    const commentsRes = await this.client.getComments(postId);
+                    document.getElementById('commentsContainer').innerHTML = 
+                        this.renderComments(commentsRes.comments);
+                        
+                    // Remove reply box if it was a reply
+                    if (parentId) {
+                        document.getElementById(`reply-${parentId}`).innerHTML = '';
+                    }
                 } catch (error) {
-                    content.innerHTML = '<div class="error-message">Failed to load communities.</div>';
+                    this.showToast('Failed to post comment');
                 }
             }
 
-            renderCommunities() {
-                const content = document.getElementById('content');
-                const communitiesHtml = this.communities.map(communityView => {
-                    const community = communityView.community;
-                    const counts = communityView.counts;
-                    return `
-                        <div class="community-item" onclick="app.viewCommunity(${community.id})">
-                            <div class="community-avatar">${community.name[0].toUpperCase()}</div>
-                            <div class="community-info">
-                                <div class="community-name">c/${community.name}</div>
-                                <div class="community-members">${this.formatCount(counts.subscribers)} members</div>
-                            </div>
-                        </div>
-                    `;
-                }).join('');
+            replyToComment(commentId, postId) {
+                const replyDiv = document.getElementById(`reply-${commentId}`);
+                
+                if (replyDiv.innerHTML) {
+                    replyDiv.innerHTML = '';
+                    return;
+                }
 
-                content.innerHTML = '<div class="community-list">' + communitiesHtml + '</div>';
+                replyDiv.innerHTML = `
+                    <div class="comment-box" style="margin: 8px 0;">
+                        <textarea class="comment-input" id="reply-input-${commentId}" 
+                            placeholder="Write a reply..." style="min-height: 60px;"></textarea>
+                        <div class="comment-actions">
+                            <button class="comment-btn" onclick="app.postComment(${postId}, ${commentId})">
+                                Reply
+                            </button>
+                            <button class="comment-btn" style="background: var(--bg-secondary); color: var(--text-primary)"
+                                onclick="document.getElementById('reply-${commentId}').innerHTML = ''">
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                `;
+                
+                document.getElementById(`reply-input-${commentId}`).focus();
             }
 
-            async vote(postId, score) {
+            async votePost(postId, score) {
                 if (!this.client.auth) {
                     this.showToast('Please login to vote');
                     return;
                 }
 
                 try {
-                    await this.client.vote(postId, score);
-                    const postView = this.posts.find(p => p.post.id === postId);
-                    if (postView) {
-                        if (postView.my_vote === score) {
-                            postView.my_vote = 0;
-                            postView.counts.score -= score;
-                        } else {
-                            if (postView.my_vote) {
-                                postView.counts.score -= postView.my_vote;
-                            }
-                            postView.my_vote = score;
-                            postView.counts.score += score;
-                        }
+                    await this.client.likePost(postId, score);
+                    
+                    // Update UI
+                    const post = this.posts.find(p => p.post.id === postId);
+                    if (post) {
+                        const oldVote = post.my_vote || 0;
+                        post.my_vote = score;
+                        post.counts.score += score - oldVote;
                         this.renderPosts();
                     }
                 } catch (error) {
@@ -1685,154 +1657,90 @@
                 }
 
                 try {
-                    await this.client.voteComment(commentId, score);
+                    await this.client.likeComment(commentId, score);
                     this.showToast('Vote recorded');
                 } catch (error) {
                     this.showToast('Failed to vote');
                 }
             }
 
-            async save(postId) {
+            async savePost(postId, save) {
                 if (!this.client.auth) {
-                    this.showToast('Please login to save posts');
+                    this.showToast('Please login to save');
                     return;
                 }
 
                 try {
-                    await this.client.savePost(postId, true);
-                    this.showToast('Post saved');
+                    await this.client.savePost(postId, save);
+                    this.showToast(save ? 'Post saved' : 'Post unsaved');
+                    
+                    // Update UI
+                    const post = this.posts.find(p => p.post.id === postId);
+                    if (post) {
+                        post.saved = save;
+                        this.renderPosts();
+                    }
                 } catch (error) {
                     this.showToast('Failed to save post');
                 }
             }
 
-            async replyToPost(postId) {
-                if (!this.client.auth) {
-                    this.showToast('Please login to comment');
-                    return;
-                }
-
-                const replyText = document.getElementById('postReplyText').value.trim();
-                if (!replyText) {
-                    this.showToast('Please enter a comment');
-                    return;
-                }
-
-                try {
-                    await this.client.createComment(postId, replyText, null);
-                    document.getElementById('postReplyText').value = '';
-                    this.showToast('Comment posted!');
-                    
-                    const commentsResponse = await this.client.getComments(postId);
-                    document.getElementById('commentsContainer').innerHTML = this.renderComments(commentsResponse.comments);
-                } catch (error) {
-                    this.showToast('Failed to post comment');
-                }
-            }
-
-            showReplyToComment(commentId, postId) {
-                if (!this.client.auth) {
-                    this.showToast('Please login to reply');
-                    return;
-                }
-
-                const replyBox = document.getElementById(`reply-box-${commentId}`);
-                
-                if (replyBox.innerHTML) {
-                    replyBox.innerHTML = '';
-                    return;
-                }
-
-                replyBox.innerHTML = `
-                    <div class="reply-box" style="margin: 8px 0;">
-                        <textarea class="reply-textarea" id="reply-text-${commentId}" placeholder="Write your reply..."></textarea>
-                        <div class="reply-actions">
-                            <button class="reply-btn" onclick="app.submitCommentReply(${commentId}, ${postId})">Reply</button>
-                            <button class="cancel-btn" onclick="app.cancelReply(${commentId})">Cancel</button>
-                        </div>
-                    </div>
-                `;
-                
-                setTimeout(() => {
-                    const textarea = document.getElementById(`reply-text-${commentId}`);
-                    if (textarea) textarea.focus();
-                }, 100);
-            }
-
-            async submitCommentReply(parentId, postId) {
-                const textarea = document.getElementById(`reply-text-${parentId}`);
-                if (!textarea) {
-                    console.error('Reply textarea not found');
-                    return;
-                }
-
-                const replyText = textarea.value.trim();
-                if (!replyText) {
-                    this.showToast('Please enter a reply');
-                    return;
-                }
-
-                this.showToast('Posting reply...');
-
-                try {
-                    // Create the reply comment
-                    await this.client.createComment(postId, replyText, parentId);
-                    
-                    // Show success
-                    this.showToast('Reply posted successfully!');
-                    
-                    // Clear and hide the reply box
-                    this.cancelReply(parentId);
-                    
-                    // Reload all comments
-                    const commentsResponse = await this.client.getComments(postId);
-                    const commentsContainer = document.getElementById('commentsContainer');
-                    if (commentsContainer) {
-                        commentsContainer.innerHTML = this.renderComments(commentsResponse.comments);
-                    }
-                } catch (error) {
-                    console.error('Failed to post reply:', error);
-                    this.showToast('Failed to post reply. Please try again.');
-                }
-            }
-
-            cancelReply(commentId) {
-                const replyBox = document.getElementById(`reply-box-${commentId}`);
-                if (replyBox) {
-                    replyBox.innerHTML = '';
-                }
-            }
-
-            share(postId) {
+            sharePost(postId) {
                 const post = this.posts.find(p => p.post.id === postId) || this.currentPost;
-                if (post) {
-                    const url = `${window.location.origin}/post/${postId}`;
-                    if (navigator.share) {
-                        navigator.share({
-                            title: post.post.name,
-                            url: url
-                        });
-                    } else {
-                        navigator.clipboard.writeText(url);
-                        this.showToast('Link copied to clipboard');
-                    }
+                if (!post) return;
+
+                const url = `${window.location.origin}/#/post/${postId}`;
+                
+                if (navigator.share) {
+                    navigator.share({
+                        title: post.post.name,
+                        url: url
+                    }).catch(() => {});
+                } else {
+                    navigator.clipboard.writeText(url);
+                    this.showToast('Link copied!');
                 }
+            }
+
+            async loadCommunities() {
+                const content = document.getElementById('content');
+                content.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+
+                try {
+                    const response = await this.client.getCommunities({ limit: 100 });
+                    this.communities = response.communities || [];
+                    
+                    const html = this.communities.map(c => `
+                        <div class="community-item" onclick="app.viewCommunity(${c.community.id})">
+                            <div class="community-avatar">${c.community.name[0].toUpperCase()}</div>
+                            <div class="community-info">
+                                <div class="community-name">c/${c.community.name}</div>
+                                <div class="community-members">${this.formatCount(c.counts.subscribers)} members</div>
+                            </div>
+                        </div>
+                    `).join('');
+
+                    content.innerHTML = `<div class="community-list">${html}</div>`;
+                } catch (error) {
+                    content.innerHTML = '<div class="error-message">Failed to load communities</div>';
+                }
+            }
+
+            viewCommunity(communityId) {
+                this.showToast('Community view coming soon');
             }
 
             navigateTo(page) {
                 document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
-                document.querySelector(`[data-page="${page}"]`).classList.add('active');
+                document.querySelector(`[data-page="${page}"]`)?.classList.add('active');
+
+                this.currentView = page;
 
                 switch(page) {
-                    case 'home':
-                        this.currentView = 'home';
-                        this.currentFeed = 'local';  // Default to local when going home
-                        document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
-                        document.querySelector('[data-feed="local"]').classList.add('active');
+                    case 'feed':
                         this.loadPosts();
                         break;
                     case 'communities':
-                        this.currentView = 'communities';
                         this.loadCommunities();
                         break;
                     case 'create':
@@ -1844,44 +1752,6 @@
                     case 'profile':
                         this.showProfile();
                         break;
-                }
-            }
-
-            showCreatePost() {
-                if (!this.client.auth) {
-                    this.showToast('Please login to create posts');
-                    return;
-                }
-
-                document.getElementById('createPostModal').classList.add('active');
-                
-                this.client.getCommunities({ limit: 100 }).then(response => {
-                    const select = document.getElementById('postCommunity');
-                    select.innerHTML = '<option value="">Select a community</option>' +
-                        response.communities.map(c => 
-                            `<option value="${c.community.id}">c/${c.community.name}</option>`
-                        ).join('');
-                });
-            }
-
-            async createPost() {
-                const community_id = parseInt(document.getElementById('postCommunity').value);
-                const name = document.getElementById('postTitle').value;
-                const url = document.getElementById('postUrl').value;
-                const body = document.getElementById('postBody').value;
-
-                if (!community_id || !name) {
-                    this.showToast('Please select a community and enter a title');
-                    return;
-                }
-
-                try {
-                    await this.client.createPost(community_id, name, body || undefined, url || undefined);
-                    this.closeModal('createPostModal');
-                    this.showToast('Post created successfully');
-                    this.loadPosts();
-                } catch (error) {
-                    this.showToast('Failed to create post');
                 }
             }
 
@@ -1898,30 +1768,19 @@
 
             showProfile() {
                 const content = document.getElementById('content');
-                if (this.client.user) {
-                    let userName = 'User';
-                    let userJoined = '';
-                    
-                    if (this.client.user.local_user_view && this.client.user.local_user_view.person) {
-                        userName = this.client.user.local_user_view.person.name;
-                        userJoined = this.client.user.local_user_view.person.published;
-                    } else if (this.client.user.person) {
-                        userName = this.client.user.person.name;
-                        userJoined = this.client.user.person.published;
-                    } else if (this.client.user.username) {
-                        userName = this.client.user.username;
-                    }
-                    
+                
+                if (this.myUser) {
+                    const user = this.myUser.local_user_view.person;
                     content.innerHTML = `
                         <div style="padding: 20px;">
                             <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 20px;">
                                 <div class="user-avatar" style="width: 60px; height: 60px; font-size: 24px;">
-                                    ${userName[0].toUpperCase()}
+                                    ${user.name[0].toUpperCase()}
                                 </div>
                                 <div>
-                                    <h2 style="margin: 0;">u/${userName}</h2>
+                                    <h2 style="margin: 0;">u/${user.name}</h2>
                                     <div style="color: var(--text-secondary); font-size: 14px;">
-                                        Joined ${userJoined ? this.formatTime(userJoined) : 'recently'}
+                                        Joined ${this.formatTime(user.published)}
                                     </div>
                                 </div>
                             </div>
@@ -1934,178 +1793,52 @@
                             <div class="empty-icon">👤</div>
                             <div class="empty-title">Not logged in</div>
                             <div class="empty-message">Login to view your profile</div>
-                            <button class="btn" style="max-width: 200px; margin: 20px auto;" onclick="app.showLogin()">Login</button>
+                            <button class="btn" style="max-width: 200px; margin: 20px auto;" 
+                                onclick="app.showLogin()">Login</button>
                         </div>
                     `;
                 }
             }
 
-            toggleDrawer() {
-                document.getElementById('drawer').classList.toggle('active');
+            showCreatePost() {
+                if (!this.client.auth) {
+                    this.showToast('Please login to create posts');
+                    return;
+                }
+
+                document.getElementById('createPostModal').classList.add('active');
+                
+                // Load communities for dropdown
+                this.client.getCommunities({ limit: 100 }).then(response => {
+                    const select = document.getElementById('postCommunity');
+                    select.innerHTML = '<option value="">Select a community</option>' +
+                        response.communities.map(c => 
+                            `<option value="${c.community.id}">c/${c.community.name}</option>`
+                        ).join('');
+                });
             }
 
-            toggleTheme() {
-                document.body.dataset.theme = document.body.dataset.theme === 'dark' ? '' : 'dark';
-                localStorage.setItem('theme', document.body.dataset.theme || 'light');
-                this.showToast(`Switched to ${document.body.dataset.theme === 'dark' ? 'dark' : 'light'} mode`);
-            }
+            async createPost() {
+                const community_id = parseInt(document.getElementById('postCommunity').value);
+                const name = document.getElementById('postTitle').value.trim();
+                const url = document.getElementById('postUrl').value.trim();
+                const body = document.getElementById('postBody').value.trim();
 
-            showLogin() {
-                document.getElementById('loginModal').classList.add('active');
-            }
-
-            async login() {
-                const instance = document.getElementById('instanceInput').value;
-                const username = document.getElementById('usernameInput').value;
-                const password = document.getElementById('passwordInput').value;
-
-                if (!username || !password) {
-                    this.showToast('Please enter username and password');
+                if (!community_id || !name) {
+                    this.showToast('Please select a community and enter a title');
                     return;
                 }
 
                 try {
-                    this.client.baseUrl = `https://${instance}`;
-                    await this.client.login(username, password);
-                    this.closeModal('loginModal');
-                    this.showToast('Logged in successfully');
-                    this.updateUserUI();
+                    await this.client.createPost(
+                        community_id, 
+                        name, 
+                        body || undefined, 
+                        url || undefined
+                    );
+                    
+                    this.closeModal('createPostModal');
+                    this.showToast('Post created!');
+                    this.currentPage = 1;
                     this.loadPosts();
                 } catch (error) {
-                    this.showToast('Login failed. Please check your credentials.');
-                }
-            }
-
-            logout() {
-                this.client.logout();
-                this.updateUserUI();
-                this.showToast('Logged out');
-                this.navigateTo('home');
-            }
-
-            updateUserUI() {
-                if (this.client.user) {
-                    let userName = 'User';
-                    let userJoined = '';
-                    
-                    if (this.client.user.local_user_view && this.client.user.local_user_view.person) {
-                        userName = this.client.user.local_user_view.person.name;
-                        userJoined = this.client.user.local_user_view.person.published;
-                    } else if (this.client.user.person) {
-                        userName = this.client.user.person.name;
-                        userJoined = this.client.user.person.published;
-                    } else if (this.client.user.username) {
-                        userName = this.client.user.username;
-                    }
-                    
-                    document.getElementById('userAvatar').textContent = userName[0].toUpperCase();
-                    document.getElementById('drawerUser').innerHTML = `
-                        <div class="drawer-user-avatar">${userName[0].toUpperCase()}</div>
-                        <div>
-                            <div class="drawer-username">u/${userName}</div>
-                            <div class="drawer-karma">Member since ${userJoined ? this.formatTime(userJoined) : 'recently'}</div>
-                        </div>
-                    `;
-                    document.getElementById('authBtn').innerHTML = `
-                        <span class="drawer-item-icon">🚪</span>
-                        <span>Logout</span>
-                    `;
-                } else {
-                    document.getElementById('userAvatar').textContent = '?';
-                    document.getElementById('drawerUser').innerHTML = `
-                        <div class="drawer-user-avatar">?</div>
-                        <div>
-                            <div class="drawer-username">Guest</div>
-                            <div class="drawer-karma">Login to see profile</div>
-                        </div>
-                    `;
-                    document.getElementById('authBtn').innerHTML = `
-                        <span class="drawer-item-icon">🔑</span>
-                        <span>Login</span>
-                    `;
-                }
-            }
-
-            handleAuth() {
-                if (this.client.auth) {
-                    this.logout();
-                } else {
-                    this.showLogin();
-                }
-            }
-
-            closeModal(modalId) {
-                document.getElementById(modalId).classList.remove('active');
-            }
-
-            showToast(message) {
-                const toast = document.getElementById('toast');
-                toast.textContent = message;
-                toast.classList.add('show');
-                setTimeout(() => toast.classList.remove('show'), 3000);
-            }
-
-            formatTime(timestamp) {
-                const date = new Date(timestamp);
-                const now = new Date();
-                const diff = now - date;
-                const seconds = Math.floor(diff / 1000);
-                const minutes = Math.floor(seconds / 60);
-                const hours = Math.floor(minutes / 60);
-                const days = Math.floor(hours / 24);
-
-                if (days > 0) return `${days}d ago`;
-                if (hours > 0) return `${hours}h ago`;
-                if (minutes > 0) return `${minutes}m ago`;
-                return 'just now';
-            }
-
-            formatCount(count) {
-                if (count >= 1000000) return `${(count / 1000000).toFixed(1)}M`;
-                if (count >= 1000) return `${(count / 1000).toFixed(1)}k`;
-                return count.toString();
-            }
-
-            escapeHtml(text) {
-                const map = {
-                    '&': '&amp;',
-                    '<': '&lt;',
-                    '>': '&gt;',
-                    '"': '&quot;',
-                    "'": '&#39;'
-                };
-                return text.replace(/[&<>"']/g, m => map[m]);
-            }
-
-            search(query) {
-                this.showToast(`Searching for: ${query}`);
-            }
-
-            viewCommunity(communityId) {
-                this.showToast('Loading community posts...');
-            }
-
-            showInstancePicker() {
-                this.showToast('Instance picker coming soon');
-            }
-
-            showRegister() {
-                this.showToast('Registration coming soon');
-            }
-
-            toggleUserMenu() {
-                this.toggleDrawer();
-            }
-        }
-
-        // Initialize app
-        const app = new LemmyApp();
-
-        // Load saved theme
-        const savedTheme = localStorage.getItem('theme');
-        if (savedTheme === 'dark') {
-            document.body.dataset.theme = 'dark';
-        }
-    </script>
-</body>
-</html>
