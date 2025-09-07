@@ -1098,6 +1098,235 @@
 
                     return await response.json();
                 } catch (error) {
+                    this.showToast('Failed to create post');
+                }
+            }
+
+            toggleDrawer() {
+                const drawer = document.getElementById('drawer');
+                const overlay = document.getElementById('drawerOverlay');
+                
+                drawer.classList.toggle('active');
+                overlay.classList.toggle('active');
+            }
+
+            toggleTheme() {
+                const isDark = document.body.dataset.theme === 'dark';
+                document.body.dataset.theme = isDark ? '' : 'dark';
+                localStorage.setItem('theme', isDark ? 'light' : 'dark');
+                this.showToast(`Switched to ${isDark ? 'light' : 'dark'} mode`);
+            }
+
+            showLogin() {
+                document.getElementById('loginModal').classList.add('active');
+            }
+
+            async login() {
+                const instance = document.getElementById('instanceInput').value.trim();
+                const username = document.getElementById('usernameInput').value.trim();
+                const password = document.getElementById('passwordInput').value;
+
+                if (!username || !password) {
+                    this.showToast('Please enter username and password');
+                    return;
+                }
+
+                try {
+                    this.client.baseUrl = `https://${instance}`;
+                    await this.client.login(username, password);
+                    
+                    this.closeModal('loginModal');
+                    this.showToast('Logged in successfully!');
+                    
+                    await this.loadUserInfo();
+                    this.currentPage = 1;
+                    this.loadPosts();
+                } catch (error) {
+                    this.showToast('Login failed. Please check your credentials.');
+                }
+            }
+
+            async logout() {
+                await this.client.logout();
+                this.myUser = null;
+                this.updateUserUI();
+                this.showToast('Logged out');
+                this.currentPage = 1;
+                this.loadPosts();
+            }
+
+            handleAuth() {
+                if (this.client.auth) {
+                    this.logout();
+                } else {
+                    this.showLogin();
+                }
+            }
+
+            updateUserUI() {
+                const avatar = document.getElementById('userAvatar');
+                const drawerUser = document.getElementById('drawerUser');
+                const authBtn = document.getElementById('authBtn');
+
+                if (this.myUser && this.myUser.local_user_view) {
+                    const user = this.myUser.local_user_view.person;
+                    
+                    avatar.textContent = user.name[0].toUpperCase();
+                    
+                    drawerUser.innerHTML = `
+                        <div class="drawer-user-avatar">${user.name[0].toUpperCase()}</div>
+                        <div>
+                            <div class="drawer-username">u/${user.name}</div>
+                            <div class="drawer-karma">Karma: ${this.formatCount(user.comment_score + user.post_score)}</div>
+                        </div>
+                    `;
+                    
+                    authBtn.innerHTML = '🚪 Logout';
+                } else {
+                    avatar.textContent = '?';
+                    
+                    drawerUser.innerHTML = `
+                        <div class="drawer-user-avatar">?</div>
+                        <div>
+                            <div class="drawer-username">Guest</div>
+                            <div class="drawer-karma">Not logged in</div>
+                        </div>
+                    `;
+                    
+                    authBtn.innerHTML = '🔑 Login';
+                }
+            }
+
+            closeModal(modalId) {
+                document.getElementById(modalId).classList.remove('active');
+                
+                // Clear form inputs
+                if (modalId === 'createPostModal') {
+                    document.getElementById('postTitle').value = '';
+                    document.getElementById('postUrl').value = '';
+                    document.getElementById('postBody').value = '';
+                }
+            }
+
+            showToast(message) {
+                const toast = document.getElementById('toast');
+                toast.textContent = message;
+                toast.classList.add('show');
+                
+                setTimeout(() => {
+                    toast.classList.remove('show');
+                }, 3000);
+            }
+
+            showInstancePicker() {
+                this.showToast('Instance picker coming soon');
+            }
+
+            toggleUserMenu() {
+                this.toggleDrawer();
+            }
+
+            search(query) {
+                this.showToast(`Searching for: ${query}`);
+                // TODO: Implement search
+            }
+
+            // Utility functions
+            parseMarkdown(text) {
+                if (!text) return '';
+                
+                // Escape HTML
+                let html = this.escapeHtml(text);
+                
+                // Images
+                html = html.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, 
+                    '<img src="$2" alt="$1" style="max-width: 100%; height: auto;">');
+                
+                // Links
+                html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, 
+                    '<a href="$2" target="_blank" rel="noopener">$1</a>');
+                
+                // Bold
+                html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+                
+                // Italic
+                html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
+                
+                // Code blocks
+                html = html.replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
+                
+                // Inline code
+                html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+                
+                // Blockquotes
+                html = html.replace(/^&gt; (.+)$/gm, '<blockquote>$1</blockquote>');
+                
+                // Headers
+                html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+                html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+                html = html.replace(/^# (.+)$/gm, '<h1>$1</h1>');
+                
+                // Line breaks
+                html = html.replace(/\n\n/g, '</p><p>');
+                html = html.replace(/\n/g, '<br>');
+                
+                // Wrap in paragraph if needed
+                if (!html.startsWith('<')) {
+                    html = '<p>' + html + '</p>';
+                }
+                
+                return html;
+            }
+
+            escapeHtml(text) {
+                const map = {
+                    '&': '&amp;',
+                    '<': '&lt;',
+                    '>': '&gt;',
+                    '"': '&quot;',
+                    "'": '&#39;'
+                };
+                return text.replace(/[&<>"']/g, m => map[m]);
+            }
+
+            formatTime(timestamp) {
+                const date = new Date(timestamp);
+                const now = new Date();
+                const diff = Math.floor((now - date) / 1000);
+                
+                if (diff < 60) return 'just now';
+                if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+                if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+                if (diff < 604800) return `${Math.floor(diff / 86400)}d ago`;
+                
+                return date.toLocaleDateString();
+            }
+
+            formatCount(count) {
+                if (!count) return '0';
+                if (count >= 1000000) return `${(count / 1000000).toFixed(1)}M`;
+                if (count >= 1000) return `${(count / 1000).toFixed(1)}k`;
+                return count.toString();
+            }
+        }
+
+        // Initialize the app
+        const app = new LemmyApp();
+
+        // Load saved theme
+        const savedTheme = localStorage.getItem('theme');
+        if (savedTheme === 'dark') {
+            document.body.dataset.theme = 'dark';
+        }
+
+        // Handle back button for post detail view
+        window.addEventListener('popstate', () => {
+            app.currentPage = 1;
+            app.loadPosts();
+        });
+    </script>
+</body>
+</html>
                     console.error('API Error:', error);
                     throw error;
                 }
