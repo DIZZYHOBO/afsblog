@@ -1752,21 +1752,39 @@
             }
 
             async submitCommentReply(parentId, postId) {
-                const replyText = document.getElementById(`reply-text-${parentId}`).value.trim();
+                const textarea = document.getElementById(`reply-text-${parentId}`);
+                if (!textarea) {
+                    console.error('Reply textarea not found');
+                    return;
+                }
+
+                const replyText = textarea.value.trim();
                 if (!replyText) {
                     this.showToast('Please enter a reply');
                     return;
                 }
 
+                this.showToast('Posting reply...');
+
                 try {
+                    // Create the reply comment
                     await this.client.createComment(postId, replyText, parentId);
-                    this.showToast('Reply posted!');
+                    
+                    // Show success
+                    this.showToast('Reply posted successfully!');
+                    
+                    // Clear and hide the reply box
                     this.cancelReply(parentId);
                     
+                    // Reload all comments
                     const commentsResponse = await this.client.getComments(postId);
-                    document.getElementById('commentsContainer').innerHTML = this.renderComments(commentsResponse.comments);
+                    const commentsContainer = document.getElementById('commentsContainer');
+                    if (commentsContainer) {
+                        commentsContainer.innerHTML = this.renderComments(commentsResponse.comments);
+                    }
                 } catch (error) {
-                    this.showToast('Failed to post reply');
+                    console.error('Failed to post reply:', error);
+                    this.showToast('Failed to post reply. Please try again.');
                 }
             }
 
