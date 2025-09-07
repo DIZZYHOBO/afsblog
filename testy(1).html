@@ -1865,13 +1865,95 @@
                 this.showToast('Loading community posts...');
             }
 
-            replyToComment(commentId) {
+            async replyToPost(postId) {
                 if (!this.client.auth) {
                     this.showToast('Please login to reply');
                     return;
                 }
-                // Implement reply functionality
-                this.showToast('Reply feature coming soon');
+
+                const replyText = document.getElementById('postReplyText').value.trim();
+                if (!replyText) {
+                    this.showToast('Please enter a reply');
+                    return;
+                }
+
+                try {
+                    await this.client.createComment(postId, replyText, null);
+                    document.getElementById('postReplyText').value = '';
+                    this.showToast('Reply posted!');
+                    
+                    // Reload comments
+                    const commentsResponse = await this.client.getComments(postId);
+                    document.getElementById('commentsContainer').innerHTML = this.renderComments(commentsResponse.comments);
+                } catch (error) {
+                    this.showToast('Failed to post reply');
+                }
+            }
+
+            showReplyToComment(commentId, postId) {
+                if (!this.client.auth) {
+                    this.showToast('Please login to reply');
+                    return;
+                }
+
+                const replyBox = document.getElementById(`reply-box-${commentId}`);
+                
+                // Check if reply box already exists
+                if (replyBox.innerHTML) {
+                    replyBox.innerHTML = '';
+                    return;
+                }
+
+                replyBox.innerHTML = `
+                    <div class="reply-box" style="margin: 8px 0;">
+                        <textarea class="reply-textarea" id="reply-text-${commentId}" placeholder="Write your reply..."></textarea>
+                        <div class="reply-actions">
+                            <button class="reply-btn" onclick="app.submitCommentReply(${commentId}, ${postId})">Reply</button>
+                            <button class="cancel-btn" onclick="app.cancelReply(${commentId})">Cancel</button>
+                        </div>
+                    </div>
+                `;
+                
+                // Focus the textarea
+                document.getElementById(`reply-text-${commentId}`).focus();
+            }
+
+            async submitCommentReply(parentId, postId) {
+                const replyText = document.getElementById(`reply-text-${parentId}`).value.trim();
+                if (!replyText) {
+                    this.showToast('Please enter a reply');
+                    return;
+                }
+
+                try {
+                    await this.client.createComment(postId, replyText, parentId);
+                    this.showToast('Reply posted!');
+                    
+                    // Clear and hide reply box
+                    this.cancelReply(parentId);
+                    
+                    // Reload comments
+                    const commentsResponse = await this.client.getComments(postId);
+                    document.getElementById('commentsContainer').innerHTML = this.renderComments(commentsResponse.comments);
+                } catch (error) {
+                    this.showToast('Failed to post reply');
+                }
+            }
+
+            cancelReply(commentId) {
+                const replyBox = document.getElementById(`reply-box-${commentId}`);
+                if (replyBox) {
+                    replyBox.innerHTML = '';
+                }
+            }
+
+            replyToComment(commentId) {
+                // Deprecated - using showReplyToComment instead
+                if (!this.client.auth) {
+                    this.showToast('Please login to reply');
+                    return;
+                }
+                this.showToast('Use the reply button to respond');
             }
 
             showInstancePicker() {
