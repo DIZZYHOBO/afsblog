@@ -981,6 +981,19 @@
     </div>
 
     <script>
+        // Clear any corrupted localStorage data on load
+        try {
+            const testAuth = localStorage.getItem('lemmy_auth');
+            const testUser = localStorage.getItem('lemmy_user');
+            if (testAuth === 'undefined' || testAuth === 'null' || testUser === 'undefined' || testUser === 'null') {
+                localStorage.removeItem('lemmy_auth');
+                localStorage.removeItem('lemmy_user');
+            }
+        } catch (e) {
+            console.log('Clearing corrupted localStorage');
+            localStorage.clear();
+        }
+
         // Lemmy API Client
         class LemmyClient {
             constructor(instanceUrl = 'https://lemmy.world') {
@@ -991,20 +1004,44 @@
 
             async request(endpoint, options = {}) {
                 const url = `${this.baseUrl}/api/v3${endpoint}`;
-                const headers = {
-                    'Content-Type': 'application/json',
-                    ...options.headers
-                };
-
-                if (this.auth && options.method !== 'GET') {
-                    options.body = options.body ? JSON.parse(options.body) : {};
-                    options.body.auth = this.auth;
-                    options.body = JSON.stringify(options.body);
-                }
-
+                
                 try {
-                    const response = await fetch(url, { ...options, headers });
-                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                    let response;
+                    
+                    if (options.method === 'POST' || options.method === 'PUT') {
+                        // For POST/PUT requests
+                        const headers = {
+                            'Content-Type': 'application/json'
+                        };
+                        
+                        let body = options.body;
+                        
+                        // Add auth to body for non-GET requests
+                        if (this.auth) {
+                            if (body) {
+                                const bodyData = JSON.parse(body);
+                                bodyData.auth = this.auth;
+                                body = JSON.stringify(bodyData);
+                            } else {
+                                body = JSON.stringify({ auth: this.auth });
+                            }
+                        }
+                        
+                        response = await fetch(url, {
+                            method: options.method,
+                            headers: headers,
+                            body: body
+                        });
+                    } else {
+                        // For GET requests - absolutely no body or headers
+                        response = await fetch(url);
+                    }
+                    
+                    if (!response.ok) {
+                        const errorText = await response.text();
+                        console.error('API Error:', errorText);
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
                     return await response.json();
                 } catch (error) {
                     console.error('API request failed:', error);
@@ -1017,10 +1054,31 @@
                     method: 'POST',
                     body: JSON.stringify({ username_or_email, password })
                 });
-                this.auth = response.jwt;
-                this.user = response.my_user;
-                localStorage.setItem('lemmy_auth', this.auth);
-                localStorage.setItem('lemmy_user', JSON.stringify(this.user));
+                
+                if (response && response.jwt) {
+                    this.auth = response.jwt;
+                    localStorage.setItem('lemmy_auth', this.auth);
+                    
+                    // Store user data - handle different response formats
+                    let userData = {};
+                    if (response.my_user) {
+                        userData = response.my_user;
+                    } else if (response.local_user_view) {
+                        userData = { local_user_view: response.local_user_view };
+                    } else {
+                        // Fallback: create basic user object
+                        userData = { 
+                            username: username_or_email,
+                            local_user_view: { person: { name: username_or_email } }
+                        };
+                    }
+                    
+                    this.user = userData;
+                    localStorage.setItem('lemmy_user', JSON.stringify(userData));
+                } else {
+                    throw new Error('No JWT token received');
+                }
+                
                 return response;
             }
 
@@ -1112,14 +1170,32 @@
             }
 
             loadAuth() {
-                const auth = localStorage.getItem('lemmy_auth');
-                const user = localStorage.getItem('lemmy_user');
-                if (auth && user) {
+                try {
+                    const auth = localStorage.getItem('lemmy_auth');
+                    const userStr = localStorage.getItem('lemmy_user');
+                    
+                    // Validate stored data
+                    if (!auth || !userStr || 
+                        auth === 'undefined' || auth === 'null' || 
+                        userStr === 'undefined' || userStr === 'null') {
+                        return false;
+                    }
+                    
+                    const user = JSON.parse(userStr);
+                    if (!user) {
+                        return false;
+                    }
+                    
                     this.auth = auth;
-                    this.user = JSON.parse(user);
+                    this.user = user;
                     return true;
+                    
+                } catch (error) {
+                    console.log('Failed to load saved auth');
+                    localStorage.removeItem('lemmy_auth');
+                    localStorage.removeItem('lemmy_user');
+                    return false;
                 }
-                return false;
             }
 
             logout() {
@@ -1615,13 +1691,15 @@
                     let userName = 'User';
                     let userJoined = '';
                     
+                    // Handle different user object structures
                     if (this.client.user.local_user_view && this.client.user.local_user_view.person) {
-                        const person = this.client.user.local_user_view.person;
-                        userName = person.name;
-                        userJoined = person.published;
+                        userName = this.client.user.local_user_view.person.name;
+                        userJoined = this.client.user.local_user_view.person.published;
                     } else if (this.client.user.person) {
                         userName = this.client.user.person.name;
                         userJoined = this.client.user.person.published;
+                    } else if (this.client.user.username) {
+                        userName = this.client.user.username;
                     }
                     
                     content.innerHTML = `
@@ -1697,26 +1775,26 @@
 
             updateUserUI() {
                 if (this.client.user) {
-                    const user = this.client.user.local_user_view.person;
-                    document.getElementById('userAvatar').textContent = user.name[0].toUpperCase();
+                    let userName = 'User';
+                    let userJoined = '';
+                    
+                    // Handle different user object structures
+                    if (this.client.user.local_user_view && this.client.user.local_user_view.person) {
+                        userName = this.client.user.local_user_view.person.name;
+                        userJoined = this.client.user.local_user_view.person.published;
+                    } else if (this.client.user.person) {
+                        userName = this.client.user.person.name;
+                        userJoined = this.client.user.person.published;
+                    } else if (this.client.user.username) {
+                        userName = this.client.user.username;
+                    }
+                    
+                    document.getElementById('userAvatar').textContent = userName[0].toUpperCase();
                     document.getElementById('drawerUser').innerHTML = `
-                        <div class="drawer-user-avatar">${user.name[0].toUpperCase()}</div>
+                        <div class="drawer-user-avatar">${userName[0].toUpperCase()}</div>
                         <div>
-                            <div class="drawer-username">u/${user.name}</div>
-                            <div class="drawer-karma">Member since ${this.formatTime(user.published)}</div>
-                        </div>
-                    `;
-                    document.getElementById('authBtn').innerHTML = `
-                        <span class="drawer-item-icon">🚪</span>
-                        <span>Logout</span>
-                    `;
-                } else {
-                    document.getElementById('userAvatar').textContent = '?';
-                    document.getElementById('drawerUser').innerHTML = `
-                        <div class="drawer-user-avatar">?</div>
-                        <div>
-                            <div class="drawer-username">Guest</div>
-                            <div class="drawer-karma">Login to see profile</div>
+                            <div class="drawer-username">u/${userName}</div>
+                            <div class="drawer-karma">Member since ${userJoined ? this.formatTime(userJoined) : 'recently'}</div>
                         </div>
                     `;
                     document.getElementById('authBtn').innerHTML = `
@@ -1822,4 +1900,17 @@
         }
     </script>
 </body>
-</html>
+</html>="drawer-item-icon">🚪</span>
+                        <span>Logout</span>
+                    `;
+                } else {
+                    document.getElementById('userAvatar').textContent = '?';
+                    document.getElementById('drawerUser').innerHTML = `
+                        <div class="drawer-user-avatar">?</div>
+                        <div>
+                            <div class="drawer-username">Guest</div>
+                            <div class="drawer-karma">Login to see profile</div>
+                        </div>
+                    `;
+                    document.getElementById('authBtn').innerHTML = `
+                        <span class
