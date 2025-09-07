@@ -82,6 +82,7 @@
             display: flex;
             align-items: center;
             justify-content: center;
+            color: var(--text-primary);
         }
 
         .logo {
@@ -674,11 +675,6 @@
             font-weight: 600;
         }
 
-        .comment-sort {
-            display: flex;
-            gap: 8px;
-        }
-
         .comment {
             margin-bottom: 16px;
             padding-left: 16px;
@@ -712,9 +708,115 @@
             gap: 16px;
         }
 
-        .comment-reply {
-            margin-top: 12px;
-            margin-left: 16px;
+        /* Reply Box */
+        .reply-box {
+            margin: 16px;
+            padding: 16px;
+            background: var(--bg-secondary);
+            border-radius: 8px;
+        }
+
+        .reply-textarea {
+            width: 100%;
+            min-height: 80px;
+            padding: 10px;
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-size: 14px;
+            font-family: inherit;
+            resize: vertical;
+            outline: none;
+        }
+
+        .reply-textarea:focus {
+            border-color: var(--reddit-blue);
+        }
+
+        .reply-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 8px;
+        }
+
+        .reply-btn {
+            padding: 8px 16px;
+            background: var(--reddit-orange);
+            color: white;
+            border: none;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+        }
+
+        .cancel-btn {
+            padding: 8px 16px;
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            border: none;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+        }
+
+        /* Markdown Content */
+        .markdown-content {
+            line-height: 1.6;
+            word-wrap: break-word;
+        }
+
+        .markdown-content img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 8px;
+            margin: 8px 0;
+            display: block;
+        }
+
+        .markdown-content a {
+            color: var(--reddit-blue);
+            text-decoration: none;
+        }
+
+        .markdown-content a:hover {
+            text-decoration: underline;
+        }
+
+        .markdown-content h1,
+        .markdown-content h2,
+        .markdown-content h3 {
+            margin: 16px 0 8px 0;
+            font-weight: 600;
+        }
+
+        .markdown-content p {
+            margin: 8px 0;
+        }
+
+        .markdown-content blockquote {
+            border-left: 3px solid var(--border-color);
+            padding-left: 16px;
+            margin: 8px 0;
+            color: var(--text-secondary);
+        }
+
+        .markdown-content code {
+            background: var(--bg-secondary);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 0.9em;
+        }
+
+        .markdown-content pre {
+            background: var(--bg-secondary);
+            padding: 12px;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 8px 0;
         }
 
         /* Create Post */
@@ -969,7 +1071,7 @@
                     </div>
                     <div class="form-group">
                         <label class="form-label">Body (optional)</label>
-                        <textarea class="form-textarea" id="postBody" placeholder="Enter post content"></textarea>
+                        <textarea class="form-textarea" id="postBody" placeholder="Enter post content (markdown supported)"></textarea>
                     </div>
                     <button class="btn" onclick="app.createPost()">Submit Post</button>
                 </div>
@@ -981,16 +1083,15 @@
     </div>
 
     <script>
-        // Clear any corrupted localStorage data on load
+        // Clean localStorage on load
         try {
-            const testAuth = localStorage.getItem('lemmy_auth');
-            const testUser = localStorage.getItem('lemmy_user');
-            if (testAuth === 'undefined' || testAuth === 'null' || testUser === 'undefined' || testUser === 'null') {
+            const auth = localStorage.getItem('lemmy_auth');
+            const user = localStorage.getItem('lemmy_user');
+            if (auth === 'undefined' || auth === 'null' || user === 'undefined' || user === 'null') {
                 localStorage.removeItem('lemmy_auth');
                 localStorage.removeItem('lemmy_user');
             }
         } catch (e) {
-            console.log('Clearing corrupted localStorage');
             localStorage.clear();
         }
 
@@ -1009,22 +1110,13 @@
                     let response;
                     
                     if (options.method === 'POST' || options.method === 'PUT') {
-                        // For POST/PUT requests
-                        const headers = {
-                            'Content-Type': 'application/json'
-                        };
-                        
+                        const headers = { 'Content-Type': 'application/json' };
                         let body = options.body;
                         
-                        // Add auth to body for non-GET requests
-                        if (this.auth) {
-                            if (body) {
-                                const bodyData = JSON.parse(body);
-                                bodyData.auth = this.auth;
-                                body = JSON.stringify(bodyData);
-                            } else {
-                                body = JSON.stringify({ auth: this.auth });
-                            }
+                        if (this.auth && body) {
+                            const bodyData = JSON.parse(body);
+                            bodyData.auth = this.auth;
+                            body = JSON.stringify(bodyData);
                         }
                         
                         response = await fetch(url, {
@@ -1033,18 +1125,14 @@
                             body: body
                         });
                     } else {
-                        // For GET requests - absolutely no body or headers
                         response = await fetch(url);
                     }
                     
                     if (!response.ok) {
-                        const errorText = await response.text();
-                        console.error('API Error:', errorText);
                         throw new Error(`HTTP error! status: ${response.status}`);
                     }
                     return await response.json();
                 } catch (error) {
-                    console.error('API request failed:', error);
                     throw error;
                 }
             }
@@ -1059,24 +1147,9 @@
                     this.auth = response.jwt;
                     localStorage.setItem('lemmy_auth', this.auth);
                     
-                    // Store user data - handle different response formats
-                    let userData = {};
-                    if (response.my_user) {
-                        userData = response.my_user;
-                    } else if (response.local_user_view) {
-                        userData = { local_user_view: response.local_user_view };
-                    } else {
-                        // Fallback: create basic user object
-                        userData = { 
-                            username: username_or_email,
-                            local_user_view: { person: { name: username_or_email } }
-                        };
-                    }
-                    
+                    let userData = response.my_user || { local_user_view: response.local_user_view } || { username: username_or_email };
                     this.user = userData;
                     localStorage.setItem('lemmy_user', JSON.stringify(userData));
-                } else {
-                    throw new Error('No JWT token received');
                 }
                 
                 return response;
@@ -1090,10 +1163,7 @@
                     limit: params.limit || 20
                 });
                 
-                if (this.auth) {
-                    queryParams.append('auth', this.auth);
-                }
-
+                if (this.auth) queryParams.append('auth', this.auth);
                 return await this.request(`/post/list?${queryParams}`);
             }
 
@@ -1163,39 +1233,21 @@
                 });
             }
 
-            async getSite() {
-                const queryParams = new URLSearchParams();
-                if (this.auth) queryParams.append('auth', this.auth);
-                return await this.request(`/site?${queryParams}`);
-            }
-
             loadAuth() {
                 try {
                     const auth = localStorage.getItem('lemmy_auth');
                     const userStr = localStorage.getItem('lemmy_user');
                     
-                    // Validate stored data
-                    if (!auth || !userStr || 
-                        auth === 'undefined' || auth === 'null' || 
-                        userStr === 'undefined' || userStr === 'null') {
-                        return false;
+                    if (auth && userStr && auth !== 'undefined' && auth !== 'null') {
+                        this.auth = auth;
+                        this.user = JSON.parse(userStr);
+                        return true;
                     }
-                    
-                    const user = JSON.parse(userStr);
-                    if (!user) {
-                        return false;
-                    }
-                    
-                    this.auth = auth;
-                    this.user = user;
-                    return true;
-                    
                 } catch (error) {
-                    console.log('Failed to load saved auth');
                     localStorage.removeItem('lemmy_auth');
                     localStorage.removeItem('lemmy_user');
-                    return false;
                 }
+                return false;
             }
 
             logout() {
@@ -1222,20 +1274,14 @@
             }
 
             async init() {
-                // Load saved auth
                 if (this.client.loadAuth()) {
                     this.updateUserUI();
                 }
-
-                // Set up event listeners
                 this.setupEventListeners();
-
-                // Load initial content
                 await this.loadPosts();
             }
 
             setupEventListeners() {
-                // Navigation tabs
                 document.querySelectorAll('.nav-tab').forEach(tab => {
                     tab.addEventListener('click', (e) => {
                         document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
@@ -1245,7 +1291,6 @@
                     });
                 });
 
-                // Sort pills
                 document.querySelectorAll('.sort-pill').forEach(pill => {
                     pill.addEventListener('click', (e) => {
                         document.querySelectorAll('.sort-pill').forEach(p => p.classList.remove('active'));
@@ -1255,7 +1300,6 @@
                     });
                 });
 
-                // Bottom navigation
                 document.querySelectorAll('.nav-item').forEach(item => {
                     item.addEventListener('click', (e) => {
                         const page = e.currentTarget.dataset.page;
@@ -1263,14 +1307,12 @@
                     });
                 });
 
-                // Search
                 document.getElementById('searchInput').addEventListener('keypress', (e) => {
                     if (e.key === 'Enter') {
                         this.search(e.target.value);
                     }
                 });
 
-                // Infinite scroll
                 window.addEventListener('scroll', () => {
                     if (window.innerHeight + window.scrollY >= document.body.offsetHeight - 1000) {
                         if (!this.isLoading && this.currentView === 'home') {
@@ -1279,7 +1321,6 @@
                     }
                 });
 
-                // Close drawer on outside click
                 document.addEventListener('click', (e) => {
                     const drawer = document.getElementById('drawer');
                     if (drawer.classList.contains('active') && !drawer.contains(e.target) && !e.target.classList.contains('menu-btn')) {
@@ -1291,52 +1332,32 @@
             parseMarkdown(text) {
                 if (!text) return '';
                 
-                // Escape HTML first
                 let html = this.escapeHtml(text);
                 
-                // Headers
-                html = html.replace(/^######\s+(.+)$/gm, '<h6>$1</h6>');
-                html = html.replace(/^#####\s+(.+)$/gm, '<h5>$1</h5>');
-                html = html.replace(/^####\s+(.+)$/gm, '<h4>$1</h4>');
-                html = html.replace(/^###\s+(.+)$/gm, '<h3>$1</h3>');
-                html = html.replace(/^##\s+(.+)$/gm, '<h2>$1</h2>');
-                html = html.replace(/^#\s+(.+)$/gm, '<h1>$1</h1>');
-                
-                // Images (must come before links)
-                html = html.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" style="max-width: 100%; height: auto;" />');
+                // Images first
+                html = html.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" />');
                 
                 // Links
                 html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
                 
-                // Bold and Italic
+                // Bold/Italic
                 html = html.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>');
                 html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
                 html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
-                html = html.replace(/___(.+?)___/g, '<strong><em>$1</em></strong>');
-                html = html.replace(/__(.+?)__/g, '<strong>$1</strong>');
-                html = html.replace(/_(.+?)_/g, '<em>$1</em>');
                 
-                // Strikethrough
-                html = html.replace(/~~(.+?)~~/g, '<del>$1</del>');
-                
-                // Inline code
+                // Code
                 html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
-                
-                // Code blocks
                 html = html.replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
                 
-                // Blockquotes
-                html = html.replace(/^&gt;\s+(.+)$/gm, '<blockquote>$1</blockquote>');
-                
-                // Horizontal rules
-                html = html.replace(/^---$/gm, '<hr>');
-                html = html.replace(/^\*\*\*$/gm, '<hr>');
+                // Headers
+                html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+                html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+                html = html.replace(/^# (.+)$/gm, '<h1>$1</h1>');
                 
                 // Line breaks
                 html = html.replace(/\n\n/g, '</p><p>');
                 html = html.replace(/\n/g, '<br>');
                 
-                // Wrap in paragraph tags if not already wrapped
                 if (!html.startsWith('<')) {
                     html = '<p>' + html + '</p>';
                 }
@@ -1417,24 +1438,24 @@
                     return;
                 }
 
-                content.innerHTML = this.posts.map(postView => {
+                const postsHtml = this.posts.map(postView => {
                     const post = postView.post;
                     const creator = postView.creator;
                     const community = postView.community;
                     const counts = postView.counts;
                     const my_vote = postView.my_vote;
 
-                    // Parse markdown for preview
                     let bodyPreview = '';
                     if (post.body) {
-                        // Remove images from preview
                         let previewText = post.body.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '[image]');
-                        // Limit length
                         if (previewText.length > 200) {
                             previewText = previewText.substring(0, 200) + '...';
                         }
                         bodyPreview = this.parseMarkdown(previewText);
                     }
+
+                    const thumbnailHtml = post.thumbnail_url ? 
+                        '<img class="post-image" src="' + post.thumbnail_url + '" alt="Post thumbnail">' : '';
 
                     return `
                         <div class="post-card" onclick="app.viewPost(${post.id})">
@@ -1449,7 +1470,7 @@
                                 </div>
                                 <h3 class="post-title">${this.escapeHtml(post.name)}</h3>
                                 ${bodyPreview ? '<div class="post-body markdown-content">' + bodyPreview + '</div>' : ''}
-                                ${post.thumbnail_url ? '<img class="post-image" src="' + post.thumbnail_url + '" alt="Post thumbnail">' : ''}
+                                ${thumbnailHtml}
                             </div>
                             <div class="post-footer">
                                 <div class="vote-buttons">
@@ -1470,6 +1491,8 @@
                         </div>
                     `;
                 }).join('');
+
+                content.innerHTML = postsHtml;
             }
 
             async viewPost(postId) {
@@ -1486,7 +1509,7 @@
                     this.currentPost = postResponse.post_view;
                     this.renderPostDetail(postResponse.post_view, commentsResponse.comments);
                 } catch (error) {
-                    content.innerHTML = '<div class="error-message">Failed to load post. Please try again.</div>';
+                    content.innerHTML = '<div class="error-message">Failed to load post.</div>';
                 }
             }
 
@@ -1495,6 +1518,10 @@
                 const creator = postView.creator;
                 const community = postView.community;
                 const counts = postView.counts;
+
+                const bodyHtml = post.body ? this.parseMarkdown(post.body) : '';
+                const urlHtml = post.url && !post.body?.includes(post.url) ? 
+                    '<a href="' + post.url + '" target="_blank" style="color: var(--reddit-blue);">🔗 ' + post.url + '</a>' : '';
 
                 const content = document.getElementById('content');
                 content.innerHTML = `
@@ -1509,8 +1536,8 @@
                                 <span>${this.formatTime(post.published)}</span>
                             </div>
                             <h1 class="post-detail-title">${this.escapeHtml(post.name)}</h1>
-                            ${post.body ? `<div class="post-detail-body markdown-content">${this.parseMarkdown(post.body)}</div>` : ''}
-                            ${post.url && !post.body?.includes(post.url) ? `<a href="${post.url}" target="_blank" class="post-link">🔗 ${post.url}</a>` : ''}
+                            ${bodyHtml ? '<div class="post-detail-body markdown-content">' + bodyHtml + '</div>' : ''}
+                            ${urlHtml}
                             <div class="post-footer">
                                 <div class="vote-buttons">
                                     <button class="vote-btn ${postView.my_vote === 1 ? 'upvoted' : ''}" onclick="app.vote(${post.id}, 1)">▲</button>
@@ -1526,13 +1553,10 @@
                             </div>
                         </div>
                         
-                        <!-- Reply to Post -->
-                        <div style="padding: 16px; background: var(--bg-secondary); margin: 16px;">
-                            <textarea style="width: 100%; min-height: 80px; padding: 10px; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 8px; color: var(--text-primary); font-size: 14px; font-family: inherit; resize: vertical;" 
-                                id="postReplyText" placeholder="What are your thoughts?"></textarea>
-                            <div style="margin-top: 8px;">
-                                <button style="padding: 8px 16px; background: var(--reddit-orange); color: white; border: none; border-radius: 20px; font-size: 14px; font-weight: 500; cursor: pointer;" 
-                                    onclick="app.replyToPost(${post.id})">Reply</button>
+                        <div class="reply-box">
+                            <textarea class="reply-textarea" id="postReplyText" placeholder="What are your thoughts?"></textarea>
+                            <div class="reply-actions">
+                                <button class="reply-btn" onclick="app.replyToPost(${post.id})">Comment</button>
                             </div>
                         </div>
                         
@@ -1560,6 +1584,7 @@
                     const counts = commentView.counts;
 
                     const replies = this.renderComments(comments, comment.id, depth + 1);
+                    const parsedContent = this.parseMarkdown(comment.content);
 
                     return `
                         <div class="comment" style="margin-left: ${depth * 16}px">
@@ -1568,7 +1593,7 @@
                                 <span>•</span>
                                 <span>${this.formatTime(comment.published)}</span>
                             </div>
-                            <div class="comment-body markdown-content">${this.parseMarkdown(comment.content)}</div>
+                            <div class="comment-body markdown-content">${parsedContent}</div>
                             <div class="comment-actions">
                                 <div class="vote-buttons">
                                     <button class="vote-btn ${commentView.my_vote === 1 ? 'upvoted' : ''}" onclick="app.voteComment(${comment.id}, 1)">▲</button>
@@ -1601,23 +1626,21 @@
 
             renderCommunities() {
                 const content = document.getElementById('content');
-                content.innerHTML = `
-                    <div class="community-list">
-                        ${this.communities.map(communityView => {
-                            const community = communityView.community;
-                            const counts = communityView.counts;
-                            return `
-                                <div class="community-item" onclick="app.viewCommunity(${community.id})">
-                                    <div class="community-avatar">${community.name[0].toUpperCase()}</div>
-                                    <div class="community-info">
-                                        <div class="community-name">c/${community.name}</div>
-                                        <div class="community-members">${this.formatCount(counts.subscribers)} members</div>
-                                    </div>
-                                </div>
-                            `;
-                        }).join('')}
-                    </div>
-                `;
+                const communitiesHtml = this.communities.map(communityView => {
+                    const community = communityView.community;
+                    const counts = communityView.counts;
+                    return `
+                        <div class="community-item" onclick="app.viewCommunity(${community.id})">
+                            <div class="community-avatar">${community.name[0].toUpperCase()}</div>
+                            <div class="community-info">
+                                <div class="community-name">c/${community.name}</div>
+                                <div class="community-members">${this.formatCount(counts.subscribers)} members</div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+
+                content.innerHTML = '<div class="community-list">' + communitiesHtml + '</div>';
             }
 
             async vote(postId, score) {
@@ -1628,7 +1651,6 @@
 
                 try {
                     await this.client.vote(postId, score);
-                    // Update UI
                     const postView = this.posts.find(p => p.post.id === postId);
                     if (postView) {
                         if (postView.my_vote === score) {
@@ -1678,27 +1700,25 @@
 
             async replyToPost(postId) {
                 if (!this.client.auth) {
-                    this.showToast('Please login to reply');
+                    this.showToast('Please login to comment');
                     return;
                 }
 
                 const replyText = document.getElementById('postReplyText').value.trim();
                 if (!replyText) {
-                    this.showToast('Please enter a reply');
+                    this.showToast('Please enter a comment');
                     return;
                 }
 
                 try {
                     await this.client.createComment(postId, replyText, null);
                     document.getElementById('postReplyText').value = '';
-                    this.showToast('Reply posted!');
+                    this.showToast('Comment posted!');
                     
-                    // Reload comments
                     const commentsResponse = await this.client.getComments(postId);
                     document.getElementById('commentsContainer').innerHTML = this.renderComments(commentsResponse.comments);
                 } catch (error) {
-                    console.error('Reply error:', error);
-                    this.showToast('Failed to post reply');
+                    this.showToast('Failed to post comment');
                 }
             }
 
@@ -1710,26 +1730,21 @@
 
                 const replyBox = document.getElementById(`reply-box-${commentId}`);
                 
-                // Check if reply box already exists
                 if (replyBox.innerHTML) {
                     replyBox.innerHTML = '';
                     return;
                 }
 
                 replyBox.innerHTML = `
-                    <div style="margin: 8px 0; padding: 12px; background: var(--bg-secondary); border-radius: 8px;">
-                        <textarea style="width: 100%; min-height: 60px; padding: 8px; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 4px; color: var(--text-primary); font-size: 14px; font-family: inherit; resize: vertical;" 
-                            id="reply-text-${commentId}" placeholder="Write your reply..."></textarea>
-                        <div style="margin-top: 8px; display: flex; gap: 8px;">
-                            <button style="padding: 6px 12px; background: var(--reddit-orange); color: white; border: none; border-radius: 16px; font-size: 13px; cursor: pointer;" 
-                                onclick="app.submitCommentReply(${commentId}, ${postId})">Reply</button>
-                            <button style="padding: 6px 12px; background: var(--bg-tertiary); color: var(--text-primary); border: none; border-radius: 16px; font-size: 13px; cursor: pointer;" 
-                                onclick="app.cancelReply(${commentId})">Cancel</button>
+                    <div class="reply-box" style="margin: 8px 0;">
+                        <textarea class="reply-textarea" id="reply-text-${commentId}" placeholder="Write your reply..."></textarea>
+                        <div class="reply-actions">
+                            <button class="reply-btn" onclick="app.submitCommentReply(${commentId}, ${postId})">Reply</button>
+                            <button class="cancel-btn" onclick="app.cancelReply(${commentId})">Cancel</button>
                         </div>
                     </div>
                 `;
                 
-                // Focus the textarea
                 setTimeout(() => {
                     const textarea = document.getElementById(`reply-text-${commentId}`);
                     if (textarea) textarea.focus();
@@ -1746,15 +1761,11 @@
                 try {
                     await this.client.createComment(postId, replyText, parentId);
                     this.showToast('Reply posted!');
-                    
-                    // Clear and hide reply box
                     this.cancelReply(parentId);
                     
-                    // Reload comments
                     const commentsResponse = await this.client.getComments(postId);
                     document.getElementById('commentsContainer').innerHTML = this.renderComments(commentsResponse.comments);
                 } catch (error) {
-                    console.error('Reply error:', error);
                     this.showToast('Failed to post reply');
                 }
             }
@@ -1767,7 +1778,7 @@
             }
 
             share(postId) {
-                const post = this.posts.find(p => p.post.id === postId);
+                const post = this.posts.find(p => p.post.id === postId) || this.currentPost;
                 if (post) {
                     const url = `${window.location.origin}/post/${postId}`;
                     if (navigator.share) {
@@ -1815,7 +1826,6 @@
 
                 document.getElementById('createPostModal').classList.add('active');
                 
-                // Load communities for dropdown
                 this.client.getCommunities({ limit: 100 }).then(response => {
                     const select = document.getElementById('postCommunity');
                     select.innerHTML = '<option value="">Select a community</option>' +
@@ -1863,7 +1873,6 @@
                     let userName = 'User';
                     let userJoined = '';
                     
-                    // Handle different user object structures
                     if (this.client.user.local_user_view && this.client.user.local_user_view.person) {
                         userName = this.client.user.local_user_view.person.name;
                         userJoined = this.client.user.local_user_view.person.published;
@@ -1950,7 +1959,6 @@
                     let userName = 'User';
                     let userJoined = '';
                     
-                    // Handle different user object structures
                     if (this.client.user.local_user_view && this.client.user.local_user_view.person) {
                         userName = this.client.user.local_user_view.person.name;
                         userJoined = this.client.user.local_user_view.person.published;
@@ -2041,1032 +2049,22 @@
             }
 
             search(query) {
-                // Implement search functionality
                 this.showToast(`Searching for: ${query}`);
             }
 
             viewCommunity(communityId) {
-                // Filter posts by community
                 this.showToast('Loading community posts...');
             }
 
-            replyToComment(commentId) {
-                // Deprecated function - redirects to new method
-                console.log('Using deprecated replyToComment');
-            }
-
             showInstancePicker() {
-                // Implement instance picker
                 this.showToast('Instance picker coming soon');
             }
 
             showRegister() {
-                // Implement registration
                 this.showToast('Registration coming soon');
             }
 
             toggleUserMenu() {
-                // Show user menu dropdown
-                this.toggleDrawer();
-            }
-        }
-
-        // Initialize app
-        const app = new LemmyApp();
-
-        // Load saved theme
-        const savedTheme = localStorage.getItem('theme');
-        if (savedTheme === 'dark') {
-            document.body.dataset.theme = 'dark';
-        }
-    </script>
-        // Clear any corrupted localStorage data on load
-        try {
-            const testAuth = localStorage.getItem('lemmy_auth');
-            const testUser = localStorage.getItem('lemmy_user');
-            if (testAuth === 'undefined' || testAuth === 'null' || testUser === 'undefined' || testUser === 'null') {
-                localStorage.removeItem('lemmy_auth');
-                localStorage.removeItem('lemmy_user');
-            }
-        } catch (e) {
-            console.log('Clearing corrupted localStorage');
-            localStorage.clear();
-        }
-
-        // Lemmy API Client
-        class LemmyClient {
-            constructor(instanceUrl = 'https://lemmy.world') {
-                this.baseUrl = instanceUrl;
-                this.auth = null;
-                this.user = null;
-            }
-
-            async request(endpoint, options = {}) {
-                const url = `${this.baseUrl}/api/v3${endpoint}`;
-                
-                try {
-                    let response;
-                    
-                    if (options.method === 'POST' || options.method === 'PUT') {
-                        // For POST/PUT requests
-                        const headers = {
-                            'Content-Type': 'application/json'
-                        };
-                        
-                        let body = options.body;
-                        
-                        // Add auth to body for non-GET requests
-                        if (this.auth) {
-                            if (body) {
-                                const bodyData = JSON.parse(body);
-                                bodyData.auth = this.auth;
-                                body = JSON.stringify(bodyData);
-                            } else {
-                                body = JSON.stringify({ auth: this.auth });
-                            }
-                        }
-                        
-                        response = await fetch(url, {
-                            method: options.method,
-                            headers: headers,
-                            body: body
-                        });
-                    } else {
-                        // For GET requests - absolutely no body or headers
-                        response = await fetch(url);
-                    }
-                    
-                    if (!response.ok) {
-                        const errorText = await response.text();
-                        console.error('API Error:', errorText);
-                        throw new Error(`HTTP error! status: ${response.status}`);
-                    }
-                    return await response.json();
-                } catch (error) {
-                    console.error('API request failed:', error);
-                    throw error;
-                }
-            }
-
-            async login(username_or_email, password) {
-                const response = await this.request('/user/login', {
-                    method: 'POST',
-                    body: JSON.stringify({ username_or_email, password })
-                });
-                
-                if (response && response.jwt) {
-                    this.auth = response.jwt;
-                    localStorage.setItem('lemmy_auth', this.auth);
-                    
-                    // Store user data - handle different response formats
-                    let userData = {};
-                    if (response.my_user) {
-                        userData = response.my_user;
-                    } else if (response.local_user_view) {
-                        userData = { local_user_view: response.local_user_view };
-                    } else {
-                        // Fallback: create basic user object
-                        userData = { 
-                            username: username_or_email,
-                            local_user_view: { person: { name: username_or_email } }
-                        };
-                    }
-                    
-                    this.user = userData;
-                    localStorage.setItem('lemmy_user', JSON.stringify(userData));
-                } else {
-                    throw new Error('No JWT token received');
-                }
-                
-                return response;
-            }
-
-            async getPosts(params = {}) {
-                const queryParams = new URLSearchParams({
-                    type_: params.type || 'Local',
-                    sort: params.sort || 'Hot',
-                    page: params.page || 1,
-                    limit: params.limit || 20
-                });
-                
-                if (this.auth) {
-                    queryParams.append('auth', this.auth);
-                }
-
-                return await this.request(`/post/list?${queryParams}`);
-            }
-
-            async getPost(id) {
-                const queryParams = new URLSearchParams({ id });
-                if (this.auth) queryParams.append('auth', this.auth);
-                return await this.request(`/post?${queryParams}`);
-            }
-
-            async getComments(post_id, params = {}) {
-                const queryParams = new URLSearchParams({
-                    post_id,
-                    type_: params.type || 'All',
-                    sort: params.sort || 'Hot',
-                    page: params.page || 1,
-                    limit: params.limit || 50
-                });
-                
-                if (this.auth) queryParams.append('auth', this.auth);
-                return await this.request(`/comment/list?${queryParams}`);
-            }
-
-            async getCommunities(params = {}) {
-                const queryParams = new URLSearchParams({
-                    type_: params.type || 'Local',
-                    sort: params.sort || 'Hot',
-                    page: params.page || 1,
-                    limit: params.limit || 50
-                });
-                
-                if (this.auth) queryParams.append('auth', this.auth);
-                return await this.request(`/community/list?${queryParams}`);
-            }
-
-            async createPost(community_id, name, body, url) {
-                return await this.request('/post', {
-                    method: 'POST',
-                    body: JSON.stringify({ community_id, name, body, url })
-                });
-            }
-
-            async createComment(post_id, content, parent_id) {
-                return await this.request('/comment', {
-                    method: 'POST',
-                    body: JSON.stringify({ post_id, content, parent_id })
-                });
-            }
-
-            async vote(post_id, score) {
-                return await this.request('/post/like', {
-                    method: 'POST',
-                    body: JSON.stringify({ post_id, score })
-                });
-            }
-
-            async voteComment(comment_id, score) {
-                return await this.request('/comment/like', {
-                    method: 'POST',
-                    body: JSON.stringify({ comment_id, score })
-                });
-            }
-
-            async savePost(post_id, save) {
-                return await this.request('/post/save', {
-                    method: 'PUT',
-                    body: JSON.stringify({ post_id, save })
-                });
-            }
-
-            async getSite() {
-                const queryParams = new URLSearchParams();
-                if (this.auth) queryParams.append('auth', this.auth);
-                return await this.request(`/site?${queryParams}`);
-            }
-
-            loadAuth() {
-                try {
-                    const auth = localStorage.getItem('lemmy_auth');
-                    const userStr = localStorage.getItem('lemmy_user');
-                    
-                    // Validate stored data
-                    if (!auth || !userStr || 
-                        auth === 'undefined' || auth === 'null' || 
-                        userStr === 'undefined' || userStr === 'null') {
-                        return false;
-                    }
-                    
-                    const user = JSON.parse(userStr);
-                    if (!user) {
-                        return false;
-                    }
-                    
-                    this.auth = auth;
-                    this.user = user;
-                    return true;
-                    
-                } catch (error) {
-                    console.log('Failed to load saved auth');
-                    localStorage.removeItem('lemmy_auth');
-                    localStorage.removeItem('lemmy_user');
-                    return false;
-                }
-            }
-
-            logout() {
-                this.auth = null;
-                this.user = null;
-                localStorage.removeItem('lemmy_auth');
-                localStorage.removeItem('lemmy_user');
-            }
-        }
-
-        // Main App
-        class LemmyApp {
-            constructor() {
-                this.client = new LemmyClient();
-                this.currentView = 'home';
-                this.currentFeed = 'local';
-                this.currentSort = 'Hot';
-                this.posts = [];
-                this.communities = [];
-                this.currentPost = null;
-                this.currentPage = 1;
-                this.isLoading = false;
-                this.init();
-            }
-
-            async init() {
-                // Load saved auth
-                if (this.client.loadAuth()) {
-                    this.updateUserUI();
-                }
-
-                // Set up event listeners
-                this.setupEventListeners();
-
-                // Load initial content
-                await this.loadPosts();
-            }
-
-            setupEventListeners() {
-                // Navigation tabs
-                document.querySelectorAll('.nav-tab').forEach(tab => {
-                    tab.addEventListener('click', (e) => {
-                        document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
-                        e.target.classList.add('active');
-                        this.currentFeed = e.target.dataset.feed;
-                        this.loadPosts();
-                    });
-                });
-
-                // Sort pills
-                document.querySelectorAll('.sort-pill').forEach(pill => {
-                    pill.addEventListener('click', (e) => {
-                        document.querySelectorAll('.sort-pill').forEach(p => p.classList.remove('active'));
-                        e.target.classList.add('active');
-                        this.currentSort = e.target.dataset.sort;
-                        this.loadPosts();
-                    });
-                });
-
-                // Bottom navigation
-                document.querySelectorAll('.nav-item').forEach(item => {
-                    item.addEventListener('click', (e) => {
-                        const page = e.currentTarget.dataset.page;
-                        this.navigateTo(page);
-                    });
-                });
-
-                // Search
-                document.getElementById('searchInput').addEventListener('keypress', (e) => {
-                    if (e.key === 'Enter') {
-                        this.search(e.target.value);
-                    }
-                });
-
-                // Infinite scroll
-                window.addEventListener('scroll', () => {
-                    if (window.innerHeight + window.scrollY >= document.body.offsetHeight - 1000) {
-                        if (!this.isLoading && this.currentView === 'home') {
-                            this.loadMorePosts();
-                        }
-                    }
-                });
-
-                // Close drawer on outside click
-                document.addEventListener('click', (e) => {
-                    const drawer = document.getElementById('drawer');
-                    if (drawer.classList.contains('active') && !drawer.contains(e.target) && !e.target.classList.contains('menu-btn')) {
-                        this.toggleDrawer();
-                    }
-                });
-            }
-
-            async loadPosts() {
-                if (this.isLoading) return;
-                this.isLoading = true;
-                this.currentPage = 1;
-
-                const content = document.getElementById('content');
-                content.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
-
-                try {
-                    const typeMap = {
-                        'home': 'Local',
-                        'local': 'Local',
-                        'all': 'All',
-                        'subscribed': 'Subscribed'
-                    };
-
-                    const response = await this.client.getPosts({
-                        type: typeMap[this.currentFeed],
-                        sort: this.currentSort,
-                        page: this.currentPage
-                    });
-
-                    this.posts = response.posts;
-                    this.renderPosts();
-                } catch (error) {
-                    content.innerHTML = '<div class="error-message">Failed to load posts. Please try again.</div>';
-                } finally {
-                    this.isLoading = false;
-                }
-            }
-
-            async loadMorePosts() {
-                if (this.isLoading) return;
-                this.isLoading = true;
-                this.currentPage++;
-
-                try {
-                    const typeMap = {
-                        'home': 'Local',
-                        'local': 'Local',
-                        'all': 'All',
-                        'subscribed': 'Subscribed'
-                    };
-
-                    const response = await this.client.getPosts({
-                        type: typeMap[this.currentFeed],
-                        sort: this.currentSort,
-                        page: this.currentPage
-                    });
-
-                    this.posts = [...this.posts, ...response.posts];
-                    this.renderPosts();
-                } catch (error) {
-                    this.showToast('Failed to load more posts');
-                } finally {
-                    this.isLoading = false;
-                }
-            }
-
-            renderPosts() {
-                const content = document.getElementById('content');
-                
-                if (this.posts.length === 0) {
-                    content.innerHTML = `
-                        <div class="empty-state">
-                            <div class="empty-icon">📭</div>
-                            <div class="empty-title">No posts yet</div>
-                            <div class="empty-message">Be the first to post in this community!</div>
-                        </div>
-                    `;
-                    return;
-                }
-
-                content.innerHTML = this.posts.map(postView => {
-                    const post = postView.post;
-                    const creator = postView.creator;
-                    const community = postView.community;
-                    const counts = postView.counts;
-                    const my_vote = postView.my_vote;
-
-                    return `
-                        <div class="post-card" onclick="app.viewPost(${post.id})">
-                            <div class="post-content">
-                                <div class="post-header">
-                                    <div class="community-icon"></div>
-                                    <span>c/${community.name}</span>
-                                    <span>•</span>
-                                    <span>u/${creator.name}</span>
-                                    <span>•</span>
-                                    <span>${this.formatTime(post.published)}</span>
-                                </div>
-                                <h3 class="post-title">${this.escapeHtml(post.name)}</h3>
-                                ${post.body ? `<div class="post-body">${this.escapeHtml(post.body.substring(0, 200))}${post.body.length > 200 ? '...' : ''}</div>` : ''}
-                                ${post.thumbnail_url ? `<img class="post-image" src="${post.thumbnail_url}" alt="Post thumbnail">` : ''}
-                            </div>
-                            <div class="post-footer">
-                                <div class="vote-buttons">
-                                    <button class="vote-btn ${my_vote === 1 ? 'upvoted' : ''}" onclick="event.stopPropagation(); app.vote(${post.id}, 1)">▲</button>
-                                    <span class="vote-count">${this.formatCount(counts.score)}</span>
-                                    <button class="vote-btn ${my_vote === -1 ? 'downvoted' : ''}" onclick="event.stopPropagation(); app.vote(${post.id}, -1)">▼</button>
-                                </div>
-                                <button class="post-action" onclick="event.stopPropagation(); app.viewPost(${post.id})">
-                                    💬 ${this.formatCount(counts.comments)}
-                                </button>
-                                <button class="post-action" onclick="event.stopPropagation(); app.share(${post.id})">
-                                    🔗 Share
-                                </button>
-                                <button class="post-action" onclick="event.stopPropagation(); app.save(${post.id})">
-                                    🔖 Save
-                                </button>
-                            </div>
-                        </div>
-                    `;
-                }).join('');
-            }
-
-            async viewPost(postId) {
-                this.currentView = 'post';
-                const content = document.getElementById('content');
-                content.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
-
-                try {
-                    const [postResponse, commentsResponse] = await Promise.all([
-                        this.client.getPost(postId),
-                        this.client.getComments(postId)
-                    ]);
-
-                    this.currentPost = postResponse.post_view;
-                    this.renderPostDetail(postResponse.post_view, commentsResponse.comments);
-                } catch (error) {
-                    content.innerHTML = '<div class="error-message">Failed to load post. Please try again.</div>';
-                }
-            }
-
-            renderPostDetail(postView, comments) {
-                const post = postView.post;
-                const creator = postView.creator;
-                const community = postView.community;
-                const counts = postView.counts;
-
-                const content = document.getElementById('content');
-                content.innerHTML = `
-                    <div class="post-detail">
-                        <div class="post-detail-content">
-                            <div class="post-header">
-                                <div class="community-icon"></div>
-                                <span>c/${community.name}</span>
-                                <span>•</span>
-                                <span>u/${creator.name}</span>
-                                <span>•</span>
-                                <span>${this.formatTime(post.published)}</span>
-                            </div>
-                            <h1 class="post-detail-title">${this.escapeHtml(post.name)}</h1>
-                            ${post.body ? `<div class="post-detail-body">${this.escapeHtml(post.body)}</div>` : ''}
-                            ${post.url ? `<a href="${post.url}" target="_blank" class="post-link">🔗 ${post.url}</a>` : ''}
-                            <div class="post-footer">
-                                <div class="vote-buttons">
-                                    <button class="vote-btn ${postView.my_vote === 1 ? 'upvoted' : ''}" onclick="app.vote(${post.id}, 1)">▲</button>
-                                    <span class="vote-count">${this.formatCount(counts.score)}</span>
-                                    <button class="vote-btn ${postView.my_vote === -1 ? 'downvoted' : ''}" onclick="app.vote(${post.id}, -1)">▼</button>
-                                </div>
-                                <button class="post-action" onclick="app.share(${post.id})">
-                                    🔗 Share
-                                </button>
-                                <button class="post-action" onclick="app.save(${post.id})">
-                                    🔖 Save
-                                </button>
-                            </div>
-                        </div>
-                        <div class="comments-section">
-                            <div class="comments-header">
-                                <h2 class="comments-title">Comments (${counts.comments})</h2>
-                            </div>
-                            ${this.renderComments(comments)}
-                        </div>
-                    </div>
-                `;
-            }
-
-            renderComments(comments, parentId = null, depth = 0) {
-                const filtered = comments.filter(c => 
-                    (parentId === null && !c.comment.parent_id) || 
-                    (c.comment.parent_id === parentId)
-                );
-
-                return filtered.map(commentView => {
-                    const comment = commentView.comment;
-                    const creator = commentView.creator;
-                    const counts = commentView.counts;
-
-                    const replies = this.renderComments(comments, comment.id, depth + 1);
-
-                    return `
-                        <div class="comment" style="margin-left: ${depth * 16}px">
-                            <div class="comment-header">
-                                <span class="comment-author">u/${creator.name}</span>
-                                <span>•</span>
-                                <span>${this.formatTime(comment.published)}</span>
-                            </div>
-                            <div class="comment-body">${this.escapeHtml(comment.content)}</div>
-                            <div class="comment-actions">
-                                <div class="vote-buttons">
-                                    <button class="vote-btn ${commentView.my_vote === 1 ? 'upvoted' : ''}" onclick="app.voteComment(${comment.id}, 1)">▲</button>
-                                    <span class="vote-count">${counts.score}</span>
-                                    <button class="vote-btn ${commentView.my_vote === -1 ? 'downvoted' : ''}" onclick="app.voteComment(${comment.id}, -1)">▼</button>
-                                </div>
-                                <button class="post-action" onclick="app.replyToComment(${comment.id})">
-                                    ↩️ Reply
-                                </button>
-                            </div>
-                            ${replies}
-                        </div>
-                    `;
-                }).join('');
-            }
-
-            async loadCommunities() {
-                const content = document.getElementById('content');
-                content.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
-
-                try {
-                    const response = await this.client.getCommunities({ limit: 100 });
-                    this.communities = response.communities;
-                    this.renderCommunities();
-                } catch (error) {
-                    content.innerHTML = '<div class="error-message">Failed to load communities.</div>';
-                }
-            }
-
-            renderCommunities() {
-                const content = document.getElementById('content');
-                content.innerHTML = `
-                    <div class="community-list">
-                        ${this.communities.map(communityView => {
-                            const community = communityView.community;
-                            const counts = communityView.counts;
-                            return `
-                                <div class="community-item" onclick="app.viewCommunity(${community.id})">
-                                    <div class="community-avatar">${community.name[0].toUpperCase()}</div>
-                                    <div class="community-info">
-                                        <div class="community-name">c/${community.name}</div>
-                                        <div class="community-members">${this.formatCount(counts.subscribers)} members</div>
-                                    </div>
-                                </div>
-                            `;
-                        }).join('')}
-                    </div>
-                `;
-            }
-
-            async vote(postId, score) {
-                if (!this.client.auth) {
-                    this.showToast('Please login to vote');
-                    return;
-                }
-
-                try {
-                    await this.client.vote(postId, score);
-                    // Update UI
-                    const postView = this.posts.find(p => p.post.id === postId);
-                    if (postView) {
-                        if (postView.my_vote === score) {
-                            postView.my_vote = 0;
-                            postView.counts.score -= score;
-                        } else {
-                            if (postView.my_vote) {
-                                postView.counts.score -= postView.my_vote;
-                            }
-                            postView.my_vote = score;
-                            postView.counts.score += score;
-                        }
-                        this.renderPosts();
-                    }
-                } catch (error) {
-                    this.showToast('Failed to vote');
-                }
-            }
-
-            async voteComment(commentId, score) {
-                if (!this.client.auth) {
-                    this.showToast('Please login to vote');
-                    return;
-                }
-
-                try {
-                    await this.client.voteComment(commentId, score);
-                    this.showToast('Vote recorded');
-                } catch (error) {
-                    this.showToast('Failed to vote');
-                }
-            }
-
-            async save(postId) {
-                if (!this.client.auth) {
-                    this.showToast('Please login to save posts');
-                    return;
-                }
-
-                try {
-                    await this.client.savePost(postId, true);
-                    this.showToast('Post saved');
-                } catch (error) {
-                    this.showToast('Failed to save post');
-                }
-            }
-
-            share(postId) {
-                const post = this.posts.find(p => p.post.id === postId);
-                if (post) {
-                    const url = `${window.location.origin}/post/${postId}`;
-                    if (navigator.share) {
-                        navigator.share({
-                            title: post.post.name,
-                            url: url
-                        });
-                    } else {
-                        navigator.clipboard.writeText(url);
-                        this.showToast('Link copied to clipboard');
-                    }
-                }
-            }
-
-            navigateTo(page) {
-                document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
-                document.querySelector(`[data-page="${page}"]`).classList.add('active');
-
-                switch(page) {
-                    case 'home':
-                        this.currentView = 'home';
-                        this.loadPosts();
-                        break;
-                    case 'communities':
-                        this.currentView = 'communities';
-                        this.loadCommunities();
-                        break;
-                    case 'create':
-                        this.showCreatePost();
-                        break;
-                    case 'inbox':
-                        this.showInbox();
-                        break;
-                    case 'profile':
-                        this.showProfile();
-                        break;
-                }
-            }
-
-            showCreatePost() {
-                if (!this.client.auth) {
-                    this.showToast('Please login to create posts');
-                    return;
-                }
-
-                document.getElementById('createPostModal').classList.add('active');
-                
-                // Load communities for dropdown
-                this.client.getCommunities({ limit: 100 }).then(response => {
-                    const select = document.getElementById('postCommunity');
-                    select.innerHTML = '<option value="">Select a community</option>' +
-                        response.communities.map(c => 
-                            `<option value="${c.community.id}">c/${c.community.name}</option>`
-                        ).join('');
-                });
-            }
-
-            async createPost() {
-                const community_id = parseInt(document.getElementById('postCommunity').value);
-                const name = document.getElementById('postTitle').value;
-                const url = document.getElementById('postUrl').value;
-                const body = document.getElementById('postBody').value;
-
-                if (!community_id || !name) {
-                    this.showToast('Please select a community and enter a title');
-                    return;
-                }
-
-                try {
-                    await this.client.createPost(community_id, name, body || undefined, url || undefined);
-                    this.closeModal('createPostModal');
-                    this.showToast('Post created successfully');
-                    this.loadPosts();
-                } catch (error) {
-                    this.showToast('Failed to create post');
-                }
-            }
-
-            showInbox() {
-                const content = document.getElementById('content');
-                content.innerHTML = `
-                    <div class="empty-state">
-                        <div class="empty-icon">📬</div>
-                        <div class="empty-title">No messages</div>
-                        <div class="empty-message">Your inbox is empty</div>
-                    </div>
-                `;
-            }
-
-            showProfile() {
-                const content = document.getElementById('content');
-                if (this.client.user) {
-                    let userName = 'User';
-                    let userJoined = '';
-                    
-                    // Handle different user object structures
-                    if (this.client.user.local_user_view && this.client.user.local_user_view.person) {
-                        userName = this.client.user.local_user_view.person.name;
-                        userJoined = this.client.user.local_user_view.person.published;
-                    } else if (this.client.user.person) {
-                        userName = this.client.user.person.name;
-                        userJoined = this.client.user.person.published;
-                    } else if (this.client.user.username) {
-                        userName = this.client.user.username;
-                    }
-                    
-                    content.innerHTML = `
-                        <div style="padding: 20px;">
-                            <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 20px;">
-                                <div class="user-avatar" style="width: 60px; height: 60px; font-size: 24px;">
-                                    ${userName[0].toUpperCase()}
-                                </div>
-                                <div>
-                                    <h2 style="margin: 0;">u/${userName}</h2>
-                                    <div style="color: var(--text-secondary); font-size: 14px;">
-                                        Joined ${userJoined ? this.formatTime(userJoined) : 'recently'}
-                                    </div>
-                                </div>
-                            </div>
-                            <button class="btn btn-secondary" onclick="app.logout()">Logout</button>
-                        </div>
-                    `;
-                } else {
-                    content.innerHTML = `
-                        <div class="empty-state">
-                            <div class="empty-icon">👤</div>
-                            <div class="empty-title">Not logged in</div>
-                            <div class="empty-message">Login to view your profile</div>
-                            <button class="btn" style="max-width: 200px; margin: 20px auto;" onclick="app.showLogin()">Login</button>
-                        </div>
-                    `;
-                }
-            }
-
-            toggleDrawer() {
-                document.getElementById('drawer').classList.toggle('active');
-            }
-
-            toggleTheme() {
-                document.body.dataset.theme = document.body.dataset.theme === 'dark' ? '' : 'dark';
-                localStorage.setItem('theme', document.body.dataset.theme || 'light');
-                this.showToast(`Switched to ${document.body.dataset.theme === 'dark' ? 'dark' : 'light'} mode`);
-            }
-
-            showLogin() {
-                document.getElementById('loginModal').classList.add('active');
-            }
-
-            async login() {
-                const instance = document.getElementById('instanceInput').value;
-                const username = document.getElementById('usernameInput').value;
-                const password = document.getElementById('passwordInput').value;
-
-                if (!username || !password) {
-                    this.showToast('Please enter username and password');
-                    return;
-                }
-
-                try {
-                    this.client.baseUrl = `https://${instance}`;
-                    await this.client.login(username, password);
-                    this.closeModal('loginModal');
-                    this.showToast('Logged in successfully');
-                    this.updateUserUI();
-                    this.loadPosts();
-                } catch (error) {
-                    this.showToast('Login failed. Please check your credentials.');
-                }
-            }
-
-            logout() {
-                this.client.logout();
-                this.updateUserUI();
-                this.showToast('Logged out');
-                this.navigateTo('home');
-            }
-
-            updateUserUI() {
-                if (this.client.user) {
-                    let userName = 'User';
-                    let userJoined = '';
-                    
-                    // Handle different user object structures
-                    if (this.client.user.local_user_view && this.client.user.local_user_view.person) {
-                        userName = this.client.user.local_user_view.person.name;
-                        userJoined = this.client.user.local_user_view.person.published;
-                    } else if (this.client.user.person) {
-                        userName = this.client.user.person.name;
-                        userJoined = this.client.user.person.published;
-                    } else if (this.client.user.username) {
-                        userName = this.client.user.username;
-                    }
-                    
-                    document.getElementById('userAvatar').textContent = userName[0].toUpperCase();
-                    document.getElementById('drawerUser').innerHTML = `
-                        <div class="drawer-user-avatar">${userName[0].toUpperCase()}</div>
-                        <div>
-                            <div class="drawer-username">u/${userName}</div>
-                            <div class="drawer-karma">Member since ${userJoined ? this.formatTime(userJoined) : 'recently'}</div>
-                        </div>
-                    `;
-                    document.getElementById('authBtn').innerHTML = `
-                        <span class="drawer-item-icon">🔑</span>
-                        <span>Login</span>
-                    `;
-                }
-            }
-
-            handleAuth() {
-                if (this.client.auth) {
-                    this.logout();
-                } else {
-                    this.showLogin();
-                }
-            }
-
-            closeModal(modalId) {
-                document.getElementById(modalId).classList.remove('active');
-            }
-
-            showToast(message) {
-                const toast = document.getElementById('toast');
-                toast.textContent = message;
-                toast.classList.add('show');
-                setTimeout(() => toast.classList.remove('show'), 3000);
-            }
-
-            formatTime(timestamp) {
-                const date = new Date(timestamp);
-                const now = new Date();
-                const diff = now - date;
-                const seconds = Math.floor(diff / 1000);
-                const minutes = Math.floor(seconds / 60);
-                const hours = Math.floor(minutes / 60);
-                const days = Math.floor(hours / 24);
-
-                if (days > 0) return `${days}d ago`;
-                if (hours > 0) return `${hours}h ago`;
-                if (minutes > 0) return `${minutes}m ago`;
-                return 'just now';
-            }
-
-            formatCount(count) {
-                if (count >= 1000000) return `${(count / 1000000).toFixed(1)}M`;
-                if (count >= 1000) return `${(count / 1000).toFixed(1)}k`;
-                return count.toString();
-            }
-
-            escapeHtml(text) {
-                const map = {
-                    '&': '&amp;',
-                    '<': '&lt;',
-                    '>': '&gt;',
-                    '"': '&quot;',
-                    "'": '&#39;'
-                };
-                return text.replace(/[&<>"']/g, m => map[m]);
-            }
-
-            search(query) {
-                // Implement search functionality
-                this.showToast(`Searching for: ${query}`);
-            }
-
-            viewCommunity(communityId) {
-                // Filter posts by community
-                this.showToast('Loading community posts...');
-            }
-
-            async replyToPost(postId) {
-                if (!this.client.auth) {
-                    this.showToast('Please login to reply');
-                    return;
-                }
-
-                const replyText = document.getElementById('postReplyText').value.trim();
-                if (!replyText) {
-                    this.showToast('Please enter a reply');
-                    return;
-                }
-
-                try {
-                    await this.client.createComment(postId, replyText, null);
-                    document.getElementById('postReplyText').value = '';
-                    this.showToast('Reply posted!');
-                    
-                    // Reload comments
-                    const commentsResponse = await this.client.getComments(postId);
-                    document.getElementById('commentsContainer').innerHTML = this.renderComments(commentsResponse.comments);
-                } catch (error) {
-                    this.showToast('Failed to post reply');
-                }
-            }
-
-            showReplyToComment(commentId, postId) {
-                if (!this.client.auth) {
-                    this.showToast('Please login to reply');
-                    return;
-                }
-
-                const replyBox = document.getElementById(`reply-box-${commentId}`);
-                
-                // Check if reply box already exists
-                if (replyBox.innerHTML) {
-                    replyBox.innerHTML = '';
-                    return;
-                }
-
-                replyBox.innerHTML = `
-                    <div class="reply-box" style="margin: 8px 0;">
-                        <textarea class="reply-textarea" id="reply-text-${commentId}" placeholder="Write your reply..."></textarea>
-                        <div class="reply-actions">
-                            <button class="reply-btn" onclick="app.submitCommentReply(${commentId}, ${postId})">Reply</button>
-                            <button class="cancel-btn" onclick="app.cancelReply(${commentId})">Cancel</button>
-                        </div>
-                    </div>
-                `;
-                
-                // Focus the textarea
-                document.getElementById(`reply-text-${commentId}`).focus();
-            }
-
-            async submitCommentReply(parentId, postId) {
-                const replyText = document.getElementById(`reply-text-${parentId}`).value.trim();
-                if (!replyText) {
-                    this.showToast('Please enter a reply');
-                    return;
-                }
-
-                try {
-                    await this.client.createComment(postId, replyText, parentId);
-                    this.showToast('Reply posted!');
-                    
-                    // Clear and hide reply box
-                    this.cancelReply(parentId);
-                    
-                    // Reload comments
-                    const commentsResponse = await this.client.getComments(postId);
-                    document.getElementById('commentsContainer').innerHTML = this.renderComments(commentsResponse.comments);
-                } catch (error) {
-                    this.showToast('Failed to post reply');
-                }
-            }
-
-            cancelReply(commentId) {
-                const replyBox = document.getElementById(`reply-box-${commentId}`);
-                if (replyBox) {
-                    replyBox.innerHTML = '';
-                }
-            }
-
-            replyToComment(commentId) {
-                // Deprecated - using showReplyToComment instead
-                if (!this.client.auth) {
-                    this.showToast('Please login to reply');
-                    return;
-                }
-                this.showToast('Use the reply button to respond');
-            }
-
-            showInstancePicker() {
-                // Implement instance picker
-                this.showToast('Instance picker coming soon');
-            }
-
-            showRegister() {
-                // Implement registration
-                this.showToast('Registration coming soon');
-            }
-
-            toggleUserMenu() {
-                // Show user menu dropdown
                 this.toggleDrawer();
             }
         }
@@ -3081,17 +2079,4 @@
         }
     </script>
 </body>
-</html>="drawer-item-icon">🚪</span>
-                        <span>Logout</span>
-                    `;
-                } else {
-                    document.getElementById('userAvatar').textContent = '?';
-                    document.getElementById('drawerUser').innerHTML = `
-                        <div class="drawer-user-avatar">?</div>
-                        <div>
-                            <div class="drawer-username">Guest</div>
-                            <div class="drawer-karma">Login to see profile</div>
-                        </div>
-                    `;
-                    document.getElementById('authBtn').innerHTML = `
-                        <span class
+</html>
