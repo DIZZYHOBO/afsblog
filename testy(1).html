@@ -1448,8 +1448,8 @@
                                     <span>${this.formatTime(post.published)}</span>
                                 </div>
                                 <h3 class="post-title">${this.escapeHtml(post.name)}</h3>
-                                ${bodyPreview ? `<div class="post-body markdown-content">${bodyPreview}</div>` : ''}
-                                ${post.thumbnail_url ? `<img class="post-image" src="${post.thumbnail_url}" alt="Post thumbnail">` : ''}
+                                ${bodyPreview ? '<div class="post-body markdown-content">' + bodyPreview + '</div>' : ''}
+                                ${post.thumbnail_url ? '<img class="post-image" src="' + post.thumbnail_url + '" alt="Post thumbnail">' : ''}
                             </div>
                             <div class="post-footer">
                                 <div class="vote-buttons">
