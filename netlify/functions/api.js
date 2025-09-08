@@ -605,6 +605,10 @@ async function handleAuthenticatedEndpoints(path, req, blogStore, store, headers
     return await handleCreateCommunity(req, blogStore, headers, user);
   }
   
+  if (path === 'communities/following' && req.method === 'GET') {
+    return await handleGetFollowedCommunities(blogStore, headers, user);
+  }
+  
   if (path.startsWith('communities/') && path.endsWith('/follow') && req.method === 'POST') {
     const communityName = path.split('/')[1];
     return await handleFollowCommunity(communityName, blogStore, headers, user);
@@ -613,10 +617,6 @@ async function handleAuthenticatedEndpoints(path, req, blogStore, store, headers
   if (path.startsWith('communities/') && path.endsWith('/unfollow') && req.method === 'POST') {
     const communityName = path.split('/')[1];
     return await handleUnfollowCommunity(communityName, blogStore, headers, user);
-  }
-  
-  if (path === 'communities/following' && req.method === 'GET') {
-    return await handleGetFollowedCommunities(blogStore, headers, user);
   }
   
   if (path.startsWith('communities/') && req.method === 'DELETE') {
