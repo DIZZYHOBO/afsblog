@@ -409,10 +409,20 @@ const secureAPI = {
         method: 'GET'
       });
       
-      if (response.success) {
+      // Check if response is already parsed or if it has the expected structure
+      if (response.success !== undefined) {
         return response.communities || [];
+      } else if (response.error) {
+        throw new Error(response.error);
+      } else if (Array.isArray(response)) {
+        // If response is directly an array of communities
+        return response;
+      } else if (response.communities) {
+        // If response has communities property without success flag
+        return response.communities;
       } else {
-        throw new Error(response.error || 'Failed to load followed communities');
+        console.warn('Unexpected response format:', response);
+        return [];
       }
     } catch (error) {
       console.error('Get followed communities error:', error);
