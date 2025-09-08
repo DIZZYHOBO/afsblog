@@ -9,7 +9,7 @@ const SECURITY_CONFIG = {
   // Environment variables (must be set in Netlify)
   JWT_SECRET: process.env.JWT_SECRET || crypto.randomBytes(64).toString('hex'),
   JWT_REFRESH_SECRET: process.env.JWT_REFRESH_SECRET || crypto.randomBytes(64).toString('hex'),
-  MASTER_API_KEY: process.env.MASTER_API_KEY || "your-secret-master-key-here",
+  MASTER_API_KEY: process.env.MASTER_API_KEY || "a35fbc82d57e13d10e8c150d5c6e8b1d4f722c1a88d3b0e7c91a4f327c8b1e2d",
   
   // Token lifetimes
   ACCESS_TOKEN_LIFETIME: 15 * 60, // 15 minutes
@@ -69,6 +69,8 @@ export default async (req, context) => {
     const url = new URL(req.url);
     const path = url.pathname.split('/api/')[1] || '';
     const clientIP = getClientIP(req);
+    
+    console.log('API Request - Path:', path, 'Method:', req.method); // Debug logging
 
     // Rate limiting check
     const rateLimitResult = await checkRateLimit(securityStore, clientIP, path, req.method);
@@ -115,14 +117,10 @@ export default async (req, context) => {
       return await handleSecureLogout(req, store, securityStore, corsHeaders);
     }
 
-    // Public endpoints (no auth required)
-    if (path === 'communities' && req.method === 'GET') {
-      return await handleGetCommunities(req, blogStore, corsHeaders);
-    }
-    
-    // Check for 'communities/following' BEFORE the generic community handler
+    // IMPORTANT: Check for 'communities/following' FIRST before any other community routes
     if (path === 'communities/following' && req.method === 'GET') {
-      // This is an authenticated endpoint for getting followed communities
+      console.log('Handling communities/following endpoint'); // Debug
+      // This requires authentication
       const authResult = await validateSecureAuth(req, store, blogStore);
       if (!authResult.valid) {
         return new Response(
@@ -132,14 +130,20 @@ export default async (req, context) => {
       }
       return await handleGetFollowedCommunities(blogStore, corsHeaders, authResult.user);
     }
+
+    // Public endpoints (no auth required)
+    if (path === 'communities' && req.method === 'GET') {
+      return await handleGetCommunities(req, blogStore, corsHeaders);
+    }
     
+    // Now handle other community paths
     if (path.startsWith('communities/') && req.method === 'GET') {
       const parts = path.split('/');
       const communityName = parts[1];
       
-      // Skip if this is the 'following' endpoint (already handled above)
+      // Double-check this isn't the 'following' endpoint
       if (communityName === 'following') {
-        // This should not happen as it's caught above, but just in case
+        console.log('Following endpoint caught in generic handler - redirecting'); // Debug
         const authResult = await validateSecureAuth(req, store, blogStore);
         if (!authResult.valid) {
           return new Response(
