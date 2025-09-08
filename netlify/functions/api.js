@@ -1,4 +1,4 @@
-// netlify/functions/api.js - COMPLETELY REWRITTEN WITH MODERN SECURITY
+// netlify/functions/api.js - COMPLETE PRODUCTION BACKEND API
 import { getStore } from "@netlify/blobs";
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
@@ -114,14 +114,6 @@ export default async (req, context) => {
     if (path === 'auth/logout') {
       return await handleSecureLogout(req, store, securityStore, corsHeaders);
     }
-    
-    if (path === 'auth/forgot-password') {
-      return await handleForgotPassword(req, blogStore, securityStore, corsHeaders, clientIP);
-    }
-    
-    if (path === 'auth/verify-email') {
-      return await handleEmailVerification(req, blogStore, corsHeaders);
-    }
 
     // Public endpoints (no auth required)
     if (path === 'communities' && req.method === 'GET') {
@@ -129,12 +121,28 @@ export default async (req, context) => {
     }
     
     if (path.startsWith('communities/') && req.method === 'GET') {
-      const communityName = path.split('/')[1];
-      if (path.endsWith('/posts')) {
+      const parts = path.split('/');
+      const communityName = parts[1];
+      
+      if (parts[2] === 'posts') {
         return await handleCommunityPosts(req, blogStore, corsHeaders, communityName);
-      } else {
+      } else if (!parts[2]) {
         return await handleGetCommunity(req, blogStore, corsHeaders, communityName);
       }
+    }
+    
+    if (path === 'posts' && req.method === 'GET') {
+      return await handleGetPosts(req, blogStore, corsHeaders);
+    }
+    
+    if (path.startsWith('posts/') && path.endsWith('/replies') && req.method === 'GET') {
+      const postId = path.split('/')[1];
+      return await handleGetReplies(req, blogStore, corsHeaders, postId);
+    }
+    
+    if (path.startsWith('users/') && req.method === 'GET') {
+      const username = path.split('/')[1];
+      return await handleGetUserProfile(req, blogStore, corsHeaders, username);
     }
 
     // Protected endpoints - validate authentication
@@ -189,6 +197,11 @@ export default async (req, context) => {
     if (path === 'security/login-history') {
       return await handleLoginHistory(req, securityStore, corsHeaders, authResult.user);
     }
+    
+    if (path.startsWith('security/sessions/') && req.method === 'DELETE') {
+      const sessionId = path.split('/')[2];
+      return await handleTerminateSession(sessionId, store, corsHeaders, authResult.user);
+    }
 
     // Regular authenticated endpoints
     return await handleAuthenticatedEndpoints(path, req, blogStore, store, corsHeaders, authResult.user);
@@ -216,7 +229,1286 @@ export default async (req, context) => {
 };
 
 // ==============================================
-// SECURE AUTHENTICATION HANDLERS
+// ADMIN ENDPOINTS
+// ==============================================
+
+async function handleAdminEndpoints(path, req, blogStore, securityStore, headers, user) {
+  const adminPath = path.replace('admin/', '');
+  
+  if (adminPath === 'stats' && req.method === 'GET') {
+    return await handleAdminStats(blogStore, headers);
+  }
+  
+  if (adminPath === 'pending-users' && req.method === 'GET') {
+    return await handleGetPendingUsers(blogStore, headers);
+  }
+  
+  if (adminPath === 'approve-user' && req.method === 'POST') {
+    return await handleApproveUser(req, blogStore, headers);
+  }
+  
+  if (adminPath === 'reject-user' && req.method === 'POST') {
+    return await handleRejectUser(req, blogStore, headers);
+  }
+  
+  if (adminPath === 'users' && req.method === 'GET') {
+    return await handleGetAllUsers(blogStore, headers);
+  }
+  
+  if (adminPath === 'promote' && req.method === 'POST') {
+    return await handlePromoteUser(req, blogStore, headers, user);
+  }
+  
+  if (adminPath === 'demote' && req.method === 'POST') {
+    return await handleDemoteUser(req, blogStore, headers, user);
+  }
+  
+  if (adminPath.startsWith('users/') && req.method === 'DELETE') {
+    const username = adminPath.split('/')[1];
+    return await handleDeleteUser(username, blogStore, headers, user);
+  }
+  
+  if (adminPath === 'communities' && req.method === 'GET') {
+    return await handleGetAllCommunities(blogStore, headers);
+  }
+  
+  return new Response(
+    JSON.stringify({ error: "Admin endpoint not found" }),
+    { status: 404, headers }
+  );
+}
+
+async function handleAdminStats(blogStore, headers) {
+  try {
+    // Get all users
+    const { blobs: userBlobs } = await blogStore.list({ prefix: "user_" });
+    const totalUsers = userBlobs.filter(b => !b.key.includes('follows')).length;
+    
+    // Get pending users
+    const { blobs: pendingBlobs } = await blogStore.list({ prefix: "pending_user_" });
+    const pendingUsers = pendingBlobs.length;
+    
+    // Get posts (only public posts for admin stats)
+    const { blobs: postBlobs } = await blogStore.list({ prefix: "post_" });
+    let totalPosts = 0;
+    
+    for (const blob of postBlobs) {
+      const post = await blogStore.get(blob.key, { type: "json" });
+      if (post && !post.isPrivate) {
+        totalPosts++;
+      }
+    }
+    
+    // Get communities
+    const { blobs: communityBlobs } = await blogStore.list({ prefix: "community_" });
+    const totalCommunities = communityBlobs.length;
+    
+    return new Response(
+      JSON.stringify({
+        success: true,
+        stats: {
+          totalUsers,
+          pendingUsers,
+          totalPosts,
+          totalCommunities
+        }
+      }),
+      { status: 200, headers }
+    );
+  } catch (error) {
+    console.error('Admin stats error:', error);
+    return new Response(
+      JSON.stringify({ error: "Failed to load admin stats" }),
+      { status: 500, headers }
+    );
+  }
+}
+
+async function handleGetPendingUsers(blogStore, headers) {
+  try {
+    const { blobs } = await blogStore.list({ prefix: "pending_user_" });
+    const pendingUsers = [];
+    
+    for (const blob of blobs) {
+      const userData = await blogStore.get(blob.key, { type: "json" });
+      if (userData) {
+        pendingUsers.push({
+          ...userData,
+          key: blob.key
+        });
+      }
+    }
+    
+    return new Response(
+      JSON.stringify({
+        success: true,
+        pendingUsers
+      }),
+      { status: 200, headers }
+    );
+  } catch (error) {
+    console.error('Get pending users error:', error);
+    return new Response(
+      JSON.stringify({ error: "Failed to load pending users" }),
+      { status: 500, headers }
+    );
+  }
+}
+
+async function handleApproveUser(req, blogStore, headers) {
+  try {
+    const { username, pendingKey } = await req.json();
+    
+    const pendingUser = await blogStore.get(pendingKey, { type: "json" });
+    if (!pendingUser) {
+      return new Response(
+        JSON.stringify({ error: "Pending user not found" }),
+        { status: 404, headers }
+      );
+    }
+    
+    // Move to approved users
+    const approvedUser = {
+      ...pendingUser,
+      status: 'active',
+      approvedAt: new Date().toISOString()
+    };
+    
+    await blogStore.set(`user_${username}`, JSON.stringify(approvedUser));
+    await blogStore.delete(pendingKey);
+    
+    return new Response(
+      JSON.stringify({
+        success: true,
+        message: "User approved successfully"
+      }),
+      { status: 200, headers }
+    );
+  } catch (error) {
+    console.error('Approve user error:', error);
+    return new Response(
+      JSON.stringify({ error: "Failed to approve user" }),
+      { status: 500, headers }
+    );
+  }
+}
+
+async function handleRejectUser(req, blogStore, headers) {
+  try {
+    const { username, pendingKey } = await req.json();
+    
+    await blogStore.delete(pendingKey);
+    
+    return new Response(
+      JSON.stringify({
+        success: true,
+        message: "User rejected"
+      }),
+      { status: 200, headers }
+    );
+  } catch (error) {
+    console.error('Reject user error:', error);
+    return new Response(
+      JSON.stringify({ error: "Failed to reject user" }),
+      { status: 500, headers }
+    );
+  }
+}
+
+async function handleGetAllUsers(blogStore, headers) {
+  try {
+    const { blobs } = await blogStore.list({ prefix: "user_" });
+    const users = [];
+    
+    for (const blob of blobs) {
+      if (!blob.key.includes('follows')) {
+        const userData = await blogStore.get(blob.key, { type: "json" });
+        if (userData) {
+          // Remove sensitive data
+          const { passwordHash, passwordSalt, ...safeUser } = userData;
+          users.push(safeUser);
+        }
+      }
+    }
+    
+    return new Response(
+      JSON.stringify({
+        success: true,
+        users
+      }),
+      { status: 200, headers }
+    );
+  } catch (error) {
+    console.error('Get all users error:', error);
+    return new Response(
+      JSON.stringify({ error: "Failed to load users" }),
+      { status: 500, headers }
+    );
+  }
+}
+
+async function handlePromoteUser(req, blogStore, headers, adminUser) {
+  try {
+    const { username } = await req.json();
+    
+    const user = await blogStore.get(`user_${username}`, { type: "json" });
+    if (!user) {
+      return new Response(
+        JSON.stringify({ error: "User not found" }),
+        { status: 404, headers }
+      );
+    }
+    
+    user.isAdmin = true;
+    user.promotedAt = new Date().toISOString();
+    user.promotedBy = adminUser.username;
+    
+    await blogStore.set(`user_${username}`, JSON.stringify(user));
+    
+    return new Response(
+      JSON.stringify({
+        success: true,
+        message: "User promoted to admin"
+      }),
+      { status: 200, headers }
+    );
+  } catch (error) {
+    console.error('Promote user error:', error);
+    return new Response(
+      JSON.stringify({ error: "Failed to promote user" }),
+      { status: 500, headers }
+    );
+  }
+}
+
+async function handleDemoteUser(req, blogStore, headers, adminUser) {
+  try {
+    const { username } = await req.json();
+    
+    if (username === SECURITY_CONFIG.PROTECTED_ADMIN) {
+      return new Response(
+        JSON.stringify({ error: "Cannot demote protected admin" }),
+        { status: 403, headers }
+      );
+    }
+    
+    const user = await blogStore.get(`user_${username}`, { type: "json" });
+    if (!user) {
+      return new Response(
+        JSON.stringify({ error: "User not found" }),
+        { status: 404, headers }
+      );
+    }
+    
+    user.isAdmin = false;
+    user.demotedAt = new Date().toISOString();
+    user.demotedBy = adminUser.username;
+    
+    await blogStore.set(`user_${username}`, JSON.stringify(user));
+    
+    return new Response(
+      JSON.stringify({
+        success: true,
+        message: "Admin privileges removed"
+      }),
+      { status: 200, headers }
+    );
+  } catch (error) {
+    console.error('Demote user error:', error);
+    return new Response(
+      JSON.stringify({ error: "Failed to demote user" }),
+      { status: 500, headers }
+    );
+  }
+}
+
+async function handleDeleteUser(username, blogStore, headers, adminUser) {
+  try {
+    if (username === adminUser.username) {
+      return new Response(
+        JSON.stringify({ error: "Cannot delete your own account" }),
+        { status: 403, headers }
+      );
+    }
+    
+    if (username === SECURITY_CONFIG.PROTECTED_ADMIN) {
+      return new Response(
+        JSON.stringify({ error: "Cannot delete protected admin" }),
+        { status: 403, headers }
+      );
+    }
+    
+    // Delete user data
+    await blogStore.delete(`user_${username}`);
+    await blogStore.delete(`user_follows_${username}`);
+    
+    // Delete user's posts
+    const { blobs: postBlobs } = await blogStore.list({ prefix: "post_" });
+    for (const blob of postBlobs) {
+      const post = await blogStore.get(blob.key, { type: "json" });
+      if (post && post.author === username) {
+        await blogStore.delete(blob.key);
+      }
+    }
+    
+    return new Response(
+      JSON.stringify({
+        success: true,
+        message: "User deleted successfully"
+      }),
+      { status: 200, headers }
+    );
+  } catch (error) {
+    console.error('Delete user error:', error);
+    return new Response(
+      JSON.stringify({ error: "Failed to delete user" }),
+      { status: 500, headers }
+    );
+  }
+}
+
+async function handleGetAllCommunities(blogStore, headers) {
+  try {
+    const { blobs } = await blogStore.list({ prefix: "community_" });
+    const communities = [];
+    
+    for (const blob of blobs) {
+      const community = await blogStore.get(blob.key, { type: "json" });
+      if (community) {
+        communities.push(community);
+      }
+    }
+    
+    return new Response(
+      JSON.stringify({
+        success: true,
+        communities
+      }),
+      { status: 200, headers }
+    );
+  } catch (error) {
+    console.error('Get all communities error:', error);
+    return new Response(
+      JSON.stringify({ error: "Failed to load communities" }),
+      { status: 500, headers }
+    );
+  }
+}
+
+// ==============================================
+// AUTHENTICATED ENDPOINTS
+// ==============================================
+
+async function handleAuthenticatedEndpoints(path, req, blogStore, store, headers, user) {
+  // Community endpoints
+  if (path === 'communities' && req.method === 'POST') {
+    return await handleCreateCommunity(req, blogStore, headers, user);
+  }
+  
+  if (path.startsWith('communities/') && path.endsWith('/follow') && req.method === 'POST') {
+    const communityName = path.split('/')[1];
+    return await handleFollowCommunity(communityName, blogStore, headers, user);
+  }
+  
+  if (path.startsWith('communities/') && path.endsWith('/unfollow') && req.method === 'POST') {
+    const communityName = path.split('/')[1];
+    return await handleUnfollowCommunity(communityName, blogStore, headers, user);
+  }
+  
+  if (path === 'communities/following' && req.method === 'GET') {
+    return await handleGetFollowedCommunities(blogStore, headers, user);
+  }
+  
+  if (path.startsWith('communities/') && req.method === 'DELETE') {
+    const communityName = path.split('/')[1];
+    return await handleDeleteCommunity(communityName, blogStore, headers, user);
+  }
+  
+  // Post endpoints
+  if (path === 'posts' && req.method === 'POST') {
+    return await handleCreatePost(req, blogStore, headers, user);
+  }
+  
+  if (path.startsWith('posts/') && req.method === 'DELETE') {
+    const postId = path.split('/')[1];
+    return await handleDeletePost(postId, blogStore, headers, user);
+  }
+  
+  if (path.startsWith('posts/') && path.endsWith('/vote') && req.method === 'POST') {
+    const postId = path.split('/')[1];
+    return await handleVotePost(postId, req, blogStore, headers, user);
+  }
+  
+  // Reply endpoints
+  if (path.startsWith('posts/') && path.endsWith('/replies') && req.method === 'POST') {
+    const postId = path.split('/')[1];
+    return await handleCreateReply(postId, req, blogStore, headers, user);
+  }
+  
+  if (path.match(/^posts\/[^\/]+\/replies\/[^\/]+$/) && req.method === 'DELETE') {
+    const parts = path.split('/');
+    const postId = parts[1];
+    const replyId = parts[3];
+    return await handleDeleteReply(postId, replyId, blogStore, headers, user);
+  }
+  
+  // Profile endpoints
+  if (path === 'profile' && req.method === 'PUT') {
+    return await handleUpdateProfile(req, blogStore, headers, user);
+  }
+  
+  return new Response(
+    JSON.stringify({ error: "Endpoint not found" }),
+    { status: 404, headers }
+  );
+}
+
+// ==============================================
+// COMMUNITY HANDLERS
+// ==============================================
+
+async function handleGetCommunities(req, blogStore, headers) {
+  try {
+    const { blobs } = await blogStore.list({ prefix: "community_" });
+    const communities = [];
+    
+    for (const blob of blobs) {
+      const community = await blogStore.get(blob.key, { type: "json" });
+      if (community) {
+        communities.push(community);
+      }
+    }
+    
+    return new Response(
+      JSON.stringify({
+        success: true,
+        communities
+      }),
+      { status: 200, headers }
+    );
+  } catch (error) {
+    console.error('Get communities error:', error);
+    return new Response(
+      JSON.stringify({ error: "Failed to load communities" }),
+      { status: 500, headers }
+    );
+  }
+}
+
+async function handleGetCommunity(req, blogStore, headers, communityName) {
+  try {
+    const community = await blogStore.get(`community_${communityName}`, { type: "json" });
+    
+    if (!community) {
+      return new Response(
+        JSON.stringify({ error: "Community not found" }),
+        { status: 404, headers }
+      );
+    }
+    
+    return new Response(
+      JSON.stringify({
+        success: true,
+        community
+      }),
+      { status: 200, headers }
+    );
+  } catch (error) {
+    console.error('Get community error:', error);
+    return new Response(
+      JSON.stringify({ error: "Failed to load community" }),
+      { status: 500, headers }
+    );
+  }
+}
+
+async function handleCreateCommunity(req, blogStore, headers, user) {
+  try {
+    const { name, displayName, description } = await req.json();
+    
+    if (!name || !displayName) {
+      return new Response(
+        JSON.stringify({ error: "Community name and display name are required" }),
+        { status: 400, headers }
+      );
+    }
+    
+    // Check if community already exists
+    const existing = await blogStore.get(`community_${name}`, { type: "json" });
+    if (existing) {
+      return new Response(
+        JSON.stringify({ error: "Community already exists" }),
+        { status: 409, headers }
+      );
+    }
+    
+    const community = {
+      name,
+      displayName,
+      description: description || '',
+      createdBy: user.username,
+      createdAt: new Date().toISOString(),
+      members: [user.username],
+      postCount: 0
+    };
+    
+    await blogStore.set(`community_${name}`, JSON.stringify(community));
+    
+    // Add to user's followed communities
+    const userFollows = await blogStore.get(`user_follows_${user.username}`, { type: "json" }) || { communities: [] };
+    if (!userFollows.communities.includes(name)) {
+      userFollows.communities.push(name);
+      await blogStore.set(`user_follows_${user.username}`, JSON.stringify(userFollows));
+    }
+    
+    return new Response(
+      JSON.stringify({
+        success: true,
+        community
+      }),
+      { status: 201, headers }
+    );
+  } catch (error) {
+    console.error('Create community error:', error);
+    return new Response(
+      JSON.stringify({ error: "Failed to create community" }),
+      { status: 500, headers }
+    );
+  }
+}
+
+async function handleFollowCommunity(communityName, blogStore, headers, user) {
+  try {
+    const community = await blogStore.get(`community_${communityName}`, { type: "json" });
+    
+    if (!community) {
+      return new Response(
+        JSON.stringify({ error: "Community not found" }),
+        { status: 404, headers }
+      );
+    }
+    
+    // Update user's follows
+    const userFollows = await blogStore.get(`user_follows_${user.username}`, { type: "json" }) || { communities: [] };
+    
+    if (!userFollows.communities.includes(communityName)) {
+      userFollows.communities.push(communityName);
+      await blogStore.set(`user_follows_${user.username}`, JSON.stringify(userFollows));
+      
+      // Update community members count
+      if (!community.members) {
+        community.members = [];
+      }
+      if (!community.members.includes(user.username)) {
+        community.members.push(user.username);
+        await blogStore.set(`community_${communityName}`, JSON.stringify(community));
+      }
+    }
+    
+    return new Response(
+      JSON.stringify({
+        success: true,
+        following: true,
+        memberCount: community.members.length
+      }),
+      { status: 200, headers }
+    );
+  } catch (error) {
+    console.error('Follow community error:', error);
+    return new Response(
+      JSON.stringify({ error: "Failed to follow community" }),
+      { status: 500, headers }
+    );
+  }
+}
+
+async function handleUnfollowCommunity(communityName, blogStore, headers, user) {
+  try {
+    const community = await blogStore.get(`community_${communityName}`, { type: "json" });
+    
+    if (!community) {
+      return new Response(
+        JSON.stringify({ error: "Community not found" }),
+        { status: 404, headers }
+      );
+    }
+    
+    // Update user's follows
+    const userFollows = await blogStore.get(`user_follows_${user.username}`, { type: "json" }) || { communities: [] };
+    
+    userFollows.communities = userFollows.communities.filter(c => c !== communityName);
+    await blogStore.set(`user_follows_${user.username}`, JSON.stringify(userFollows));
+    
+    // Update community members
+    if (community.members) {
+      community.members = community.members.filter(m => m !== user.username);
+      await blogStore.set(`community_${communityName}`, JSON.stringify(community));
+    }
+    
+    return new Response(
+      JSON.stringify({
+        success: true,
+        following: false,
+        memberCount: community.members ? community.members.length : 0
+      }),
+      { status: 200, headers }
+    );
+  } catch (error) {
+    console.error('Unfollow community error:', error);
+    return new Response(
+      JSON.stringify({ error: "Failed to unfollow community" }),
+      { status: 500, headers }
+    );
+  }
+}
+
+async function handleGetFollowedCommunities(blogStore, headers, user) {
+  try {
+    const userFollows = await blogStore.get(`user_follows_${user.username}`, { type: "json" }) || { communities: [] };
+    const communities = [];
+    
+    for (const communityName of userFollows.communities) {
+      const community = await blogStore.get(`community_${communityName}`, { type: "json" });
+      if (community) {
+        communities.push(community);
+      }
+    }
+    
+    return new Response(
+      JSON.stringify({
+        success: true,
+        communities
+      }),
+      { status: 200, headers }
+    );
+  } catch (error) {
+    console.error('Get followed communities error:', error);
+    return new Response(
+      JSON.stringify({ error: "Failed to load followed communities" }),
+      { status: 500, headers }
+    );
+  }
+}
+
+async function handleDeleteCommunity(communityName, blogStore, headers, user) {
+  try {
+    const community = await blogStore.get(`community_${communityName}`, { type: "json" });
+    
+    if (!community) {
+      return new Response(
+        JSON.stringify({ error: "Community not found" }),
+        { status: 404, headers }
+      );
+    }
+    
+    // Only creator or admin can delete
+    if (community.createdBy !== user.username && !user.isAdmin) {
+      return new Response(
+        JSON.stringify({ error: "Permission denied" }),
+        { status: 403, headers }
+      );
+    }
+    
+    // Delete community
+    await blogStore.delete(`community_${communityName}`);
+    
+    // Remove from all users' follows
+    const { blobs } = await blogStore.list({ prefix: "user_follows_" });
+    for (const blob of blobs) {
+      const userFollows = await blogStore.get(blob.key, { type: "json" });
+      if (userFollows && userFollows.communities) {
+        userFollows.communities = userFollows.communities.filter(c => c !== communityName);
+        await blogStore.set(blob.key, JSON.stringify(userFollows));
+      }
+    }
+    
+    return new Response(
+      JSON.stringify({
+        success: true,
+        message: "Community deleted successfully"
+      }),
+      { status: 200, headers }
+    );
+  } catch (error) {
+    console.error('Delete community error:', error);
+    return new Response(
+      JSON.stringify({ error: "Failed to delete community" }),
+      { status: 500, headers }
+    );
+  }
+}
+
+async function handleCommunityPosts(req, blogStore, headers, communityName) {
+  try {
+    const { blobs } = await blogStore.list({ prefix: "post_" });
+    const posts = [];
+    
+    for (const blob of blobs) {
+      const post = await blogStore.get(blob.key, { type: "json" });
+      if (post && post.communityName === communityName && !post.isPrivate) {
+        posts.push(post);
+      }
+    }
+    
+    return new Response(
+      JSON.stringify({
+        success: true,
+        posts
+      }),
+      { status: 200, headers }
+    );
+  } catch (error) {
+    console.error('Get community posts error:', error);
+    return new Response(
+      JSON.stringify({ error: "Failed to load community posts" }),
+      { status: 500, headers }
+    );
+  }
+}
+
+// ==============================================
+// POST HANDLERS
+// ==============================================
+
+async function handleGetPosts(req, blogStore, headers) {
+  try {
+    const url = new URL(req.url);
+    const community = url.searchParams.get('community');
+    const author = url.searchParams.get('author');
+    const followed = url.searchParams.get('followed');
+    const privateOnly = url.searchParams.get('private');
+    
+    const { blobs } = await blogStore.list({ prefix: "post_" });
+    const posts = [];
+    
+    for (const blob of blobs) {
+      const post = await blogStore.get(blob.key, { type: "json" });
+      if (!post) continue;
+      
+      // Filter by criteria
+      if (community && post.communityName !== community) continue;
+      if (author && post.author !== author) continue;
+      if (privateOnly === 'true' && !post.isPrivate) continue;
+      if (!privateOnly && post.isPrivate) continue; // Don't show private posts unless specifically requested
+      
+      posts.push(post);
+    }
+    
+    // Sort by timestamp (newest first)
+    posts.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    
+    return new Response(
+      JSON.stringify({
+        success: true,
+        posts
+      }),
+      { status: 200, headers }
+    );
+  } catch (error) {
+    console.error('Get posts error:', error);
+    return new Response(
+      JSON.stringify({ error: "Failed to load posts" }),
+      { status: 500, headers }
+    );
+  }
+}
+
+async function handleCreatePost(req, blogStore, headers, user) {
+  try {
+    const { title, type, content, url, communityName, isPrivate } = await req.json();
+    
+    if (!title) {
+      return new Response(
+        JSON.stringify({ error: "Post title is required" }),
+        { status: 400, headers }
+      );
+    }
+    
+    const postId = crypto.randomUUID();
+    const post = {
+      id: postId,
+      title,
+      type: type || 'text',
+      content: content || '',
+      url: url || null,
+      communityName: communityName || null,
+      author: user.username,
+      timestamp: new Date().toISOString(),
+      isPrivate: isPrivate || false,
+      votes: 0,
+      voters: [],
+      replies: []
+    };
+    
+    await blogStore.set(`post_${postId}`, JSON.stringify(post));
+    
+    // Update community post count if applicable
+    if (communityName) {
+      const community = await blogStore.get(`community_${communityName}`, { type: "json" });
+      if (community) {
+        community.postCount = (community.postCount || 0) + 1;
+        await blogStore.set(`community_${communityName}`, JSON.stringify(community));
+      }
+    }
+    
+    return new Response(
+      JSON.stringify({
+        success: true,
+        post
+      }),
+      { status: 201, headers }
+    );
+  } catch (error) {
+    console.error('Create post error:', error);
+    return new Response(
+      JSON.stringify({ error: "Failed to create post" }),
+      { status: 500, headers }
+    );
+  }
+}
+
+async function handleDeletePost(postId, blogStore, headers, user) {
+  try {
+    const post = await blogStore.get(`post_${postId}`, { type: "json" });
+    
+    if (!post) {
+      return new Response(
+        JSON.stringify({ error: "Post not found" }),
+        { status: 404, headers }
+      );
+    }
+    
+    // Only author or admin can delete
+    if (post.author !== user.username && !user.isAdmin) {
+      return new Response(
+        JSON.stringify({ error: "Permission denied" }),
+        { status: 403, headers }
+      );
+    }
+    
+    await blogStore.delete(`post_${postId}`);
+    
+    // Update community post count if applicable
+    if (post.communityName) {
+      const community = await blogStore.get(`community_${post.communityName}`, { type: "json" });
+      if (community) {
+        community.postCount = Math.max(0, (community.postCount || 0) - 1);
+        await blogStore.set(`community_${post.communityName}`, JSON.stringify(community));
+      }
+    }
+    
+    return new Response(
+      JSON.stringify({
+        success: true,
+        message: "Post deleted successfully"
+      }),
+      { status: 200, headers }
+    );
+  } catch (error) {
+    console.error('Delete post error:', error);
+    return new Response(
+      JSON.stringify({ error: "Failed to delete post" }),
+      { status: 500, headers }
+    );
+  }
+}
+
+async function handleVotePost(postId, req, blogStore, headers, user) {
+  try {
+    const { voteType } = await req.json();
+    
+    const post = await blogStore.get(`post_${postId}`, { type: "json" });
+    
+    if (!post) {
+      return new Response(
+        JSON.stringify({ error: "Post not found" }),
+        { status: 404, headers }
+      );
+    }
+    
+    if (!post.voters) {
+      post.voters = [];
+    }
+    
+    // Check if user already voted
+    const existingVoteIndex = post.voters.findIndex(v => v.username === user.username);
+    
+    if (existingVoteIndex >= 0) {
+      // Remove existing vote
+      post.voters.splice(existingVoteIndex, 1);
+    }
+    
+    if (voteType === 'up' || voteType === 'down') {
+      // Add new vote
+      post.voters.push({
+        username: user.username,
+        voteType,
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    // Calculate total votes
+    post.votes = post.voters.reduce((total, vote) => {
+      return total + (vote.voteType === 'up' ? 1 : -1);
+    }, 0);
+    
+    await blogStore.set(`post_${postId}`, JSON.stringify(post));
+    
+    return new Response(
+      JSON.stringify({
+        success: true,
+        votes: post.votes
+      }),
+      { status: 200, headers }
+    );
+  } catch (error) {
+    console.error('Vote post error:', error);
+    return new Response(
+      JSON.stringify({ error: "Failed to vote on post" }),
+      { status: 500, headers }
+    );
+  }
+}
+
+// ==============================================
+// REPLY HANDLERS
+// ==============================================
+
+async function handleGetReplies(req, blogStore, headers, postId) {
+  try {
+    const post = await blogStore.get(`post_${postId}`, { type: "json" });
+    
+    if (!post) {
+      return new Response(
+        JSON.stringify({ error: "Post not found" }),
+        { status: 404, headers }
+      );
+    }
+    
+    return new Response(
+      JSON.stringify({
+        success: true,
+        replies: post.replies || []
+      }),
+      { status: 200, headers }
+    );
+  } catch (error) {
+    console.error('Get replies error:', error);
+    return new Response(
+      JSON.stringify({ error: "Failed to load replies" }),
+      { status: 500, headers }
+    );
+  }
+}
+
+async function handleCreateReply(postId, req, blogStore, headers, user) {
+  try {
+    const { content } = await req.json();
+    
+    if (!content) {
+      return new Response(
+        JSON.stringify({ error: "Reply content is required" }),
+        { status: 400, headers }
+      );
+    }
+    
+    const post = await blogStore.get(`post_${postId}`, { type: "json" });
+    
+    if (!post) {
+      return new Response(
+        JSON.stringify({ error: "Post not found" }),
+        { status: 404, headers }
+      );
+    }
+    
+    if (!post.replies) {
+      post.replies = [];
+    }
+    
+    const reply = {
+      id: crypto.randomUUID(),
+      postId,
+      content,
+      author: user.username,
+      timestamp: new Date().toISOString()
+    };
+    
+    post.replies.push(reply);
+    await blogStore.set(`post_${postId}`, JSON.stringify(post));
+    
+    return new Response(
+      JSON.stringify({
+        success: true,
+        reply
+      }),
+      { status: 201, headers }
+    );
+  } catch (error) {
+    console.error('Create reply error:', error);
+    return new Response(
+      JSON.stringify({ error: "Failed to create reply" }),
+      { status: 500, headers }
+    );
+  }
+}
+
+async function handleDeleteReply(postId, replyId, blogStore, headers, user) {
+  try {
+    const post = await blogStore.get(`post_${postId}`, { type: "json" });
+    
+    if (!post) {
+      return new Response(
+        JSON.stringify({ error: "Post not found" }),
+        { status: 404, headers }
+      );
+    }
+    
+    if (!post.replies) {
+      return new Response(
+        JSON.stringify({ error: "Reply not found" }),
+        { status: 404, headers }
+      );
+    }
+    
+    const replyIndex = post.replies.findIndex(r => r.id === replyId);
+    
+    if (replyIndex < 0) {
+      return new Response(
+        JSON.stringify({ error: "Reply not found" }),
+        { status: 404, headers }
+      );
+    }
+    
+    // Only author or admin can delete
+    if (post.replies[replyIndex].author !== user.username && !user.isAdmin) {
+      return new Response(
+        JSON.stringify({ error: "Permission denied" }),
+        { status: 403, headers }
+      );
+    }
+    
+    post.replies.splice(replyIndex, 1);
+    await blogStore.set(`post_${postId}`, JSON.stringify(post));
+    
+    return new Response(
+      JSON.stringify({
+        success: true,
+        message: "Reply deleted successfully"
+      }),
+      { status: 200, headers }
+    );
+  } catch (error) {
+    console.error('Delete reply error:', error);
+    return new Response(
+      JSON.stringify({ error: "Failed to delete reply" }),
+      { status: 500, headers }
+    );
+  }
+}
+
+// ==============================================
+// PROFILE HANDLERS
+// ==============================================
+
+async function handleGetUserProfile(req, blogStore, headers, username) {
+  try {
+    const user = await blogStore.get(`user_${username}`, { type: "json" });
+    
+    if (!user) {
+      return new Response(
+        JSON.stringify({ error: "User not found" }),
+        { status: 404, headers }
+      );
+    }
+    
+    // Remove sensitive data
+    const { passwordHash, passwordSalt, securityEvents, ...publicProfile } = user;
+    
+    return new Response(
+      JSON.stringify({
+        success: true,
+        user: publicProfile
+      }),
+      { status: 200, headers }
+    );
+  } catch (error) {
+    console.error('Get user profile error:', error);
+    return new Response(
+      JSON.stringify({ error: "Failed to load user profile" }),
+      { status: 500, headers }
+    );
+  }
+}
+
+async function handleUpdateProfile(req, blogStore, headers, user) {
+  try {
+    const { bio, profilePicture } = await req.json();
+    
+    const userData = await blogStore.get(`user_${user.username}`, { type: "json" });
+    
+    if (!userData) {
+      return new Response(
+        JSON.stringify({ error: "User not found" }),
+        { status: 404, headers }
+      );
+    }
+    
+    // Update profile fields
+    if (bio !== undefined) {
+      userData.bio = bio;
+    }
+    
+    if (profilePicture !== undefined) {
+      userData.profilePicture = profilePicture;
+    }
+    
+    userData.updatedAt = new Date().toISOString();
+    
+    await blogStore.set(`user_${user.username}`, JSON.stringify(userData));
+    
+    // Remove sensitive data from response
+    const { passwordHash, passwordSalt, securityEvents, ...updatedProfile } = userData;
+    
+    return new Response(
+      JSON.stringify({
+        success: true,
+        user: updatedProfile
+      }),
+      { status: 200, headers }
+    );
+  } catch (error) {
+    console.error('Update profile error:', error);
+    return new Response(
+      JSON.stringify({ error: "Failed to update profile" }),
+      { status: 500, headers }
+    );
+  }
+}
+
+// ==============================================
+// SESSION MANAGEMENT
+// ==============================================
+
+async function handleUserSessions(req, store, headers, user) {
+  try {
+    const { blobs } = await store.list({ prefix: "session_" });
+    const userSessions = [];
+    
+    for (const blob of blobs) {
+      const session = await store.get(blob.key, { type: "json" });
+      if (session && session.username === user.username) {
+        userSessions.push({
+          id: session.sessionId,
+          createdAt: session.createdAt,
+          lastActivity: session.lastActivity,
+          expiresAt: session.expiresAt,
+          ip: session.ip,
+          userAgent: session.userAgent,
+          active: session.active
+        });
+      }
+    }
+    
+    return new Response(
+      JSON.stringify({
+        success: true,
+        sessions: userSessions
+      }),
+      { status: 200, headers }
+    );
+  } catch (error) {
+    console.error('Get user sessions error:', error);
+    return new Response(
+      JSON.stringify({ error: "Failed to load sessions" }),
+      { status: 500, headers }
+    );
+  }
+}
+
+async function handleLoginHistory(req, securityStore, headers, user) {
+  try {
+    // Get recent login events for user
+    const loginHistory = [];
+    const { blobs } = await securityStore.list({ prefix: "security_log_" });
+    
+    for (const blob of blobs) {
+      const event = await securityStore.get(blob.key, { type: "json" });
+      if (event && 
+          event.username === user.username && 
+          (event.type === 'user_login_success' || event.type === 'login_attempt_invalid_password')) {
+        loginHistory.push({
+          timestamp: event.timestamp,
+          success: event.type === 'user_login_success',
+          ip: event.ip,
+          userAgent: event.userAgent
+        });
+      }
+    }
+    
+    // Sort by timestamp (newest first)
+    loginHistory.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    
+    // Limit to last 50 entries
+    const recentHistory = loginHistory.slice(0, 50);
+    
+    return new Response(
+      JSON.stringify({
+        success: true,
+        history: recentHistory
+      }),
+      { status: 200, headers }
+    );
+  } catch (error) {
+    console.error('Get login history error:', error);
+    return new Response(
+      JSON.stringify({ error: "Failed to load login history" }),
+      { status: 500, headers }
+    );
+  }
+}
+
+async function handleTerminateSession(sessionId, store, headers, user) {
+  try {
+    const session = await store.get(`session_${sessionId}`, { type: "json" });
+    
+    if (!session) {
+      return new Response(
+        JSON.stringify({ error: "Session not found" }),
+        { status: 404, headers }
+      );
+    }
+    
+    // Verify user owns this session
+    if (session.username !== user.username) {
+      return new Response(
+        JSON.stringify({ error: "Permission denied" }),
+        { status: 403, headers }
+      );
+    }
+    
+    // Mark session as inactive
+    session.active = false;
+    session.terminatedAt = new Date().toISOString();
+    await store.set(`session_${sessionId}`, JSON.stringify(session));
+    
+    return new Response(
+      JSON.stringify({
+        success: true,
+        message: "Session terminated successfully"
+      }),
+      { status: 200, headers }
+    );
+  } catch (error) {
+    console.error('Terminate session error:', error);
+    return new Response(
+      JSON.stringify({ error: "Failed to terminate session" }),
+      { status: 500, headers }
+    );
+  }
+}
+
+// ==============================================
+// AUTHENTICATION HANDLERS (from original file)
 // ==============================================
 
 async function handleSecureRegister(req, blogStore, securityStore, headers, clientIP) {
@@ -1178,7 +2470,7 @@ function generateDeviceFingerprint(req) {
 
 function getCorsHeaders(req) {
   const origin = req.headers.get('Origin');
-  const allowedOrigin = SECURITY_CONFIG.ALLOWED_ORIGINS.includes(origin) ? origin : SECURITY_CONFIG.ALLOWED_ORIGINS[0];
+  const allowedOrigin = SECURITY_CONFIG.ALLOWED_ORIGINS.includes(origin) ? origin : '*';
   
   return {
     "Access-Control-Allow-Origin": allowedOrigin,
@@ -1192,80 +2484,4 @@ function getCorsHeaders(req) {
     "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
     "Referrer-Policy": "strict-origin-when-cross-origin"
   };
-}
-
-// ==============================================
-// PLACEHOLDER HANDLERS (to be implemented)
-// ==============================================
-
-async function handleForgotPassword(req, blogStore, securityStore, headers, clientIP) {
-  // TODO: Implement password reset functionality
-  return new Response(
-    JSON.stringify({ message: "Password reset functionality coming soon" }),
-    { status: 501, headers }
-  );
-}
-
-async function handleEmailVerification(req, blogStore, headers) {
-  // TODO: Implement email verification
-  return new Response(
-    JSON.stringify({ message: "Email verification functionality coming soon" }),
-    { status: 501, headers }
-  );
-}
-
-async function handleUserSessions(req, store, headers, user) {
-  // TODO: Implement user session management
-  return new Response(
-    JSON.stringify({ message: "Session management functionality coming soon" }),
-    { status: 501, headers }
-  );
-}
-
-async function handleLoginHistory(req, securityStore, headers, user) {
-  // TODO: Implement login history
-  return new Response(
-    JSON.stringify({ message: "Login history functionality coming soon" }),
-    { status: 501, headers }
-  );
-}
-
-async function handleAdminEndpoints(path, req, blogStore, securityStore, headers, user) {
-  // TODO: Implement admin endpoints
-  return new Response(
-    JSON.stringify({ message: "Admin endpoints functionality coming soon" }),
-    { status: 501, headers }
-  );
-}
-
-async function handleAuthenticatedEndpoints(path, req, blogStore, store, headers, user) {
-  // TODO: Implement authenticated endpoints (posts, communities, etc.)
-  return new Response(
-    JSON.stringify({ message: "Authenticated endpoints functionality coming soon" }),
-    { status: 501, headers }
-  );
-}
-
-async function handleGetCommunities(req, blogStore, headers) {
-  // TODO: Implement get communities
-  return new Response(
-    JSON.stringify({ message: "Get communities functionality coming soon" }),
-    { status: 501, headers }
-  );
-}
-
-async function handleCommunityPosts(req, blogStore, headers, communityName) {
-  // TODO: Implement community posts
-  return new Response(
-    JSON.stringify({ message: "Community posts functionality coming soon" }),
-    { status: 501, headers }
-  );
-}
-
-async function handleGetCommunity(req, blogStore, headers, communityName) {
-  // TODO: Implement get community
-  return new Response(
-    JSON.stringify({ message: "Get community functionality coming soon" }),
-    { status: 501, headers }
-  );
 }
