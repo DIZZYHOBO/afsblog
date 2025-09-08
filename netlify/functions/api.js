@@ -9,7 +9,7 @@ const SECURITY_CONFIG = {
   // Environment variables (must be set in Netlify)
   JWT_SECRET: process.env.JWT_SECRET || crypto.randomBytes(64).toString('hex'),
   JWT_REFRESH_SECRET: process.env.JWT_REFRESH_SECRET || crypto.randomBytes(64).toString('hex'),
-  MASTER_API_KEY: process.env.MASTER_API_KEY || "a35fbc82d57e13d10e8c150d5c6e8b1d4f722c1a88d3b0e7c91a4f327c8b1e2d",
+  MASTER_API_KEY: process.env.MASTER_API_KEY || "your-secret-master-key-here",
   
   // Token lifetimes
   ACCESS_TOKEN_LIFETIME: 15 * 60, // 15 minutes
@@ -45,7 +45,7 @@ const SECURITY_CONFIG = {
   
   // CORS settings
   ALLOWED_ORIGINS: [
-    'https://f.afsapp.lol',
+    'https://your-domain.netlify.app',
     'https://localhost:3000',
     'http://localhost:8888'
   ],
@@ -67,8 +67,25 @@ export default async (req, context) => {
 
   try {
     const url = new URL(req.url);
-    const path = url.pathname.split('/api/')[1] || '';
+    // Parse the path more carefully
+    let path = url.pathname;
+    
+    // Remove leading slash
+    if (path.startsWith('/')) {
+      path = path.substring(1);
+    }
+    
+    // Remove .netlify/functions/api/ prefix if present
+    if (path.startsWith('.netlify/functions/api/')) {
+      path = path.substring('.netlify/functions/api/'.length);
+    } else if (path.startsWith('api/')) {
+      path = path.substring('api/'.length);
+    }
+    
     const clientIP = getClientIP(req);
+    
+    console.log('API Request - Full URL:', req.url);
+    console.log('API Request - Parsed Path:', path, 'Method:', req.method);
     
     console.log('API Request - Path:', path, 'Method:', req.method); // Debug logging
 
