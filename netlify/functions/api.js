@@ -86,8 +86,6 @@ export default async (req, context) => {
     
     console.log('API Request - Full URL:', req.url);
     console.log('API Request - Parsed Path:', path, 'Method:', req.method);
-    
-    console.log('API Request - Path:', path, 'Method:', req.method); // Debug logging
 
     // Rate limiting check
     const rateLimitResult = await checkRateLimit(securityStore, clientIP, path, req.method);
@@ -136,7 +134,7 @@ export default async (req, context) => {
 
     // IMPORTANT: Check for 'communities/following' FIRST before any other community routes
     if (path === 'communities/following' && req.method === 'GET') {
-      console.log('Handling communities/following endpoint'); // Debug
+      console.log('Handling communities/following endpoint');
       // This requires authentication
       const authResult = await validateSecureAuth(req, store, blogStore);
       if (!authResult.valid) {
@@ -160,7 +158,7 @@ export default async (req, context) => {
       
       // Double-check this isn't the 'following' endpoint
       if (communityName === 'following') {
-        console.log('Following endpoint caught in generic handler - redirecting'); // Debug
+        console.log('Following endpoint caught in generic handler - redirecting');
         const authResult = await validateSecureAuth(req, store, blogStore);
         if (!authResult.valid) {
           return new Response(
@@ -274,6 +272,93 @@ export default async (req, context) => {
     );
   }
 };
+
+// ==============================================
+// USER FOLLOWS DATA MIGRATION
+// ==============================================
+
+async function migrateUserFollowsData(blogStore, username) {
+  try {
+    const followsKey = `user_follows_${username}`;
+    const existingData = await blogStore.get(followsKey, { type: "json" });
+    
+    if (!existingData) {
+      // No existing data, create empty structure
+      const newData = {
+        username: username,
+        communities: [],
+        followedUsers: [],
+        followers: [],
+        blockedUsers: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      
+      await blogStore.set(followsKey, JSON.stringify(newData));
+      console.log('Created new follows structure for user:', username);
+      return newData;
+    }
+    
+    // Check if data needs migration
+    if (Array.isArray(existingData)) {
+      // Old format: direct array of community names
+      console.log('Migrating old format follows for user:', username);
+      
+      const newData = {
+        username: username,
+        communities: existingData, // Preserve the existing followed communities
+        followedUsers: [],
+        followers: [],
+        blockedUsers: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        migratedAt: new Date().toISOString()
+      };
+      
+      await blogStore.set(followsKey, JSON.stringify(newData));
+      console.log('Migrated follows data for user:', username);
+      return newData;
+    }
+    
+    // Check if it's using 'followedCommunities' instead of 'communities'
+    if (existingData.followedCommunities && !existingData.communities) {
+      console.log('Normalizing follows property name for user:', username);
+      
+      existingData.communities = existingData.followedCommunities;
+      delete existingData.followedCommunities;
+      existingData.updatedAt = new Date().toISOString();
+      
+      await blogStore.set(followsKey, JSON.stringify(existingData));
+      return existingData;
+    }
+    
+    // Ensure communities array exists
+    if (!existingData.communities) {
+      console.log('Adding missing communities array for user:', username);
+      existingData.communities = [];
+      existingData.updatedAt = new Date().toISOString();
+      
+      await blogStore.set(followsKey, JSON.stringify(existingData));
+      return existingData;
+    }
+    
+    // Data is already in correct format
+    return existingData;
+    
+  } catch (error) {
+    console.error('Error migrating user follows data:', error);
+    // Return a safe default
+    return {
+      username: username,
+      communities: [],
+      followedUsers: [],
+      followers: [],
+      blockedUsers: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+  }
+}
 
 // ==============================================
 // ADMIN ENDPOINTS
@@ -423,6 +508,9 @@ async function handleApproveUser(req, blogStore, headers) {
     
     await blogStore.set(`user_${username}`, JSON.stringify(approvedUser));
     await blogStore.delete(pendingKey);
+    
+    // Initialize user follows data
+    await migrateUserFollowsData(blogStore, username);
     
     return new Response(
       JSON.stringify({
@@ -802,9 +890,10 @@ async function handleCreateCommunity(req, blogStore, headers, user) {
     await blogStore.set(`community_${name}`, JSON.stringify(community));
     
     // Add to user's followed communities
-    const userFollows = await blogStore.get(`user_follows_${user.username}`, { type: "json" }) || { communities: [] };
+    const userFollows = await migrateUserFollowsData(blogStore, user.username);
     if (!userFollows.communities.includes(name)) {
       userFollows.communities.push(name);
+      userFollows.updatedAt = new Date().toISOString();
       await blogStore.set(`user_follows_${user.username}`, JSON.stringify(userFollows));
     }
     
@@ -835,11 +924,12 @@ async function handleFollowCommunity(communityName, blogStore, headers, user) {
       );
     }
     
-    // Update user's follows
-    const userFollows = await blogStore.get(`user_follows_${user.username}`, { type: "json" }) || { communities: [] };
+    // Migrate and update user's follows
+    const userFollows = await migrateUserFollowsData(blogStore, user.username);
     
     if (!userFollows.communities.includes(communityName)) {
       userFollows.communities.push(communityName);
+      userFollows.updatedAt = new Date().toISOString();
       await blogStore.set(`user_follows_${user.username}`, JSON.stringify(userFollows));
       
       // Update community members count
@@ -880,10 +970,11 @@ async function handleUnfollowCommunity(communityName, blogStore, headers, user) 
       );
     }
     
-    // Update user's follows
-    const userFollows = await blogStore.get(`user_follows_${user.username}`, { type: "json" }) || { communities: [] };
+    // Migrate and update user's follows
+    const userFollows = await migrateUserFollowsData(blogStore, user.username);
     
     userFollows.communities = userFollows.communities.filter(c => c !== communityName);
+    userFollows.updatedAt = new Date().toISOString();
     await blogStore.set(`user_follows_${user.username}`, JSON.stringify(userFollows));
     
     // Update community members
@@ -909,29 +1000,55 @@ async function handleUnfollowCommunity(communityName, blogStore, headers, user) 
   }
 }
 
+// FIXED: Enhanced handleGetFollowedCommunities with better error handling
 async function handleGetFollowedCommunities(blogStore, headers, user) {
   try {
-    const userFollows = await blogStore.get(`user_follows_${user.username}`, { type: "json" }) || { communities: [] };
+    console.log('Getting followed communities for user:', user.username);
+    
+    // Migrate and get user's follows data
+    const userFollows = await migrateUserFollowsData(blogStore, user.username);
+    
+    console.log('User follows data after migration:', userFollows);
+    
+    // Get the communities array
+    const followedCommunityNames = userFollows.communities || [];
+    
+    console.log('Following communities:', followedCommunityNames);
+    
+    // Get full community data for each followed community
     const communities = [];
     
-    for (const communityName of userFollows.communities) {
-      const community = await blogStore.get(`community_${communityName}`, { type: "json" });
-      if (community) {
-        communities.push(community);
+    for (const communityName of followedCommunityNames) {
+      try {
+        const community = await blogStore.get(`community_${communityName}`, { type: "json" });
+        if (community) {
+          communities.push(community);
+        } else {
+          console.log('Community not found:', communityName);
+        }
+      } catch (error) {
+        console.error(`Error loading community ${communityName}:`, error);
       }
     }
+    
+    console.log('Returning', communities.length, 'followed communities');
     
     return new Response(
       JSON.stringify({
         success: true,
-        communities
+        communities: communities
       }),
       { status: 200, headers }
     );
   } catch (error) {
     console.error('Get followed communities error:', error);
+    console.error('Error stack:', error.stack);
     return new Response(
-      JSON.stringify({ error: "Failed to load followed communities" }),
+      JSON.stringify({ 
+        success: false,
+        error: "Failed to load followed communities",
+        details: error.message 
+      }),
       { status: 500, headers }
     );
   }
@@ -1555,7 +1672,7 @@ async function handleTerminateSession(sessionId, store, headers, user) {
 }
 
 // ==============================================
-// AUTHENTICATION HANDLERS (from original file)
+// AUTHENTICATION HANDLERS
 // ==============================================
 
 async function handleSecureRegister(req, blogStore, securityStore, headers, clientIP) {
@@ -1760,7 +1877,10 @@ async function handleSecureLogin(req, blogStore, securityStore, headers, clientI
       );
     }
 
-    // Successful login - reset failed attempts and clear lockout
+    // Successful login - migrate user follows data
+    await migrateUserFollowsData(blogStore, username);
+
+    // Reset failed attempts and clear lockout
     const loginTime = new Date().toISOString();
     const sessionId = crypto.randomUUID();
     const deviceFingerprint = generateDeviceFingerprint(req);
