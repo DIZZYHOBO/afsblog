@@ -1,5 +1,5 @@
-// api.js - COMPLETELY REWRITTEN SECURE FRONTEND API CLIENT
-// Secure API client with modern authentication
+// api.js - COMPLETE PRODUCTION FRONTEND API CLIENT
+// Secure API client with full feature implementation
 
 // Security configuration
 const AUTH_CONFIG = {
@@ -219,7 +219,10 @@ const tokenManager = {
 
 // Enhanced API client
 const secureAPI = {
-  // Authentication methods
+  // ============================================
+  // AUTHENTICATION METHODS
+  // ============================================
+  
   async register(userData) {
     try {
       const { username, password, bio, email, rememberMe = false } = userData;
@@ -320,7 +323,409 @@ const secureAPI = {
     }
   },
   
-  // User session management
+  // ============================================
+  // COMMUNITY METHODS
+  // ============================================
+  
+  async getCommunities() {
+    try {
+      const response = await tokenManager.makeRequest('/.netlify/functions/api/communities', {
+        method: 'GET',
+        skipAuth: true // Public endpoint
+      });
+      
+      if (response.success) {
+        return response.communities || [];
+      } else {
+        throw new Error(response.error || 'Failed to load communities');
+      }
+    } catch (error) {
+      console.error('Get communities error:', error);
+      return [];
+    }
+  },
+  
+  async getCommunity(communityName) {
+    try {
+      const response = await tokenManager.makeRequest(`/.netlify/functions/api/communities/${communityName}`, {
+        method: 'GET',
+        skipAuth: true // Public endpoint
+      });
+      
+      if (response.success) {
+        return response.community;
+      } else {
+        throw new Error(response.error || 'Community not found');
+      }
+    } catch (error) {
+      console.error('Get community error:', error);
+      throw error;
+    }
+  },
+  
+  async createCommunity(communityData) {
+    try {
+      const response = await tokenManager.makeRequest('/.netlify/functions/api/communities', {
+        method: 'POST',
+        body: JSON.stringify(communityData)
+      });
+      
+      return response;
+    } catch (error) {
+      console.error('Create community error:', error);
+      throw new Error(error.message || 'Failed to create community');
+    }
+  },
+  
+  async followCommunity(communityName) {
+    try {
+      const response = await tokenManager.makeRequest(`/.netlify/functions/api/communities/${communityName}/follow`, {
+        method: 'POST'
+      });
+      
+      return response;
+    } catch (error) {
+      console.error('Follow community error:', error);
+      throw new Error(error.message || 'Failed to follow community');
+    }
+  },
+  
+  async unfollowCommunity(communityName) {
+    try {
+      const response = await tokenManager.makeRequest(`/.netlify/functions/api/communities/${communityName}/unfollow`, {
+        method: 'POST'
+      });
+      
+      return response;
+    } catch (error) {
+      console.error('Unfollow community error:', error);
+      throw new Error(error.message || 'Failed to unfollow community');
+    }
+  },
+  
+  async getFollowedCommunities() {
+    try {
+      const response = await tokenManager.makeRequest('/.netlify/functions/api/communities/following', {
+        method: 'GET'
+      });
+      
+      if (response.success) {
+        return response.communities || [];
+      } else {
+        throw new Error(response.error || 'Failed to load followed communities');
+      }
+    } catch (error) {
+      console.error('Get followed communities error:', error);
+      return [];
+    }
+  },
+  
+  async deleteCommunity(communityName) {
+    try {
+      const response = await tokenManager.makeRequest(`/.netlify/functions/api/communities/${communityName}`, {
+        method: 'DELETE'
+      });
+      
+      return response;
+    } catch (error) {
+      console.error('Delete community error:', error);
+      throw new Error(error.message || 'Failed to delete community');
+    }
+  },
+  
+  // ============================================
+  // POST METHODS
+  // ============================================
+  
+  async getPosts(filter = {}) {
+    try {
+      const params = new URLSearchParams();
+      if (filter.community) params.append('community', filter.community);
+      if (filter.author) params.append('author', filter.author);
+      if (filter.followed) params.append('followed', 'true');
+      if (filter.private) params.append('private', 'true');
+      
+      const url = `/.netlify/functions/api/posts${params.toString() ? '?' + params.toString() : ''}`;
+      
+      const response = await tokenManager.makeRequest(url, {
+        method: 'GET',
+        skipAuth: !filter.private && !filter.followed // Only require auth for private/followed posts
+      });
+      
+      if (response.success) {
+        return response.posts || [];
+      } else {
+        throw new Error(response.error || 'Failed to load posts');
+      }
+    } catch (error) {
+      console.error('Get posts error:', error);
+      return [];
+    }
+  },
+  
+  async createPost(postData) {
+    try {
+      const response = await tokenManager.makeRequest('/.netlify/functions/api/posts', {
+        method: 'POST',
+        body: JSON.stringify(postData)
+      });
+      
+      return response;
+    } catch (error) {
+      console.error('Create post error:', error);
+      throw new Error(error.message || 'Failed to create post');
+    }
+  },
+  
+  async deletePost(postId) {
+    try {
+      const response = await tokenManager.makeRequest(`/.netlify/functions/api/posts/${postId}`, {
+        method: 'DELETE'
+      });
+      
+      return response;
+    } catch (error) {
+      console.error('Delete post error:', error);
+      throw new Error(error.message || 'Failed to delete post');
+    }
+  },
+  
+  async votePost(postId, voteType) {
+    try {
+      const response = await tokenManager.makeRequest(`/.netlify/functions/api/posts/${postId}/vote`, {
+        method: 'POST',
+        body: JSON.stringify({ voteType })
+      });
+      
+      return response;
+    } catch (error) {
+      console.error('Vote post error:', error);
+      throw new Error(error.message || 'Failed to vote on post');
+    }
+  },
+  
+  // ============================================
+  // REPLY METHODS
+  // ============================================
+  
+  async getReplies(postId) {
+    try {
+      const response = await tokenManager.makeRequest(`/.netlify/functions/api/posts/${postId}/replies`, {
+        method: 'GET',
+        skipAuth: true // Public endpoint
+      });
+      
+      if (response.success) {
+        return response.replies || [];
+      } else {
+        throw new Error(response.error || 'Failed to load replies');
+      }
+    } catch (error) {
+      console.error('Get replies error:', error);
+      return [];
+    }
+  },
+  
+  async createReply(postId, content) {
+    try {
+      const response = await tokenManager.makeRequest(`/.netlify/functions/api/posts/${postId}/replies`, {
+        method: 'POST',
+        body: JSON.stringify({ content })
+      });
+      
+      return response;
+    } catch (error) {
+      console.error('Create reply error:', error);
+      throw new Error(error.message || 'Failed to create reply');
+    }
+  },
+  
+  async deleteReply(postId, replyId) {
+    try {
+      const response = await tokenManager.makeRequest(`/.netlify/functions/api/posts/${postId}/replies/${replyId}`, {
+        method: 'DELETE'
+      });
+      
+      return response;
+    } catch (error) {
+      console.error('Delete reply error:', error);
+      throw new Error(error.message || 'Failed to delete reply');
+    }
+  },
+  
+  // ============================================
+  // USER PROFILE METHODS
+  // ============================================
+  
+  async getProfile(username) {
+    try {
+      const response = await tokenManager.makeRequest(`/.netlify/functions/api/users/${username}`, {
+        method: 'GET',
+        skipAuth: true // Public profiles
+      });
+      
+      if (response.success) {
+        return response.user;
+      } else {
+        throw new Error(response.error || 'User not found');
+      }
+    } catch (error) {
+      console.error('Get profile error:', error);
+      throw error;
+    }
+  },
+  
+  async updateProfile(profileData) {
+    try {
+      const response = await tokenManager.makeRequest('/.netlify/functions/api/profile', {
+        method: 'PUT',
+        body: JSON.stringify(profileData)
+      });
+      
+      if (response.success) {
+        // Update local user data
+        const currentUserData = secureStorage.get(AUTH_CONFIG.USER_DATA_KEY);
+        if (currentUserData) {
+          const updatedUser = { ...currentUserData, ...response.user };
+          secureStorage.set(AUTH_CONFIG.USER_DATA_KEY, updatedUser);
+          currentUser = {
+            username: updatedUser.username,
+            profile: updatedUser
+          };
+        }
+      }
+      
+      return response;
+    } catch (error) {
+      console.error('Update profile error:', error);
+      throw new Error(error.message || 'Failed to update profile');
+    }
+  },
+  
+  // ============================================
+  // ADMIN METHODS
+  // ============================================
+  
+  async getAdminStats() {
+    try {
+      const response = await tokenManager.makeRequest('/.netlify/functions/api/admin/stats', {
+        method: 'GET'
+      });
+      
+      return response;
+    } catch (error) {
+      console.error('Get admin stats error:', error);
+      throw new Error(error.message || 'Failed to load admin stats');
+    }
+  },
+  
+  async getPendingUsers() {
+    try {
+      const response = await tokenManager.makeRequest('/.netlify/functions/api/admin/pending-users', {
+        method: 'GET'
+      });
+      
+      if (response.success) {
+        return response.pendingUsers || [];
+      } else {
+        throw new Error(response.error || 'Failed to load pending users');
+      }
+    } catch (error) {
+      console.error('Get pending users error:', error);
+      return [];
+    }
+  },
+  
+  async approveUser(username, pendingKey) {
+    try {
+      const response = await tokenManager.makeRequest('/.netlify/functions/api/admin/approve-user', {
+        method: 'POST',
+        body: JSON.stringify({ username, pendingKey })
+      });
+      
+      return response;
+    } catch (error) {
+      console.error('Approve user error:', error);
+      throw new Error(error.message || 'Failed to approve user');
+    }
+  },
+  
+  async rejectUser(username, pendingKey) {
+    try {
+      const response = await tokenManager.makeRequest('/.netlify/functions/api/admin/reject-user', {
+        method: 'POST',
+        body: JSON.stringify({ username, pendingKey })
+      });
+      
+      return response;
+    } catch (error) {
+      console.error('Reject user error:', error);
+      throw new Error(error.message || 'Failed to reject user');
+    }
+  },
+  
+  async getAllUsers() {
+    try {
+      const response = await tokenManager.makeRequest('/.netlify/functions/api/admin/users', {
+        method: 'GET'
+      });
+      
+      if (response.success) {
+        return response.users || [];
+      } else {
+        throw new Error(response.error || 'Failed to load users');
+      }
+    } catch (error) {
+      console.error('Get all users error:', error);
+      return [];
+    }
+  },
+  
+  async promoteToAdmin(username) {
+    try {
+      const response = await tokenManager.makeRequest('/.netlify/functions/api/admin/promote', {
+        method: 'POST',
+        body: JSON.stringify({ username })
+      });
+      
+      return response;
+    } catch (error) {
+      console.error('Promote to admin error:', error);
+      throw new Error(error.message || 'Failed to promote user');
+    }
+  },
+  
+  async demoteFromAdmin(username) {
+    try {
+      const response = await tokenManager.makeRequest('/.netlify/functions/api/admin/demote', {
+        method: 'POST',
+        body: JSON.stringify({ username })
+      });
+      
+      return response;
+    } catch (error) {
+      console.error('Demote from admin error:', error);
+      throw new Error(error.message || 'Failed to demote user');
+    }
+  },
+  
+  async deleteUser(username) {
+    try {
+      const response = await tokenManager.makeRequest(`/.netlify/functions/api/admin/users/${username}`, {
+        method: 'DELETE'
+      });
+      
+      return response;
+    } catch (error) {
+      console.error('Delete user error:', error);
+      throw new Error(error.message || 'Failed to delete user');
+    }
+  },
+  
+  // ============================================
+  // SESSION MANAGEMENT METHODS
+  // ============================================
+  
   async getUserSessions() {
     try {
       const response = await tokenManager.makeRequest('/.netlify/functions/api/security/sessions', {
@@ -347,7 +752,23 @@ const secureAPI = {
     }
   },
   
-  // Data loading methods (updated for new auth)
+  async terminateSession(sessionId) {
+    try {
+      const response = await tokenManager.makeRequest(`/.netlify/functions/api/security/sessions/${sessionId}`, {
+        method: 'DELETE'
+      });
+      
+      return response;
+    } catch (error) {
+      console.error('Terminate session error:', error);
+      throw new Error(error.message || 'Failed to terminate session');
+    }
+  },
+  
+  // ============================================
+  // UTILITY METHODS
+  // ============================================
+  
   async loadUserData() {
     try {
       const storedUser = secureStorage.get(AUTH_CONFIG.USER_DATA_KEY);
@@ -376,20 +797,14 @@ const secureAPI = {
     }
     
     try {
-      const response = await tokenManager.makeRequest('/.netlify/functions/api/communities/following', {
-        method: 'GET'
-      });
-      
-      if (response.success) {
-        followedCommunities = new Set(response.communities.map(c => c.name));
-      }
+      const communities = await this.getFollowedCommunities();
+      followedCommunities = new Set(communities.map(c => c.name));
     } catch (error) {
       console.error('Error loading followed communities:', error);
       followedCommunities = new Set();
     }
   },
   
-  // Utility methods
   clearAuthData() {
     tokenManager.clearTokens();
     secureStorage.remove(AUTH_CONFIG.USER_DATA_KEY);
@@ -532,47 +947,3 @@ const secureAPI = {
     };
   }
 };
-
-// Enhanced authentication handlers with improved security
-async function handleSecureAuth(e) {
-  e.preventDefault();
-  const form = e.target;
-  const mode = form.dataset.mode;
-  const username = document.getElementById('username')?.value?.trim();
-  const password = document.getElementById('password')?.value;
-  const bio = document.getElementById('bio')?.value?.trim();
-  const email = document.getElementById('email')?.value?.trim();
-  const rememberMe = document.getElementById('rememberMe')?.checked || false;
-    
-  try {
-    if (mode === 'signup') {
-      console.log('Signup attempt:', { username, bio, email });
-    } else {
-      console.log('Login attempt:', { username });
-    }
-  } catch (error) {
-    console.error('Auth error:', error);
-  }
-}
-
-async function handleSecureAuth(e) {
-  e.preventDefault();
-  const form = e.target;
-  const mode = form.dataset.mode;
-  const username = document.getElementById('username')?.value?.trim();
-  const password = document.getElementById('password')?.value;
-  const bio = document.getElementById('bio')?.value?.trim();
-  const email = document.getElementById('email')?.value?.trim();
-  const rememberMe = document.getElementById('rememberMe')?.checked || false;
-
-  try {
-    if (mode === 'signup') {
-      await handleRegister({ username, password, bio, email, rememberMe });
-    } else {
-      await handleLogin({ username, password, rememberMe });
-    }
-  } catch (error) {
-    console.error('Auth error:', error);
-    showError('authError', error.message);
-  }
-}
