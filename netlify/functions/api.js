@@ -120,9 +120,35 @@ export default async (req, context) => {
       return await handleGetCommunities(req, blogStore, corsHeaders);
     }
     
+    // Check for 'communities/following' BEFORE the generic community handler
+    if (path === 'communities/following' && req.method === 'GET') {
+      // This is an authenticated endpoint for getting followed communities
+      const authResult = await validateSecureAuth(req, store, blogStore);
+      if (!authResult.valid) {
+        return new Response(
+          JSON.stringify({ error: authResult.error }),
+          { status: authResult.status, headers: corsHeaders }
+        );
+      }
+      return await handleGetFollowedCommunities(blogStore, corsHeaders, authResult.user);
+    }
+    
     if (path.startsWith('communities/') && req.method === 'GET') {
       const parts = path.split('/');
       const communityName = parts[1];
+      
+      // Skip if this is the 'following' endpoint (already handled above)
+      if (communityName === 'following') {
+        // This should not happen as it's caught above, but just in case
+        const authResult = await validateSecureAuth(req, store, blogStore);
+        if (!authResult.valid) {
+          return new Response(
+            JSON.stringify({ error: authResult.error }),
+            { status: authResult.status, headers: corsHeaders }
+          );
+        }
+        return await handleGetFollowedCommunities(blogStore, corsHeaders, authResult.user);
+      }
       
       if (parts[2] === 'posts') {
         return await handleCommunityPosts(req, blogStore, corsHeaders, communityName);
