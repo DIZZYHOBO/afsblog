@@ -1,5 +1,5 @@
 // api.js - COMPLETE PRODUCTION FRONTEND API CLIENT
-// Secure API client with full feature implementation
+// Secure API client with full feature implementation and fixes
 
 // Security configuration
 const AUTH_CONFIG = {
@@ -403,22 +403,34 @@ const secureAPI = {
     }
   },
   
+  // FIXED: Enhanced getFollowedCommunities with better error handling
   async getFollowedCommunities() {
     try {
+      console.log('Fetching followed communities from API...');
+      
       const response = await tokenManager.makeRequest('/.netlify/functions/api/communities/following', {
         method: 'GET'
       });
       
-      // Check if response is already parsed or if it has the expected structure
-      if (response.success !== undefined) {
+      console.log('API response:', response);
+      
+      // Handle the response properly
+      if (response && response.success === true) {
+        console.log('Successfully fetched', response.communities?.length || 0, 'followed communities');
         return response.communities || [];
-      } else if (response.error) {
-        throw new Error(response.error);
-      } else if (Array.isArray(response)) {
-        // If response is directly an array of communities
+      } else if (response && response.success === false) {
+        console.error('API returned error:', response.error);
+        if (response.details) {
+          console.error('Error details:', response.details);
+        }
+        return [];
+      } else if (response && Array.isArray(response)) {
+        // Direct array response (backwards compatibility)
+        console.log('Received direct array of communities');
         return response;
-      } else if (response.communities) {
-        // If response has communities property without success flag
+      } else if (response && response.communities) {
+        // Has communities property without success flag
+        console.log('Received communities without success flag');
         return response.communities;
       } else {
         console.warn('Unexpected response format:', response);
@@ -426,6 +438,7 @@ const secureAPI = {
       }
     } catch (error) {
       console.error('Get followed communities error:', error);
+      // Don't throw the error, just return empty array
       return [];
     }
   },
@@ -800,6 +813,7 @@ const secureAPI = {
     }
   },
   
+  // FIXED: Enhanced loadFollowedCommunities with better error handling
   async loadFollowedCommunities() {
     if (!currentUser) {
       followedCommunities = new Set();
@@ -807,8 +821,12 @@ const secureAPI = {
     }
     
     try {
+      console.log('Loading followed communities for user:', currentUser.username);
       const communities = await this.getFollowedCommunities();
+      
+      // Store community names in the Set
       followedCommunities = new Set(communities.map(c => c.name));
+      console.log('Loaded', followedCommunities.size, 'followed communities:', Array.from(followedCommunities));
     } catch (error) {
       console.error('Error loading followed communities:', error);
       followedCommunities = new Set();
