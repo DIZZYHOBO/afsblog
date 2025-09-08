@@ -45,7 +45,7 @@ const SECURITY_CONFIG = {
   
   // CORS settings
   ALLOWED_ORIGINS: [
-    'https://your-domain.netlify.app',
+    'https://f.afsapp.lol',
     'https://localhost:3000',
     'http://localhost:8888'
   ],
