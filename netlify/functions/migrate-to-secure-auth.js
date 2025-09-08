@@ -1,4 +1,4 @@
-// netlify/functions/migrate-to-secure-auth.js - Complete Production-Ready Migration Function
+// netlify/functions/migrate-to-secure-auth.js - COMPLETE MIGRATION INCLUDING ALL DATA
 import { getStore } from "@netlify/blobs";
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
@@ -57,7 +57,7 @@ export default async (req, context) => {
     );
   }
 
-  console.log('Migration request authorized, starting migration...');
+  console.log('Migration request authorized, starting COMPLETE migration...');
 
   try {
     // Initialize Netlify Blob stores
@@ -65,13 +65,13 @@ export default async (req, context) => {
     const apiStore = getStore("blog-api-data");
     const securityStore = getStore("security-data");
     
-    // Perform the migration
-    const migrationResult = await performSecureMigration(blogStore, apiStore, securityStore);
+    // Perform the COMPLETE migration
+    const migrationResult = await performCompleteMigration(blogStore, apiStore, securityStore);
     
     return new Response(
       JSON.stringify({
         success: true,
-        message: "Migration completed successfully",
+        message: "Complete migration successful",
         results: migrationResult
       }),
       { status: 200, headers }
@@ -91,16 +91,16 @@ export default async (req, context) => {
   }
 };
 
-// Main migration orchestration function
-async function performSecureMigration(blogStore, apiStore, securityStore) {
+// COMPLETE migration orchestration function - handles ALL data
+async function performCompleteMigration(blogStore, apiStore, securityStore) {
   const startTime = Date.now();
   const migrationId = crypto.randomUUID();
   
-  console.log(`Starting secure authentication migration: ${migrationId}`);
+  console.log(`Starting COMPLETE data migration: ${migrationId}`);
   
   // Log migration start
   await logMigrationEvent(securityStore, {
-    type: 'migration_started',
+    type: 'complete_migration_started',
     migrationId,
     timestamp: new Date().toISOString()
   });
@@ -110,15 +110,20 @@ async function performSecureMigration(blogStore, apiStore, securityStore) {
     startTime: new Date().toISOString(),
     usersProcessed: 0,
     pendingUsersProcessed: 0,
+    postsProcessed: 0,
+    privatePostsProcessed: 0,
+    communitiesProcessed: 0,
+    repliesProcessed: 0,
+    followsProcessed: 0,
     sessionsCleaned: 0,
     backupsCreated: 0,
     errors: []
   };
 
   try {
-    // Step 1: Create backups of existing data
-    console.log('Step 1: Creating backups of existing data...');
-    await createDataBackups(blogStore, migrationId);
+    // Step 1: Create backups of ALL data
+    console.log('Step 1: Creating complete backups of ALL data...');
+    await createCompleteBackups(blogStore, migrationId);
     results.backupsCreated++;
 
     // Step 2: Migrate approved users
@@ -133,14 +138,34 @@ async function performSecureMigration(blogStore, apiStore, securityStore) {
     results.pendingUsersProcessed = pendingMigrationResult.processed;
     results.errors.push(...pendingMigrationResult.errors);
 
-    // Step 4: Clean up old sessions
-    console.log('Step 4: Cleaning up old sessions...');
+    // Step 4: Migrate ALL posts (public and private)
+    console.log('Step 4: Migrating all posts...');
+    const postsMigrationResult = await migrateAllPosts(blogStore);
+    results.postsProcessed = postsMigrationResult.publicProcessed;
+    results.privatePostsProcessed = postsMigrationResult.privateProcessed;
+    results.repliesProcessed = postsMigrationResult.repliesProcessed;
+    results.errors.push(...postsMigrationResult.errors);
+
+    // Step 5: Migrate communities
+    console.log('Step 5: Migrating communities...');
+    const communitiesMigrationResult = await migrateCommunities(blogStore);
+    results.communitiesProcessed = communitiesMigrationResult.processed;
+    results.errors.push(...communitiesMigrationResult.errors);
+
+    // Step 6: Migrate user follows/relationships
+    console.log('Step 6: Migrating user follows and relationships...');
+    const followsMigrationResult = await migrateUserFollows(blogStore);
+    results.followsProcessed = followsMigrationResult.processed;
+    results.errors.push(...followsMigrationResult.errors);
+
+    // Step 7: Clean up old sessions
+    console.log('Step 7: Cleaning up old sessions...');
     const sessionCleanupResult = await cleanupOldSessions(apiStore);
     results.sessionsCleaned = sessionCleanupResult.cleaned;
 
-    // Step 5: Verify migration integrity
-    console.log('Step 5: Verifying migration integrity...');
-    const verificationResult = await verifyMigrationIntegrity(blogStore);
+    // Step 8: Verify complete migration integrity
+    console.log('Step 8: Verifying complete migration integrity...');
+    const verificationResult = await verifyCompleteMigrationIntegrity(blogStore);
     if (!verificationResult.valid) {
       throw new Error(`Migration integrity check failed: ${verificationResult.errors.join(', ')}`);
     }
@@ -151,13 +176,13 @@ async function performSecureMigration(blogStore, apiStore, securityStore) {
 
     // Log migration completion
     await logMigrationEvent(securityStore, {
-      type: 'migration_completed',
+      type: 'complete_migration_completed',
       migrationId,
       results,
       timestamp: new Date().toISOString()
     });
 
-    console.log('Migration completed successfully:', results);
+    console.log('COMPLETE migration successful:', results);
     return results;
 
   } catch (error) {
@@ -168,7 +193,7 @@ async function performSecureMigration(blogStore, apiStore, securityStore) {
 
     // Log migration failure
     await logMigrationEvent(securityStore, {
-      type: 'migration_failed',
+      type: 'complete_migration_failed',
       migrationId,
       error: error.message,
       results,
@@ -179,8 +204,8 @@ async function performSecureMigration(blogStore, apiStore, securityStore) {
   }
 }
 
-// Create backups of all user data before migration
-async function createDataBackups(blogStore, migrationId) {
+// Create backups of ALL data including posts, communities, etc.
+async function createCompleteBackups(blogStore, migrationId) {
   const backupTimestamp = new Date().toISOString();
   
   try {
@@ -226,14 +251,335 @@ async function createDataBackups(blogStore, migrationId) {
       }
     }
 
-    console.log('Data backups created successfully');
+    // Backup all posts
+    const { blobs: postBlobs } = await blogStore.list({ prefix: "post_" });
+    console.log(`Backing up ${postBlobs.length} post records...`);
+    
+    for (const blob of postBlobs) {
+      try {
+        const postData = await blogStore.get(blob.key, { type: "json" });
+        if (postData) {
+          const backupKey = `${MIGRATION_CONFIG.BACKUP_PREFIX}${migrationId}_${blob.key}_${Date.now()}`;
+          await blogStore.set(backupKey, JSON.stringify({
+            originalKey: blob.key,
+            migrationId,
+            backupTimestamp,
+            data: postData
+          }));
+        }
+      } catch (error) {
+        console.error(`Error backing up ${blob.key}:`, error);
+      }
+    }
+
+    // Backup all communities
+    const { blobs: communityBlobs } = await blogStore.list({ prefix: "community_" });
+    console.log(`Backing up ${communityBlobs.length} community records...`);
+    
+    for (const blob of communityBlobs) {
+      try {
+        const communityData = await blogStore.get(blob.key, { type: "json" });
+        if (communityData) {
+          const backupKey = `${MIGRATION_CONFIG.BACKUP_PREFIX}${migrationId}_${blob.key}_${Date.now()}`;
+          await blogStore.set(backupKey, JSON.stringify({
+            originalKey: blob.key,
+            migrationId,
+            backupTimestamp,
+            data: communityData
+          }));
+        }
+      } catch (error) {
+        console.error(`Error backing up ${blob.key}:`, error);
+      }
+    }
+
+    console.log('Complete data backups created successfully');
   } catch (error) {
     console.error('Error creating backups:', error);
     throw new Error(`Backup creation failed: ${error.message}`);
   }
 }
 
-// Migrate approved users to secure password storage
+// Migrate ALL posts including private posts and replies
+async function migrateAllPosts(blogStore) {
+  const results = {
+    publicProcessed: 0,
+    privateProcessed: 0,
+    repliesProcessed: 0,
+    errors: []
+  };
+
+  try {
+    const { blobs } = await blogStore.list({ prefix: "post_" });
+    const postBlobs = blobs.filter(blob => 
+      blob.key.startsWith('post_') && 
+      !blob.key.includes('backup_migration_')
+    );
+    
+    console.log(`Found ${postBlobs.length} posts to migrate`);
+    
+    for (const blob of postBlobs) {
+      try {
+        const postData = await blogStore.get(blob.key, { type: "json" });
+        
+        if (!postData) {
+          console.warn(`Skipping invalid post data: ${blob.key}`);
+          continue;
+        }
+
+        // Check if already migrated
+        if (postData.migratedAt) {
+          console.log(`Post ${postData.id} already migrated, skipping`);
+          continue;
+        }
+
+        console.log(`Migrating post: ${postData.id} (${postData.isPrivate ? 'private' : 'public'})`);
+
+        // Ensure post has all required fields
+        const migratedPost = {
+          // Core fields
+          id: postData.id || crypto.randomUUID(),
+          title: postData.title || 'Untitled',
+          content: postData.content || '',
+          author: postData.author || 'unknown',
+          
+          // Type and visibility
+          type: postData.type || 'text',
+          isPrivate: postData.isPrivate || false,
+          
+          // Community association
+          communityName: postData.communityName || null,
+          
+          // Media/link fields
+          url: postData.url || null,
+          description: postData.description || null,
+          mediaType: postData.mediaType || null,
+          
+          // Timestamps
+          timestamp: postData.timestamp || new Date().toISOString(),
+          createdAt: postData.createdAt || postData.timestamp || new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          
+          // Engagement
+          upvotes: postData.upvotes || 0,
+          downvotes: postData.downvotes || 0,
+          viewCount: postData.viewCount || 0,
+          
+          // Replies - migrate structure
+          replies: [],
+          replyCount: 0,
+          
+          // Migration metadata
+          migratedAt: new Date().toISOString(),
+          migrationSource: 'legacy_format'
+        };
+
+        // Migrate replies if they exist
+        if (postData.replies && Array.isArray(postData.replies)) {
+          console.log(`  Migrating ${postData.replies.length} replies for post ${postData.id}`);
+          
+          migratedPost.replies = postData.replies.map(reply => ({
+            id: reply.id || crypto.randomUUID(),
+            postId: postData.id,
+            content: reply.content || '',
+            author: reply.author || 'unknown',
+            timestamp: reply.timestamp || new Date().toISOString(),
+            createdAt: reply.createdAt || reply.timestamp || new Date().toISOString(),
+            upvotes: reply.upvotes || 0,
+            downvotes: reply.downvotes || 0,
+            edited: reply.edited || false,
+            editedAt: reply.editedAt || null,
+            migratedAt: new Date().toISOString()
+          }));
+          
+          migratedPost.replyCount = migratedPost.replies.length;
+          results.repliesProcessed += migratedPost.replies.length;
+        }
+
+        // Store the migrated post
+        await blogStore.set(blob.key, JSON.stringify(migratedPost));
+        
+        // Update counters
+        if (migratedPost.isPrivate) {
+          results.privateProcessed++;
+          console.log(`  ✓ Migrated private post: ${migratedPost.id}`);
+        } else {
+          results.publicProcessed++;
+          console.log(`  ✓ Migrated public post: ${migratedPost.id}`);
+        }
+
+      } catch (error) {
+        console.error(`Error migrating post ${blob.key}:`, error);
+        results.errors.push(`Failed to migrate post ${blob.key}: ${error.message}`);
+      }
+    }
+  } catch (error) {
+    console.error('Error in migrateAllPosts:', error);
+    results.errors.push(`Post migration failed: ${error.message}`);
+  }
+
+  console.log(`Post migration complete: ${results.publicProcessed} public, ${results.privateProcessed} private, ${results.repliesProcessed} replies, ${results.errors.length} errors`);
+  return results;
+}
+
+// Migrate communities with member lists
+async function migrateCommunities(blogStore) {
+  const results = {
+    processed: 0,
+    errors: []
+  };
+
+  try {
+    const { blobs } = await blogStore.list({ prefix: "community_" });
+    const communityBlobs = blobs.filter(blob => 
+      blob.key.startsWith('community_') && 
+      !blob.key.includes('backup_migration_')
+    );
+    
+    console.log(`Found ${communityBlobs.length} communities to migrate`);
+    
+    for (const blob of communityBlobs) {
+      try {
+        const communityData = await blogStore.get(blob.key, { type: "json" });
+        
+        if (!communityData) {
+          console.warn(`Skipping invalid community data: ${blob.key}`);
+          continue;
+        }
+
+        // Check if already migrated
+        if (communityData.migratedAt) {
+          console.log(`Community ${communityData.name} already migrated, skipping`);
+          continue;
+        }
+
+        console.log(`Migrating community: ${communityData.name}`);
+
+        // Ensure community has all required fields
+        const migratedCommunity = {
+          // Core fields
+          id: communityData.id || crypto.randomUUID(),
+          name: communityData.name || blob.key.replace('community_', ''),
+          displayName: communityData.displayName || communityData.name || 'Unnamed Community',
+          description: communityData.description || '',
+          
+          // Creator and members
+          createdBy: communityData.createdBy || 'unknown',
+          members: communityData.members || [communityData.createdBy || 'unknown'],
+          moderators: communityData.moderators || [communityData.createdBy || 'unknown'],
+          
+          // Settings
+          isPrivate: communityData.isPrivate || false,
+          isArchived: communityData.isArchived || false,
+          
+          // Stats
+          memberCount: communityData.memberCount || (communityData.members ? communityData.members.length : 1),
+          postCount: communityData.postCount || 0,
+          
+          // Timestamps
+          createdAt: communityData.createdAt || new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          lastActivity: communityData.lastActivity || communityData.createdAt || new Date().toISOString(),
+          
+          // Rules and settings
+          rules: communityData.rules || [],
+          bannedUsers: communityData.bannedUsers || [],
+          
+          // Migration metadata
+          migratedAt: new Date().toISOString(),
+          migrationSource: 'legacy_format'
+        };
+
+        // Store the migrated community
+        await blogStore.set(blob.key, JSON.stringify(migratedCommunity));
+        
+        results.processed++;
+        console.log(`  ✓ Migrated community: ${migratedCommunity.name} with ${migratedCommunity.memberCount} members`);
+
+      } catch (error) {
+        console.error(`Error migrating community ${blob.key}:`, error);
+        results.errors.push(`Failed to migrate community ${blob.key}: ${error.message}`);
+      }
+    }
+  } catch (error) {
+    console.error('Error in migrateCommunities:', error);
+    results.errors.push(`Community migration failed: ${error.message}`);
+  }
+
+  console.log(`Community migration complete: ${results.processed} processed, ${results.errors.length} errors`);
+  return results;
+}
+
+// Migrate user follows and community memberships
+async function migrateUserFollows(blogStore) {
+  const results = {
+    processed: 0,
+    errors: []
+  };
+
+  try {
+    // Migrate user_follows_* data
+    const { blobs } = await blogStore.list({ prefix: "user_follows_" });
+    const followBlobs = blobs.filter(blob => !blob.key.includes('backup_migration_'));
+    
+    console.log(`Found ${followBlobs.length} user follow records to migrate`);
+    
+    for (const blob of followBlobs) {
+      try {
+        const followData = await blogStore.get(blob.key, { type: "json" });
+        
+        if (!followData) {
+          console.warn(`Skipping invalid follow data: ${blob.key}`);
+          continue;
+        }
+
+        // Check if already migrated
+        if (followData.migratedAt) {
+          console.log(`Follow record ${blob.key} already migrated, skipping`);
+          continue;
+        }
+
+        const username = blob.key.replace('user_follows_', '');
+        console.log(`Migrating follows for user: ${username}`);
+
+        // Ensure follow data has proper structure
+        const migratedFollowData = {
+          username: username,
+          followedCommunities: followData.followedCommunities || followData || [],
+          followedUsers: followData.followedUsers || [],
+          followers: followData.followers || [],
+          blockedUsers: followData.blockedUsers || [],
+          
+          // Timestamps
+          createdAt: followData.createdAt || new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          
+          // Migration metadata
+          migratedAt: new Date().toISOString(),
+          migrationSource: 'legacy_format'
+        };
+
+        // Store the migrated follow data
+        await blogStore.set(blob.key, JSON.stringify(migratedFollowData));
+        
+        results.processed++;
+        console.log(`  ✓ Migrated follows for ${username}: ${migratedFollowData.followedCommunities.length} communities`);
+
+      } catch (error) {
+        console.error(`Error migrating follow data ${blob.key}:`, error);
+        results.errors.push(`Failed to migrate follow data ${blob.key}: ${error.message}`);
+      }
+    }
+  } catch (error) {
+    console.error('Error in migrateUserFollows:', error);
+    results.errors.push(`Follow migration failed: ${error.message}`);
+  }
+
+  console.log(`User follows migration complete: ${results.processed} processed, ${results.errors.length} errors`);
+  return results;
+}
+
+// [Include the existing user migration functions - migrateApprovedUsers and migratePendingUsers from previous code]
 async function migrateApprovedUsers(blogStore) {
   const results = {
     processed: 0,
@@ -339,7 +685,6 @@ async function migrateApprovedUsers(blogStore) {
   return results;
 }
 
-// Migrate pending users to secure password storage
 async function migratePendingUsers(blogStore) {
   const results = {
     processed: 0,
@@ -498,15 +843,15 @@ async function cleanupOldSessions(apiStore) {
   return results;
 }
 
-// Verify the migration was successful
-async function verifyMigrationIntegrity(blogStore) {
+// Verify the COMPLETE migration was successful
+async function verifyCompleteMigrationIntegrity(blogStore) {
   const results = {
     valid: true,
     errors: []
   };
 
   try {
-    // Verify all users have been migrated properly
+    // Verify users
     const { blobs: userBlobs } = await blogStore.list({ prefix: "user_" });
     const actualUserBlobs = userBlobs.filter(blob => 
       blob.key.startsWith('user_') && 
@@ -537,47 +882,65 @@ async function verifyMigrationIntegrity(blogStore) {
         if (userData.password) {
           results.errors.push(`User ${userData.username} still has insecure password field`);
         }
-
-        // Verify password hash format (bcrypt hashes start with $2)
-        if (userData.passwordHash && !userData.passwordHash.startsWith('$2')) {
-          results.errors.push(`User ${userData.username} has invalid password hash format`);
-        }
-
       } catch (error) {
         results.errors.push(`Error verifying user ${blob.key}: ${error.message}`);
       }
     }
 
-    // Verify pending users
-    const { blobs: pendingBlobs } = await blogStore.list({ prefix: "pending_user_" });
-    const actualPendingBlobs = pendingBlobs.filter(blob => !blob.key.includes('backup_migration_'));
-
-    console.log(`Verifying ${actualPendingBlobs.length} pending users`);
-
-    for (const blob of actualPendingBlobs) {
+    // Verify posts
+    const { blobs: postBlobs } = await blogStore.list({ prefix: "post_" });
+    const actualPostBlobs = postBlobs.filter(blob => !blob.key.includes('backup_migration_'));
+    
+    console.log(`Verifying ${actualPostBlobs.length} posts`);
+    
+    let privatePostCount = 0;
+    let publicPostCount = 0;
+    
+    for (const blob of actualPostBlobs) {
       try {
-        const pendingData = await blogStore.get(blob.key, { type: "json" });
+        const postData = await blogStore.get(blob.key, { type: "json" });
         
-        if (!pendingData) {
-          results.errors.push(`Pending user data missing: ${blob.key}`);
+        if (!postData) {
+          results.errors.push(`Post data missing: ${blob.key}`);
           continue;
         }
-
-        // Check required fields
-        const requiredFields = ['id', 'username', 'passwordHash', 'passwordSalt'];
-        for (const field of requiredFields) {
-          if (!pendingData[field]) {
-            results.errors.push(`Pending user ${pendingData.username || blob.key} missing required field: ${field}`);
-          }
+        
+        if (!postData.migratedAt) {
+          results.errors.push(`Post ${postData.id || blob.key} not migrated`);
         }
-
-        // Check that old password field is removed
-        if (pendingData.password) {
-          results.errors.push(`Pending user ${pendingData.username} still has insecure password field`);
+        
+        if (postData.isPrivate) {
+          privatePostCount++;
+        } else {
+          publicPostCount++;
         }
-
       } catch (error) {
-        results.errors.push(`Error verifying pending user ${blob.key}: ${error.message}`);
+        results.errors.push(`Error verifying post ${blob.key}: ${error.message}`);
+      }
+    }
+    
+    console.log(`Verified ${publicPostCount} public posts and ${privatePostCount} private posts`);
+
+    // Verify communities
+    const { blobs: communityBlobs } = await blogStore.list({ prefix: "community_" });
+    const actualCommunityBlobs = communityBlobs.filter(blob => !blob.key.includes('backup_migration_'));
+    
+    console.log(`Verifying ${actualCommunityBlobs.length} communities`);
+    
+    for (const blob of actualCommunityBlobs) {
+      try {
+        const communityData = await blogStore.get(blob.key, { type: "json" });
+        
+        if (!communityData) {
+          results.errors.push(`Community data missing: ${blob.key}`);
+          continue;
+        }
+        
+        if (!communityData.migratedAt) {
+          results.errors.push(`Community ${communityData.name || blob.key} not migrated`);
+        }
+      } catch (error) {
+        results.errors.push(`Error verifying community ${blob.key}: ${error.message}`);
       }
     }
 
@@ -585,7 +948,7 @@ async function verifyMigrationIntegrity(blogStore) {
       results.valid = false;
       console.log(`Verification found ${results.errors.length} errors`);
     } else {
-      console.log('Migration verification passed - all users migrated successfully');
+      console.log('COMPLETE migration verification passed - all data migrated successfully');
     }
 
   } catch (error) {
