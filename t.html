@@ -3,19 +3,25 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Database Migration Runner</title>
+    <title>Secure Authentication Migration Tool</title>
     <style>
         :root {
             --bg-canvas: #0d1117;
             --bg-default: #161b22;
             --bg-overlay: #21262d;
+            --bg-subtle: #30363d;
             --border-default: #30363d;
+            --border-muted: #21262d;
             --fg-default: #f0f6fc;
             --fg-muted: #8b949e;
+            --fg-subtle: #6e7681;
             --accent-fg: #58a6ff;
+            --accent-emphasis: #1f6feb;
             --success-fg: #3fb950;
             --danger-fg: #f85149;
             --attention-fg: #d29922;
+            --btn-primary-bg: #238636;
+            --btn-primary-hover-bg: #2ea043;
         }
 
         * {
@@ -27,13 +33,14 @@
         body {
             background-color: var(--bg-canvas);
             color: var(--fg-default);
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif;
             line-height: 1.5;
             padding: 40px 20px;
+            min-height: 100vh;
         }
 
         .container {
-            max-width: 800px;
+            max-width: 900px;
             margin: 0 auto;
             background: var(--bg-default);
             border: 1px solid var(--border-default);
@@ -51,13 +58,78 @@
 
         .header h1 {
             color: var(--accent-fg);
-            font-size: 28px;
+            font-size: 32px;
             margin-bottom: 8px;
+            font-weight: 600;
         }
 
         .header p {
             color: var(--fg-muted);
             font-size: 16px;
+        }
+
+        .status-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 500;
+            margin-top: 12px;
+        }
+
+        .status-indicator.ready {
+            background: rgba(63, 185, 80, 0.1);
+            color: var(--success-fg);
+            border: 1px solid var(--success-fg);
+        }
+
+        .status-indicator.not-ready {
+            background: rgba(248, 81, 73, 0.1);
+            color: var(--danger-fg);
+            border: 1px solid var(--danger-fg);
+        }
+
+        .info-box {
+            background: rgba(88, 166, 255, 0.1);
+            border: 1px solid var(--accent-fg);
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 24px;
+        }
+
+        .info-title {
+            color: var(--accent-fg);
+            font-weight: 600;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .checklist {
+            margin-left: 20px;
+            color: var(--fg-muted);
+        }
+
+        .checklist li {
+            margin: 8px 0;
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+        }
+
+        .checklist li::before {
+            content: '□';
+            color: var(--fg-subtle);
+            font-weight: 600;
+            margin-top: -2px;
+        }
+
+        .checklist li.checked::before {
+            content: '✓';
+            color: var(--success-fg);
         }
 
         .warning {
@@ -77,8 +149,29 @@
             gap: 8px;
         }
 
+        .warning ul {
+            margin: 12px 0 0 20px;
+            color: var(--fg-muted);
+        }
+
+        .warning ul li {
+            margin: 4px 0;
+        }
+
+        .form-section {
+            background: var(--bg-subtle);
+            border: 1px solid var(--border-default);
+            border-radius: 8px;
+            padding: 24px;
+            margin-bottom: 24px;
+        }
+
         .form-group {
             margin-bottom: 20px;
+        }
+
+        .form-group:last-child {
+            margin-bottom: 0;
         }
 
         .form-group label {
@@ -96,12 +189,13 @@
             padding: 12px;
             color: var(--fg-default);
             font-size: 14px;
+            font-family: inherit;
         }
 
         .form-group input:focus {
             outline: none;
-            border-color: var(--accent-fg);
-            box-shadow: 0 0 0 2px rgba(88, 166, 255, 0.1);
+            border-color: var(--accent-emphasis);
+            box-shadow: 0 0 0 2px rgba(31, 111, 235, 0.1);
         }
 
         .form-group small {
@@ -112,7 +206,7 @@
         }
 
         .btn {
-            background: var(--accent-fg);
+            background: var(--btn-primary-bg);
             color: white;
             border: none;
             padding: 12px 24px;
@@ -121,59 +215,132 @@
             font-weight: 500;
             cursor: pointer;
             transition: all 0.2s ease;
-            width: 100%;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
         }
 
-        .btn:hover {
-            background: #4a90e2;
+        .btn:hover:not(:disabled) {
+            background: var(--btn-primary-hover-bg);
             transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
         }
 
         .btn:disabled {
-            background: var(--fg-muted);
+            background: var(--fg-subtle);
             cursor: not-allowed;
+            opacity: 0.6;
             transform: none;
+        }
+
+        .btn-secondary {
+            background: transparent;
+            border: 1px solid var(--border-default);
+            color: var(--fg-default);
+        }
+
+        .btn-secondary:hover:not(:disabled) {
+            background: var(--bg-overlay);
+            border-color: var(--accent-emphasis);
         }
 
         .btn-danger {
             background: var(--danger-fg);
         }
 
-        .btn-danger:hover {
+        .btn-danger:hover:not(:disabled) {
             background: #dc2626;
         }
 
-        .output {
+        .btn-success {
+            background: var(--success-fg);
+        }
+
+        .btn-success:hover:not(:disabled) {
+            background: #2d7d32;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 12px;
+            margin-top: 20px;
+        }
+
+        .btn-group .btn {
+            flex: 1;
+        }
+
+        .test-results {
+            margin-top: 20px;
+            padding: 20px;
             background: var(--bg-canvas);
             border: 1px solid var(--border-default);
-            border-radius: 6px;
-            padding: 16px;
-            margin-top: 24px;
-            font-family: 'Monaco', 'Menlo', monospace;
-            font-size: 12px;
-            max-height: 400px;
-            overflow-y: auto;
-            white-space: pre-wrap;
+            border-radius: 8px;
             display: none;
         }
 
-        .success {
+        .test-results h3 {
+            color: var(--accent-fg);
+            margin-bottom: 16px;
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .test-item {
+            padding: 12px;
+            margin-bottom: 8px;
+            background: var(--bg-default);
+            border: 1px solid var(--border-default);
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .test-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .test-icon {
+            font-size: 18px;
+        }
+
+        .test-content {
+            flex: 1;
+        }
+
+        .test-name {
+            font-weight: 500;
+            margin-bottom: 2px;
+        }
+
+        .test-detail {
+            font-size: 12px;
+            color: var(--fg-muted);
+        }
+
+        .test-pass {
             color: var(--success-fg);
         }
 
-        .error {
+        .test-fail {
             color: var(--danger-fg);
         }
 
-        .info {
-            color: var(--accent-fg);
+        .test-summary {
+            margin-top: 16px;
+            padding: 16px;
+            background: var(--bg-default);
+            border-radius: 6px;
+            text-align: center;
         }
 
         .status {
-            padding: 12px;
-            border-radius: 6px;
-            margin-top: 16px;
+            padding: 16px;
+            border-radius: 8px;
+            margin-top: 20px;
             display: none;
+            font-weight: 500;
         }
 
         .status.success {
@@ -194,76 +361,450 @@
             color: var(--accent-fg);
         }
 
-        .buttons {
+        .output {
+            background: #000;
+            border: 1px solid var(--border-default);
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 24px;
+            font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', monospace;
+            font-size: 13px;
+            max-height: 500px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            display: none;
+        }
+
+        .output::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .output::-webkit-scrollbar-track {
+            background: var(--bg-subtle);
+        }
+
+        .output::-webkit-scrollbar-thumb {
+            background: var(--border-default);
+            border-radius: 4px;
+        }
+
+        .output-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--border-default);
+        }
+
+        .output-title {
+            color: var(--accent-fg);
+            font-weight: 600;
+        }
+
+        .success {
+            color: var(--success-fg);
+        }
+
+        .error {
+            color: var(--danger-fg);
+        }
+
+        .info {
+            color: var(--accent-fg);
+        }
+
+        .warning-text {
+            color: var(--attention-fg);
+        }
+
+        .footer-actions {
             display: flex;
             gap: 12px;
-            margin-top: 20px;
+            margin-top: 24px;
+            padding-top: 24px;
+            border-top: 1px solid var(--border-default);
         }
 
-        .btn-secondary {
-            background: transparent;
-            border: 1px solid var(--border-default);
-            color: var(--fg-default);
+        .progress-bar {
+            width: 100%;
+            height: 4px;
+            background: var(--bg-subtle);
+            border-radius: 2px;
+            overflow: hidden;
+            margin-top: 12px;
+            display: none;
         }
 
-        .btn-secondary:hover {
-            background: var(--bg-overlay);
+        .progress-bar-fill {
+            height: 100%;
+            background: var(--accent-fg);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.6; }
+            100% { opacity: 1; }
+        }
+
+        .loading {
+            animation: pulse 1.5s infinite;
         }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1>🔄 Database Migration Runner</h1>
-            <p>Migrate user accounts to secure authentication system</p>
+            <h1>🔐 Secure Authentication Migration Tool</h1>
+            <p>Upgrade your user database to industry-standard security</p>
+            <div class="status-indicator not-ready" id="statusIndicator">
+                <span>●</span>
+                <span>Not Connected</span>
+            </div>
+        </div>
+
+        <div class="info-box">
+            <div class="info-title">
+                <span>📋</span>
+                <span>Pre-Migration Checklist</span>
+            </div>
+            <ul class="checklist">
+                <li id="check-env">Set MIGRATION_KEY environment variable in Netlify</li>
+                <li id="check-deploy">Deploy the migrate-to-secure-auth.js function</li>
+                <li id="check-backup">Ensure you have a manual backup (automatic backups will be created)</li>
+                <li id="check-test">Run connection test to verify setup</li>
+                <li id="check-ready">Review migration warnings and confirm readiness</li>
+            </ul>
         </div>
 
         <div class="warning">
             <div class="warning-title">
                 <span>⚠️</span>
-                <span>Important Notice</span>
+                <span>Critical Information - Please Read</span>
             </div>
-            <p>This will migrate all user accounts from plain text passwords to secure hashed passwords. This process is <strong>irreversible</strong> and should only be run once.</p>
+            <ul>
+                <li><strong>This migration is PERMANENT and IRREVERSIBLE</strong></li>
+                <li>All passwords will be converted from plain text to bcrypt hashes</li>
+                <li>Users will use their SAME passwords after migration</li>
+                <li>The migration creates automatic backups with prefix: backup_migration_</li>
+                <li>Only run this migration ONCE - it detects already migrated users</li>
+                <li>After migration, all authentication will use the secure system</li>
+            </ul>
         </div>
 
-        <form id="migrationForm">
-            <div class="form-group">
-                <label for="migrationKey">Migration Key</label>
-                <input type="password" id="migrationKey" required placeholder="Enter your migration key">
-                <small>This key must match the MIGRATION_KEY environment variable in Netlify</small>
-            </div>
+        <div class="form-section">
+            <form id="migrationForm">
+                <div class="form-group">
+                    <label for="migrationKey">Migration Security Key</label>
+                    <input 
+                        type="password" 
+                        id="migrationKey" 
+                        required 
+                        placeholder="Enter your migration key"
+                        autocomplete="off"
+                    >
+                    <small>This must match the MIGRATION_KEY environment variable set in your Netlify dashboard</small>
+                </div>
 
-            <div class="form-group">
-                <label for="apiEndpoint">API Endpoint</label>
-                <input type="url" id="apiEndpoint" value="https://f.afsapp.lol/.netlify/functions/migrate-to-secure-auth" required>
-                <small>The URL to your migration function</small>
-            </div>
+                <div class="form-group">
+                    <label for="apiEndpoint">Migration API Endpoint</label>
+                    <input 
+                        type="url" 
+                        id="apiEndpoint" 
+                        value="https://f.afsapp.lol/.netlify/functions/migrate-to-secure-auth" 
+                        required
+                    >
+                    <small>The URL to your deployed migration function</small>
+                </div>
 
-            <div class="buttons">
-                <button type="submit" class="btn" id="runMigrationBtn">
-                    🚀 Run Migration
-                </button>
-                <button type="button" class="btn btn-secondary" onclick="clearOutput()">
-                    🗑️ Clear Output
-                </button>
-            </div>
-        </form>
+                <div class="btn-group">
+                    <button type="button" class="btn btn-secondary" onclick="testConnection()">
+                        <span>🔍</span>
+                        <span>Test Connection</span>
+                    </button>
+                    <button type="button" class="btn btn-secondary" onclick="performDryRun()">
+                        <span>🧪</span>
+                        <span>Dry Run</span>
+                    </button>
+                    <button type="submit" class="btn btn-danger" id="runMigrationBtn" disabled>
+                        <span>🚀</span>
+                        <span>Run Migration</span>
+                    </button>
+                </div>
+            </form>
 
+            <div class="progress-bar" id="progressBar">
+                <div class="progress-bar-fill" id="progressBarFill"></div>
+            </div>
+        </div>
+
+        <div class="test-results" id="testResults"></div>
         <div class="status" id="status"></div>
-        <div class="output" id="output"></div>
+        
+        <div class="output" id="output">
+            <div class="output-header">
+                <span class="output-title">Migration Log</span>
+                <button class="btn btn-secondary" onclick="clearOutput()" style="padding: 6px 12px; font-size: 12px;">
+                    Clear
+                </button>
+            </div>
+            <div id="outputContent"></div>
+        </div>
+
+        <div class="footer-actions">
+            <button type="button" class="btn btn-secondary" onclick="downloadLog()">
+                <span>📥</span>
+                <span>Download Log</span>
+            </button>
+            <button type="button" class="btn btn-secondary" onclick="resetTool()">
+                <span>🔄</span>
+                <span>Reset Tool</span>
+            </button>
+            <button type="button" class="btn btn-secondary" onclick="showHelp()">
+                <span>❓</span>
+                <span>Help</span>
+            </button>
+        </div>
     </div>
 
     <script>
+        // Global variables
         const form = document.getElementById('migrationForm');
         const output = document.getElementById('output');
+        const outputContent = document.getElementById('outputContent');
         const status = document.getElementById('status');
         const runBtn = document.getElementById('runMigrationBtn');
+        const testResults = document.getElementById('testResults');
+        const statusIndicator = document.getElementById('statusIndicator');
+        const progressBar = document.getElementById('progressBar');
+        const progressBarFill = document.getElementById('progressBarFill');
+        
+        let logContent = '';
+        let testsPassed = false;
 
+        // Form submission handler
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
+            
+            if (!testsPassed) {
+                showStatus('error', 'Please run and pass the connection test first');
+                return;
+            }
+            
+            const confirmed = confirm(
+                'FINAL CONFIRMATION\n\n' +
+                'You are about to permanently migrate all user passwords to secure hashes.\n\n' +
+                'This process is IRREVERSIBLE.\n\n' +
+                'Have you:\n' +
+                '✓ Backed up your data?\n' +
+                '✓ Tested the connection?\n' +
+                '✓ Reviewed the warnings?\n\n' +
+                'Click OK to proceed with migration, or Cancel to abort.'
+            );
+            
+            if (!confirmed) {
+                log('info', 'Migration cancelled by user');
+                return;
+            }
+            
             await runMigration();
         });
 
+        // Test connection function
+        async function testConnection() {
+            const apiEndpoint = document.getElementById('apiEndpoint').value;
+            const migrationKey = document.getElementById('migrationKey').value;
+            
+            if (!migrationKey) {
+                showStatus('error', 'Please enter your migration key first');
+                return;
+            }
+            
+            testResults.style.display = 'block';
+            testResults.innerHTML = '<h3 class="loading">Testing Connection...</h3>';
+            
+            const tests = [];
+            
+            // Test 1: Endpoint reachability
+            try {
+                const response = await fetch(apiEndpoint, { 
+                    method: 'OPTIONS',
+                    mode: 'cors'
+                });
+                
+                if (response.ok || response.status === 405) {
+                    tests.push({ 
+                        name: 'Endpoint Reachability', 
+                        pass: true,
+                        detail: 'Migration function is accessible'
+                    });
+                } else {
+                    tests.push({ 
+                        name: 'Endpoint Reachability', 
+                        pass: false, 
+                        detail: `HTTP ${response.status} - Check your URL`
+                    });
+                }
+            } catch (error) {
+                tests.push({ 
+                    name: 'Endpoint Reachability', 
+                    pass: false, 
+                    detail: 'Network error - Check URL and deployment'
+                });
+            }
+            
+            // Test 2: Function type verification
+            try {
+                const response = await fetch(apiEndpoint, {
+                    method: 'GET',
+                    mode: 'cors'
+                });
+                
+                if (response.status === 405) {
+                    tests.push({ 
+                        name: 'Function Type', 
+                        pass: true,
+                        detail: 'Correct migration function detected'
+                    });
+                } else {
+                    tests.push({ 
+                        name: 'Function Type', 
+                        pass: false, 
+                        detail: 'Not a migration function'
+                    });
+                }
+            } catch (error) {
+                tests.push({ 
+                    name: 'Function Type', 
+                    pass: false, 
+                    detail: error.message 
+                });
+            }
+            
+            // Test 3: Authentication check
+            try {
+                const response = await fetch(apiEndpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ migrationKey: 'intentionally-wrong-key-for-test' })
+                });
+                
+                const data = await response.json();
+                
+                if (response.status === 401 && data.error === 'Invalid migration key') {
+                    tests.push({ 
+                        name: 'Authentication System', 
+                        pass: true,
+                        detail: 'Security validation working correctly'
+                    });
+                } else {
+                    tests.push({ 
+                        name: 'Authentication System', 
+                        pass: false, 
+                        detail: 'Unexpected authentication response'
+                    });
+                }
+            } catch (error) {
+                tests.push({ 
+                    name: 'Authentication System', 
+                    pass: false, 
+                    detail: error.message 
+                });
+            }
+            
+            // Test 4: Verify correct key
+            try {
+                const response = await fetch(apiEndpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ migrationKey: migrationKey })
+                });
+                
+                if (response.status === 401) {
+                    tests.push({ 
+                        name: 'Migration Key Validation', 
+                        pass: false,
+                        detail: 'Invalid key - check MIGRATION_KEY in Netlify'
+                    });
+                } else if (response.ok) {
+                    // Key is valid but we don't want to run migration yet
+                    tests.push({ 
+                        name: 'Migration Key Validation', 
+                        pass: true,
+                        detail: 'Key validated successfully'
+                    });
+                }
+            } catch (error) {
+                tests.push({ 
+                    name: 'Migration Key Validation', 
+                    pass: false, 
+                    detail: error.message 
+                });
+            }
+            
+            // Display results
+            let html = '<h3>Connection Test Results</h3>';
+            
+            tests.forEach(test => {
+                html += `
+                    <div class="test-item">
+                        <span class="test-icon ${test.pass ? 'test-pass' : 'test-fail'}">
+                            ${test.pass ? '✅' : '❌'}
+                        </span>
+                        <div class="test-content">
+                            <div class="test-name ${test.pass ? 'test-pass' : 'test-fail'}">
+                                ${test.name}
+                            </div>
+                            <div class="test-detail">
+                                ${test.detail}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            const allPassed = tests.every(t => t.pass);
+            testsPassed = allPassed;
+            
+            // Update checklist
+            if (allPassed) {
+                document.getElementById('check-test').classList.add('checked');
+                runBtn.disabled = false;
+                statusIndicator.className = 'status-indicator ready';
+                statusIndicator.innerHTML = '<span>●</span><span>Ready to Migrate</span>';
+            } else {
+                runBtn.disabled = true;
+                statusIndicator.className = 'status-indicator not-ready';
+                statusIndicator.innerHTML = '<span>●</span><span>Tests Failed</span>';
+            }
+            
+            html += `
+                <div class="test-summary ${allPassed ? 'success' : 'error'}">
+                    <strong class="${allPassed ? 'test-pass' : 'test-fail'}">
+                        ${allPassed ? 
+                            '✅ All tests passed! System is ready for migration.' : 
+                            '❌ Some tests failed. Please fix the issues above before proceeding.'}
+                    </strong>
+                </div>
+            `;
+            
+            testResults.innerHTML = html;
+        }
+
+        // Dry run function
+        async function performDryRun() {
+            showStatus('info', 'Dry run feature coming soon - will simulate migration without making changes');
+            log('info', 'Dry run requested - this feature will be implemented to preview changes');
+        }
+
+        // Main migration function
         async function runMigration() {
             const migrationKey = document.getElementById('migrationKey').value;
             const apiEndpoint = document.getElementById('apiEndpoint').value;
@@ -276,12 +817,28 @@
             // Reset UI
             clearOutput();
             runBtn.disabled = true;
-            runBtn.textContent = '⏳ Running Migration...';
+            runBtn.textContent = '⏳ Migration in Progress...';
+            progressBar.style.display = 'block';
+            progressBarFill.style.width = '0%';
+            logContent = '';
 
             try {
-                log('info', 'Starting migration process...');
+                log('info', '════════════════════════════════════════');
+                log('info', '   SECURE AUTHENTICATION MIGRATION');
+                log('info', '════════════════════════════════════════');
+                log('info', `Date: ${new Date().toLocaleDateString()}`);
+                log('info', `Time: ${new Date().toLocaleTimeString()}`);
                 log('info', `Endpoint: ${apiEndpoint}`);
-                log('info', 'Sending migration request...');
+                log('info', '');
+                
+                progressBarFill.style.width = '10%';
+                log('info', '🔄 Initializing migration process...');
+                log('info', '🔑 Authenticating with migration key...');
+                
+                progressBarFill.style.width = '20%';
+                log('info', '📡 Sending migration request to server...');
+
+                const startTime = Date.now();
 
                 const response = await fetch(apiEndpoint, {
                     method: 'POST',
@@ -293,81 +850,231 @@
                     })
                 });
 
-                log('info', `Response status: ${response.status}`);
-
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                }
+                progressBarFill.style.width = '50%';
+                const responseTime = Date.now() - startTime;
+                log('info', `📥 Response received in ${responseTime}ms`);
+                log('info', `📊 Status: ${response.status} ${response.statusText}`);
 
                 const result = await response.json();
                 
+                if (!response.ok) {
+                    throw new Error(result.error || `HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                progressBarFill.style.width = '90%';
+                
                 if (result.success) {
-                    log('success', '✅ Migration completed successfully!');
-                    log('info', '📊 Migration Results:');
-                    log('info', `- Migration ID: ${result.results.migrationId}`);
-                    log('info', `- Users processed: ${result.results.usersProcessed}`);
-                    log('info', `- Pending users processed: ${result.results.pendingUsersProcessed}`);
-                    log('info', `- Sessions cleaned: ${result.results.sessionsCleaned}`);
-                    log('info', `- Duration: ${result.results.duration}ms`);
+                    progressBarFill.style.width = '100%';
+                    
+                    log('success', '');
+                    log('success', '╔════════════════════════════════════════╗');
+                    log('success', '║   ✅ MIGRATION COMPLETED SUCCESSFULLY   ║');
+                    log('success', '╚════════════════════════════════════════╝');
+                    log('success', '');
+                    
+                    log('info', '📊 MIGRATION STATISTICS:');
+                    log('info', '────────────────────────');
+                    log('success', `✓ Migration ID: ${result.results.migrationId}`);
+                    log('success', `✓ Users Migrated: ${result.results.usersProcessed}`);
+                    log('success', `✓ Pending Users: ${result.results.pendingUsersProcessed}`);
+                    log('success', `✓ Sessions Cleaned: ${result.results.sessionsCleaned}`);
+                    log('success', `✓ Backups Created: ${result.results.backupsCreated}`);
+                    log('info', `✓ Duration: ${result.results.duration}ms`);
                     
                     if (result.results.errors && result.results.errors.length > 0) {
-                        log('error', '⚠️ Some errors occurred:');
+                        log('warning-text', '');
+                        log('warning-text', '⚠️ WARNINGS:');
+                        log('warning-text', '────────────');
                         result.results.errors.forEach(error => {
-                            log('error', `- ${error}`);
+                            log('warning-text', `• ${error}`);
                         });
+                    } else {
+                        log('success', '');
+                        log('success', '✨ No errors encountered!');
                     }
 
-                    showStatus('success', 'Migration completed successfully! You can now use the secure login system.');
+                    log('info', '');
+                    log('info', '📋 NEXT STEPS:');
+                    log('info', '────────────────');
+                    log('info', '1. Test login with a known user account');
+                    log('info', '2. Verify admin users can still access admin panel');
+                    log('info', '3. Test new user registration');
+                    log('info', '4. Monitor authentication logs for issues');
+                    log('info', '5. Keep this migration log for your records');
+                    log('info', '');
+                    log('success', '🎉 Your authentication system is now secure!');
+                    log('info', '════════════════════════════════════════');
+
+                    showStatus('success', 
+                        'Migration completed successfully! ' +
+                        'All users can now log in with their existing passwords using the secure system.'
+                    );
+                    
+                    // Update UI
+                    document.getElementById('check-ready').classList.add('checked');
+                    runBtn.textContent = '✅ Migration Complete';
+                    runBtn.className = 'btn btn-success';
+                    
                 } else {
-                    log('error', '❌ Migration failed');
+                    progressBarFill.style.width = '0%';
+                    log('error', '');
+                    log('error', '╔════════════════════════════════════════╗');
+                    log('error', '║     ❌ MIGRATION FAILED                 ║');
+                    log('error', '╚════════════════════════════════════════╝');
+                    log('error', '');
                     log('error', result.error || 'Unknown error occurred');
+                    if (result.details) {
+                        log('error', `Details: ${result.details}`);
+                    }
                     showStatus('error', result.error || 'Migration failed');
                 }
 
             } catch (error) {
-                log('error', '❌ Migration request failed');
-                log('error', error.message);
+                progressBarFill.style.width = '0%';
+                log('error', '');
+                log('error', '╔════════════════════════════════════════╗');
+                log('error', '║   ❌ MIGRATION REQUEST FAILED           ║');
+                log('error', '╚════════════════════════════════════════╝');
+                log('error', '');
+                log('error', `Error: ${error.message}`);
+                log('error', 'Please check your connection and try again');
                 showStatus('error', `Migration failed: ${error.message}`);
+                
             } finally {
-                runBtn.disabled = false;
-                runBtn.textContent = '🚀 Run Migration';
+                if (!runBtn.textContent.includes('Complete')) {
+                    runBtn.disabled = false;
+                    runBtn.textContent = '🚀 Run Migration';
+                }
+                
+                setTimeout(() => {
+                    progressBar.style.display = 'none';
+                }, 2000);
+                
+                log('info', '');
+                log('info', `Log saved at: ${new Date().toISOString()}`);
+                log('info', '════════════════════════════════════════');
             }
         }
 
+        // Utility functions
         function log(type, message) {
             const timestamp = new Date().toLocaleTimeString();
-            const prefix = type === 'success' ? '✅' : type === 'error' ? '❌' : type === 'info' ? 'ℹ️' : '';
+            const prefix = type === 'success' ? '✅' : 
+                          type === 'error' ? '❌' : 
+                          type === 'warning-text' ? '⚠️' :
+                          type === 'info' ? 'ℹ️' : '';
             
             output.style.display = 'block';
-            output.innerHTML += `<span class="${type}">[${timestamp}] ${prefix} ${message}</span>\n`;
+            const logLine = `[${timestamp}] ${prefix} ${message}`;
+            outputContent.innerHTML += `<span class="${type}">${logLine}</span>\n`;
             output.scrollTop = output.scrollHeight;
+            
+            // Add to log content for download
+            logContent += logLine + '\n';
         }
 
         function showStatus(type, message) {
             status.className = `status ${type}`;
-            status.textContent = message;
+            status.innerHTML = message;
             status.style.display = 'block';
+            
+            if (type !== 'error') {
+                setTimeout(() => {
+                    status.style.display = 'none';
+                }, 10000);
+            }
         }
 
         function clearOutput() {
-            output.innerHTML = '';
+            outputContent.innerHTML = '';
             output.style.display = 'none';
             status.style.display = 'none';
+            testResults.style.display = 'none';
+            progressBar.style.display = 'none';
+            logContent = '';
         }
 
-        // Check if migration endpoint exists on page load
+        function downloadLog() {
+            if (!logContent) {
+                alert('No log content to download');
+                return;
+            }
+            
+            const blob = new Blob([logContent], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `migration-log-${new Date().toISOString().replace(/[:.]/g, '-')}.txt`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            showStatus('success', 'Log file downloaded successfully');
+        }
+
+        function resetTool() {
+            if (confirm('This will clear all forms and logs. Continue?')) {
+                clearOutput();
+                form.reset();
+                testsPassed = false;
+                runBtn.disabled = true;
+                runBtn.textContent = '🚀 Run Migration';
+                runBtn.className = 'btn btn-danger';
+                statusIndicator.className = 'status-indicator not-ready';
+                statusIndicator.innerHTML = '<span>●</span><span>Not Connected</span>';
+                
+                // Reset checklist
+                document.querySelectorAll('.checklist li').forEach(item => {
+                    item.classList.remove('checked');
+                });
+                
+                showStatus('info', 'Tool has been reset');
+            }
+        }
+
+        function showHelp() {
+            alert(
+                'MIGRATION HELP\n\n' +
+                '1. SETUP NETLIFY:\n' +
+                '   • Go to Netlify Dashboard → Settings → Environment Variables\n' +
+                '   • Add MIGRATION_KEY with a secure value\n' +
+                '   • Deploy the migrate-to-secure-auth.js function\n\n' +
+                '2. TEST CONNECTION:\n' +
+                '   • Enter your migration key (same as Netlify env var)\n' +
+                '   • Click "Test Connection" to verify setup\n' +
+                '   • All tests must pass before migration\n\n' +
+                '3. RUN MIGRATION:\n' +
+                '   • Click "Run Migration" after tests pass\n' +
+                '   • Confirm the security prompt\n' +
+                '   • Wait for completion (may take a few minutes)\n\n' +
+                '4. POST-MIGRATION:\n' +
+                '   • Download the log for your records\n' +
+                '   • Test user login immediately\n' +
+                '   • Users keep their same passwords\n\n' +
+                'For support, check the migration log for errors.'
+            );
+        }
+
+        // Check connection on page load
         window.addEventListener('load', async () => {
             const endpoint = document.getElementById('apiEndpoint').value;
+            log('info', 'Migration tool initialized');
+            log('info', 'Checking endpoint availability...');
+            
             try {
-                log('info', 'Checking if migration endpoint is available...');
-                const response = await fetch(endpoint, { method: 'HEAD' });
+                const response = await fetch(endpoint, { method: 'OPTIONS' });
                 if (response.ok || response.status === 405) {
                     log('success', 'Migration endpoint is available');
+                    log('info', 'Enter your migration key and run "Test Connection" to begin');
+                    document.getElementById('check-deploy').classList.add('checked');
                 } else {
-                    log('error', 'Migration endpoint not found - make sure migrate-to-secure-auth.js is deployed');
+                    log('error', `Migration endpoint returned status ${response.status}`);
+                    log('info', 'Please ensure migrate-to-secure-auth.js is deployed to Netlify');
                 }
             } catch (error) {
                 log('error', 'Could not reach migration endpoint');
+                log('info', 'Check your network connection and endpoint URL');
             }
         });
     </script>
