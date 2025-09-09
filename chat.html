@@ -738,7 +738,7 @@
             background: #2d7d32;
         }
 
-        /* Improved Scrollbar styling */
+        /* Scrollbar styling */
         .messages-container::-webkit-scrollbar,
         .channels-list::-webkit-scrollbar,
         .guilds-wrapper::-webkit-scrollbar {
@@ -1067,7 +1067,7 @@
         let publicServers = [];
         let lastActivity = Date.now();
 
-        // Fixed Chat Manager
+        // Chat Manager Class
         class ChatManager {
             constructor() {
                 this.lastMessageTimestamp = null;
@@ -1160,7 +1160,6 @@
                 let newMessagesCount = 0;
                 let latestTimestamp = this.lastMessageTimestamp;
                 
-                // Filter out duplicates
                 const newMessages = messages.filter(message => {
                     if (this.processedMessageIds.has(message.id)) {
                         return false;
@@ -1181,7 +1180,6 @@
                     return;
                 }
 
-                // Add new messages
                 for (const message of newMessages) {
                     chatMessages.push(message);
                     this.processedMessageIds.add(message.id);
@@ -1387,9 +1385,8 @@
 
         const chatManager = new ChatManager();
 
-        // FIXED: Use the main app's secure API
+        // Authentication
         async function getAuthToken() {
-            // Use the secure API from the main app
             if (typeof secureAPI !== 'undefined' && secureAPI.isAuthenticated()) {
                 const token = tokenManager.getAccessToken();
                 console.log('🔑 Using main app auth token');
@@ -1423,7 +1420,6 @@
             }
 
             try {
-                // Use the main app's secure API to check authentication
                 if (typeof secureAPI !== 'undefined' && secureAPI.isAuthenticated()) {
                     await secureAPI.loadUserData();
                     
@@ -1477,8 +1473,7 @@
             if (sessionCheckInterval) {
                 clearInterval(sessionCheckInterval);
             }
-            // Check session more frequently
-            sessionCheckInterval = setInterval(checkMainAppSession, 30 * 1000); // Check every 30 seconds
+            sessionCheckInterval = setInterval(checkMainAppSession, 30 * 1000);
         }
 
         function handleLogout() {
@@ -1603,9 +1598,6 @@
             }
         }
 
-        // Continue with all the rest of the functions...
-        // (The rest remains the same as before - all the render, select, create, join functions etc.)
-        
         function renderServersList() {
             const serversListEl = document.getElementById('serversList');
             if (!serversListEl) return;
@@ -1661,57 +1653,48 @@
             }).join('');
         }
 
-      async function selectServer(serverId) {
-    console.log('🏠 Selecting server:', serverId);
-    
-    const server = userServers.find(s => s.id === serverId);
-    if (!server) {
-        console.error('❌ Server not found:', serverId);
-        return;
-    }
-    
-    // IMPORTANT: Stop any existing chat updates and clear current room
-    chatManager.stopRealTimeUpdates();
-    
-    // Clear current room and messages when switching servers
-    currentRoom = null;
-    chatMessages = [];
-    serverRooms = [];
-    
-    // Update current server
-    currentServer = server;
-    
-    // Update UI to show server is selected but no room yet
-    document.getElementById('currentServerName').textContent = server.name;
-    document.getElementById('chatRoomName').textContent = 'Select a channel';
-    document.getElementById('serverActions').style.display = 'flex';
-    
-    // Clear messages display
-    const messagesWrapper = document.getElementById('messagesWrapper');
-    if (messagesWrapper) {
-        messagesWrapper.innerHTML = `
-            <div class="welcome-message">
-                <h3>Welcome to ${server.name}! 🏠</h3>
-                <p>Select a channel to start chatting.</p>
-            </div>
-        `;
-    }
-    
-    // Update server list UI to show active server
-    renderServersList();
-    
-    // Load rooms for this server
-    await loadServerRooms(serverId);
-    
-    // Only auto-select first room if we have rooms
-    if (serverRooms.length > 0) {
-        console.log('🔄 Auto-selecting first room:', serverRooms[0].name);
-        // Small delay to ensure UI updates properly
-        setTimeout(() => {
-            selectRoom(serverRooms[0].id);
-        }, 100);
-    }
-}
+        async function selectServer(serverId) {
+            console.log('🏠 Selecting server:', serverId);
+            
+            const server = userServers.find(s => s.id === serverId);
+            if (!server) {
+                console.error('❌ Server not found:', serverId);
+                return;
+            }
+            
+            chatManager.stopRealTimeUpdates();
+            
+            currentRoom = null;
+            chatMessages = [];
+            serverRooms = [];
+            
+            currentServer = server;
+            
+            document.getElementById('currentServerName').textContent = server.name;
+            document.getElementById('chatRoomName').textContent = 'Select a channel';
+            document.getElementById('serverActions').style.display = 'flex';
+            
+            const messagesWrapper = document.getElementById('messagesWrapper');
+            if (messagesWrapper) {
+                messagesWrapper.innerHTML = `
+                    <div class="welcome-message">
+                        <h3>Welcome to ${server.name}! 🏠</h3>
+                        <p>Select a channel to start chatting.</p>
+                    </div>
+                `;
+            }
+            
+            renderServersList();
+            
+            await loadServerRooms(serverId);
+            
+            if (serverRooms.length > 0) {
+                console.log('🔄 Auto-selecting first room:', serverRooms[0].name);
+                setTimeout(() => {
+                    selectRoom(serverRooms[0].id);
+                }, 100);
+            }
+        }
 
         function selectServerFromBrowse(serverId) {
             closeBrowseServersModal();
@@ -1819,129 +1802,57 @@
                 </div>
             `).join('');
         }
-async function selectRoom(roomId) {
-    console.log('📋 Selecting room:', roomId);
-    
-    const room = serverRooms.find(r => r.id === roomId);
-    if (!room) {
-        console.error('❌ Room not found:', roomId);
-        return;
-    }
-    
-    // Stop any existing real-time updates
-    chatManager.stopRealTimeUpdates();
-    
-    // Clear messages array completely
-    chatMessages = [];
-    chatMessages.length = 0;
-    
-    // Clear the chat manager's message tracking
-    chatManager.processedMessageIds.clear();
-    chatManager.messageHistory.clear();
-    chatManager.lastMessageTimestamp = null;
-    
-    // Update current room
-    currentRoom = room;
-    
-    // Update UI immediately to show loading state
-    document.getElementById('chatRoomName').textContent = room.name;
-    
-    // Show loading message while fetching
-    const messagesWrapper = document.getElementById('messagesWrapper');
-    if (messagesWrapper) {
-        messagesWrapper.innerHTML = `
-            <div class="loading">
-                <div class="spinner"></div>
-            </div>
-        `;
-    }
-    
-    // Update room list to show active room
-    renderRoomsList();
-    
-    // Load messages for this room
-    await loadRoomMessages(roomId);
-    
-    // Start real-time updates for this room
-    chatManager.startRealTimeUpdates(roomId);
-}
 
-       async function loadRoomMessages(roomId) {
-    console.log('💬 Loading messages for room:', roomId);
-    
-    try {
-        const params = new URLSearchParams();
-        params.append('limit', '50');
-        
-        const authToken = await getAuthToken();
-        if (!authToken) {
-            throw new Error('No authentication token');
-        }
-
-        const response = await fetch(`/.netlify/functions/chat-api/rooms/${roomId}/messages?${params}`, {
-            method: 'GET',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${authToken}`
+        async function selectRoom(roomId) {
+            console.log('📋 Selecting room:', roomId);
+            
+            const room = serverRooms.find(r => r.id === roomId);
+            if (!room) {
+                console.error('❌ Room not found:', roomId);
+                return;
             }
-        });
-
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-
-        const data = await response.json();
-        
-        if (data.success) {
-            // Completely replace messages array
+            
+            chatManager.stopRealTimeUpdates();
+            
             chatMessages = [];
             chatMessages.length = 0;
             
-            if (data.messages && data.messages.length > 0) {
-                chatMessages.push(...data.messages);
-                
-                // Reset chat manager's tracking for this room
-                chatManager.processedMessageIds.clear();
-                chatManager.messageHistory.clear();
-                
-                chatMessages.forEach(message => {
-                    chatManager.processedMessageIds.add(message.id);
-                    chatManager.messageHistory.set(message.id, message.createdAt);
-                });
-                
-                // Find the newest message for tracking
-                const newestMessage = chatMessages.reduce((newest, current) => {
-                    const newestTime = new Date(newest.createdAt).getTime();
-                    const currentTime = new Date(current.createdAt).getTime();
-                    return currentTime > newestTime ? current : newest;
-                });
-                chatManager.lastMessageTimestamp = newestMessage.createdAt;
-                console.log(`🕐 Set initial tracking for room ${roomId} - timestamp: ${chatManager.lastMessageTimestamp}`);
-            } else {
-                // No messages in this room
-                chatManager.lastMessageTimestamp = null;
-                chatManager.processedMessageIds.clear();
-                chatManager.messageHistory.clear();
+            chatManager.processedMessageIds.clear();
+            chatManager.messageHistory.clear();
+            chatManager.lastMessageTimestamp = null;
+            
+            currentRoom = room;
+            
+            document.getElementById('chatRoomName').textContent = room.name;
+            
+            const messagesWrapper = document.getElementById('messagesWrapper');
+            if (messagesWrapper) {
+                messagesWrapper.innerHTML = `
+                    <div class="loading">
+                        <div class="spinner"></div>
+                    </div>
+                `;
             }
             
-            console.log('✅ Loaded messages:', chatMessages.length);
-            renderMessages();
+            renderRoomsList();
             
-            // Ensure scroll to bottom after render
-            requestAnimationFrame(() => {
-                scrollToBottom();
-            });
-        } else {
-            console.error('❌ Failed to load messages:', data.error);
-            chatMessages = [];
-            renderMessages();
+            await loadRoomMessages(roomId);
+            
+            chatManager.startRealTimeUpdates(roomId);
         }
-    } catch (error) {
-        console.error('💥 Error loading messages:', error);
-        chatMessages = [];
-        renderMessages();
-    }
-}
+
+        async function loadRoomMessages(roomId) {
+            console.log('💬 Loading messages for room:', roomId);
+            
+            try {
+                const params = new URLSearchParams();
+                params.append('limit', '50');
+                
+                const authToken = await getAuthToken();
+                if (!authToken) {
+                    throw new Error('No authentication token');
+                }
+
                 const response = await fetch(`/.netlify/functions/chat-api/rooms/${roomId}/messages?${params}`, {
                     method: 'GET',
                     headers: {
@@ -1957,10 +1868,12 @@ async function selectRoom(roomId) {
                 const data = await response.json();
                 
                 if (data.success) {
+                    chatMessages = [];
                     chatMessages.length = 0;
-                    chatMessages.push(...(data.messages || []));
                     
-                    if (chatMessages.length > 0) {
+                    if (data.messages && data.messages.length > 0) {
+                        chatMessages.push(...data.messages);
+                        
                         chatManager.processedMessageIds.clear();
                         chatManager.messageHistory.clear();
                         
@@ -1975,7 +1888,7 @@ async function selectRoom(roomId) {
                             return currentTime > newestTime ? current : newest;
                         });
                         chatManager.lastMessageTimestamp = newestMessage.createdAt;
-                        console.log(`🕐 Set initial tracking - timestamp: ${chatManager.lastMessageTimestamp}`);
+                        console.log(`🕐 Set initial tracking for room ${roomId} - timestamp: ${chatManager.lastMessageTimestamp}`);
                     } else {
                         chatManager.lastMessageTimestamp = null;
                         chatManager.processedMessageIds.clear();
@@ -1985,18 +1898,17 @@ async function selectRoom(roomId) {
                     console.log('✅ Loaded messages:', chatMessages.length);
                     renderMessages();
                     
-                    // Ensure scroll to bottom after render
                     requestAnimationFrame(() => {
                         scrollToBottom();
                     });
                 } else {
                     console.error('❌ Failed to load messages:', data.error);
-                    chatMessages.length = 0;
+                    chatMessages = [];
                     renderMessages();
                 }
             } catch (error) {
                 console.error('💥 Error loading messages:', error);
-                chatMessages.length = 0;
+                chatMessages = [];
                 renderMessages();
             }
         }
@@ -2058,13 +1970,12 @@ async function selectRoom(roomId) {
                                 <span class="message-timestamp">${formatTimestamp(message.createdAt || message.timestamp)}</span>
                                 ${statusText}
                             </div>
-<div class="message-text">${escapeHtml(message.content)}</div>
+                            <div class="message-text">${escapeHtml(message.content)}</div>
                         </div>
                     </div>
                 `;
             }).join('');
             
-            // Auto-scroll to bottom after rendering messages
             setTimeout(() => {
                 scrollToBottom();
             }, 10);
@@ -2496,11 +2407,9 @@ Created: ${currentServer.createdAt ? new Date(currentServer.createdAt).toLocaleD
             // Handle navigation if needed
         });
 
-        // Listen for storage events to detect login/logout from main app
         window.addEventListener('storage', function(e) {
             console.log('🔄 Storage event detected:', e.key, e.newValue ? 'Set' : 'Removed');
             
-            // Check for authentication-related storage changes
             if (e.key === 'shed_access_token' || e.key === 'shed_refresh_token' || e.key === 'shed_user_data') {
                 if (e.newValue) {
                     console.log('🎉 Authentication change detected from main app');
@@ -2514,7 +2423,6 @@ Created: ${currentServer.createdAt ? new Date(currentServer.createdAt).toLocaleD
             }
         });
 
-        // Listen for manual session checks from main app
         window.addEventListener('message', function(event) {
             if (event.data && event.data.type === 'SESSION_UPDATE') {
                 console.log('🔄 Received session update message from main app');
@@ -2523,7 +2431,7 @@ Created: ${currentServer.createdAt ? new Date(currentServer.createdAt).toLocaleD
         });
 
         function showConnectionStatus() {
-            const status = chatManager.getConnectionStatus ? chatManager.getConnectionStatus() : {
+            const status = {
                 state: chatManager.connectionState,
                 delay: chatManager.currentDelay,
                 retries: chatManager.retryCount,
