@@ -1,9 +1,8 @@
-# netlify.toml - Simple working configuration
-
+# netlify.toml - Updated configuration with dependency installation
 [build]
   publish = "."
-  command = "echo 'Static site - no build required'"
-
+  command = "npm install"  # Changed to install dependencies
+  
 [functions]
   node_bundler = "esbuild"
   external_node_modules = ["@netlify/blobs", "bcryptjs", "jsonwebtoken"]
@@ -46,11 +45,11 @@
   to = "/.netlify/functions/chat-api/:splat"
   status = 200
 
-# Disable secrets scanning for this project
+# Environment settings
 [build.environment]
   SECRETS_SCAN_ENABLED = "false"
+  NODE_VERSION = "18"  # Added to ensure Node 18 is used
 
-# Environment settings
 [context.production.environment]
   NODE_ENV = "production"
 
