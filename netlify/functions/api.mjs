@@ -1195,7 +1195,6 @@ async function getPosts(filter = {}) {
         console.error('Get posts error:', error);
         return [];
     }
-}
       
       // Filter by criteria
       if (community && post.communityName !== community) continue;
