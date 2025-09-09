@@ -1170,47 +1170,22 @@ async function handleCommunityPosts(req, blogStore, headers, communityName) {
 // POST HANDLERS
 // ==============================================
 
-async function handleGetPosts(req, blogStore, headers) {
-  try {
-    const url = new URL(req.url);
-    const community = url.searchParams.get('community');
-    const author = url.searchParams.get('author');
-    const privateOnly = url.searchParams.get('private');
-    
-    const { blobs } = await blogStore.list({ prefix: "post_" });
-    const posts = [];
-    
-    for (const blob of blobs) {
-      const post = await blogStore.get(blob.key, { type: "json" });
-      if (!post) continue;
-      
-      // Filter by criteria
-      if (community && post.communityName !== community) continue;
-      if (author && post.author !== author) continue;
-      if (privateOnly === 'true' && !post.isPrivate) continue;
-      if (!privateOnly && post.isPrivate) continue;
-      
-      posts.push(post);
-    }
-    
-    // Sort by timestamp (newest first)
-    posts.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-    
-    return new Response(
-      JSON.stringify({
-        success: true,
-        posts
-      }),
-      { status: 200, headers }
-    );
-  } catch (error) {
-    console.error('Get posts error:', error);
-    return new Response(
-      JSON.stringify({ error: "Failed to load posts" }),
-      { status: 500, headers }
-    );
-  }
-}
+
+async function getPosts(filter = {}) {
+    try {
+        const params = new URLSearchParams();
+        if (filter.community) params.append('community', filter.community);
+        if (filter.author) params.append('author', filter.author);
+        if (filter.followed) params.append('followed', 'true');
+        if (filter.private) params.append('private', 'true');
+        if (filter.includePrivate) params.append('includePrivate', 'true');
+        
+        const url = `/.netlify/functions/api/posts${params.toString() ? '?' + params.toString() : ''}`;
+        
+        const response = await tokenManager.makeRequest(url, {
+            method: 'GET',
+            skipAuth: !filter.private && !filter.followed && !filter.includePrivate // Require auth for private/followed posts
+        });
         
        async function handleGetPosts(req, blogStore, headers) {
   try {
@@ -2730,4 +2705,3 @@ function getCorsHeaders(req) {
   };
 }
 //end of file
-
