@@ -1054,6 +1054,7 @@
         </div>
     </div>
 
+    <script src="/api.js"></script>
     <script>
         // Global state
         let currentUser = null;
@@ -1386,45 +1387,13 @@
 
         const chatManager = new ChatManager();
 
-        // FIXED: Authentication integration with main app
+        // FIXED: Use the main app's secure API
         async function getAuthToken() {
-            // First try to get the main app's current user session
-            try {
-                const response = await fetch('/.netlify/functions/blobs?key=current_user', {
-                    method: 'GET',
-                    headers: { 'Content-Type': 'application/json' }
-                });
-                
-                if (response.ok) {
-                    const result = await response.json();
-                    if (result.data && result.data.username) {
-                        console.log('🔑 Found main app session for user:', result.data.username);
-                        
-                        // Store user info for chat
-                        currentUser = {
-                            username: result.data.username,
-                            ...result.data
-                        };
-                        
-                        // Create a simple auth token from user data
-                        const authToken = btoa(JSON.stringify({
-                            username: result.data.username,
-                            timestamp: Date.now()
-                        }));
-                        
-                        console.log('🎫 Generated auth token for chat API');
-                        return authToken;
-                    }
-                }
-            } catch (error) {
-                console.error('❌ Error checking main app session:', error);
-            }
-            
-            // Fallback: check for old session token method
-            const sessionToken = localStorage.getItem('sessionToken');
-            if (sessionToken) {
-                console.log('🔑 Using fallback session token');
-                return sessionToken;
+            // Use the secure API from the main app
+            if (typeof secureAPI !== 'undefined' && secureAPI.isAuthenticated()) {
+                const token = tokenManager.getAccessToken();
+                console.log('🔑 Using main app auth token');
+                return token;
             }
             
             console.log('❌ No valid authentication found');
@@ -1454,24 +1423,15 @@
             }
 
             try {
-                // Check if user is logged into main app
-                const response = await fetch('/.netlify/functions/blobs?key=current_user', {
-                    method: 'GET',
-                    headers: { 'Content-Type': 'application/json' }
-                });
-                
-                if (response.ok) {
-                    const result = await response.json();
-                    if (result.data && result.data.username) {
-                        console.log('✅ Main app session found for user:', result.data.username);
-                        
-                        currentUser = {
-                            username: result.data.username,
-                            ...result.data
-                        };
+                // Use the main app's secure API to check authentication
+                if (typeof secureAPI !== 'undefined' && secureAPI.isAuthenticated()) {
+                    await secureAPI.loadUserData();
+                    
+                    if (currentUser) {
+                        console.log('✅ Main app session found for user:', currentUser.username);
                         
                         if (statusEl) {
-                            statusEl.textContent = `✅ Logged in as ${result.data.username}`;
+                            statusEl.textContent = `✅ Logged in as ${currentUser.username}`;
                             statusEl.style.background = 'var(--success-color)';
                             statusEl.style.color = 'white';
                             setTimeout(() => {
@@ -1643,6 +1603,9 @@
             }
         }
 
+        // Continue with all the rest of the functions...
+        // (The rest remains the same as before - all the render, select, create, join functions etc.)
+        
         function renderServersList() {
             const serversListEl = document.getElementById('serversList');
             if (!serversListEl) return;
@@ -1981,7 +1944,7 @@
                                 <span class="message-timestamp">${formatTimestamp(message.createdAt || message.timestamp)}</span>
                                 ${statusText}
                             </div>
-                            <div class="message-text">${escapeHtml(message.content)}</div>
+<div class="message-text">${escapeHtml(message.content)}</div>
                         </div>
                     </div>
                 `;
@@ -2419,12 +2382,12 @@ Created: ${currentServer.createdAt ? new Date(currentServer.createdAt).toLocaleD
             // Handle navigation if needed
         });
 
-        // FIXED: Listen for main app login/logout events
+        // Listen for storage events to detect login/logout from main app
         window.addEventListener('storage', function(e) {
             console.log('🔄 Storage event detected:', e.key, e.newValue ? 'Set' : 'Removed');
             
-            // Check for any authentication-related storage changes
-            if (e.key === 'sessionToken' || e.key === 'current_user') {
+            // Check for authentication-related storage changes
+            if (e.key === 'shed_access_token' || e.key === 'shed_refresh_token' || e.key === 'shed_user_data') {
                 if (e.newValue) {
                     console.log('🎉 Authentication change detected from main app');
                     setTimeout(() => {
@@ -2446,15 +2409,15 @@ Created: ${currentServer.createdAt ? new Date(currentServer.createdAt).toLocaleD
         });
 
         function showConnectionStatus() {
-            const status = chatManager.getConnectionStatus();
-            console.log('🔌 Connection Status:', {
-                state: status.state,
-                delay: `${status.delay}ms`,
-                retries: status.retries,
-                pending: status.pendingCount,
-                emptyPolls: status.emptyPolls,
-                processedCount: status.processedCount
-            });
+            const status = chatManager.getConnectionStatus ? chatManager.getConnectionStatus() : {
+                state: chatManager.connectionState,
+                delay: chatManager.currentDelay,
+                retries: chatManager.retryCount,
+                pending: chatManager.pendingMessages.size,
+                emptyPolls: chatManager.consecutiveEmptyPolls,
+                processedCount: chatManager.processedMessageIds.size
+            };
+            console.log('🔌 Connection Status:', status);
         }
 
         // Debug access
