@@ -466,8 +466,20 @@ async function loadCommunities() {
 
 async function loadPosts() {
     try {
-        posts = await secureAPI.getPosts();
+        // If user is logged in, include their private posts
+        if (currentUser) {
+            posts = await secureAPI.getPosts({ includePrivate: true });
+        } else {
+            posts = await secureAPI.getPosts();
+        }
         console.log('Loaded posts:', posts.length);
+        
+        // Log private posts for debugging
+        const privatePosts = posts.filter(p => p.isPrivate);
+        console.log('Private posts loaded:', privatePosts.length);
+        if (privatePosts.length > 0) {
+            console.log('Private posts:', privatePosts);
+        }
     } catch (error) {
         console.error('Error loading posts:', error);
         posts = [];
