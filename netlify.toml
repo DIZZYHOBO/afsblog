@@ -1,11 +1,13 @@
 # netlify.toml - Fixed configuration
 [build]
   publish = "."
-  command = "npm install"  # This will install dependencies from package.json
+  command = "npm install"
   
 [functions]
+  directory = "netlify/functions"
   node_bundler = "esbuild"
   external_node_modules = ["@netlify/blobs", "bcryptjs", "jsonwebtoken"]
+  included_files = ["**/*.mjs", "**/*.js"]
 
 # Basic security headers
 [[headers]]
