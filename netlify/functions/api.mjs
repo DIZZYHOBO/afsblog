@@ -10,7 +10,7 @@ const SECURITY_CONFIG = {
   // Environment variables (must be set in Netlify)
   JWT_SECRET: process.env.JWT_SECRET || crypto.randomBytes(64).toString('hex'),
   JWT_REFRESH_SECRET: process.env.JWT_REFRESH_SECRET || crypto.randomBytes(64).toString('hex'),
-  MASTER_API_KEY: process.env.MASTER_API_KEY || "your-secret-master-key-here",
+  MASTER_API_KEY: process.env.MASTER_API_KEY || "a35fbc82d57e13d10e8c150d5c6e8b1d4f722c1a88d3b0e7c91a4f327c8b1e2d",
   
   // Token lifetimes
   ACCESS_TOKEN_LIFETIME: 15 * 60, // 15 minutes
