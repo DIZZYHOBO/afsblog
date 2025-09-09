@@ -1169,20 +1169,33 @@ async function handleCommunityPosts(req, blogStore, headers, communityName) {
 // POST HANDLERS
 // ==============================================
 
-async function handleGetPosts(req, blogStore, headers) {
-  try {
-    const url = new URL(req.url);
-    const community = url.searchParams.get('community');
-    const author = url.searchParams.get('author');
-    const followed = url.searchParams.get('followed');
-    const privateOnly = url.searchParams.get('private');
-    
-    const { blobs } = await blogStore.list({ prefix: "post_" });
-    const posts = [];
-    
-    for (const blob of blobs) {
-      const post = await blogStore.get(blob.key, { type: "json" });
-      if (!post) continue;
+
+async function getPosts(filter = {}) {
+    try {
+        const params = new URLSearchParams();
+        if (filter.community) params.append('community', filter.community);
+        if (filter.author) params.append('author', filter.author);
+        if (filter.followed) params.append('followed', 'true');
+        if (filter.private) params.append('private', 'true');
+        if (filter.includePrivate) params.append('includePrivate', 'true');
+        
+        const url = `/.netlify/functions/api/posts${params.toString() ? '?' + params.toString() : ''}`;
+        
+        const response = await tokenManager.makeRequest(url, {
+            method: 'GET',
+            skipAuth: !filter.private && !filter.followed && !filter.includePrivate // Require auth for private/followed posts
+        });
+        
+        if (response.success) {
+            return response.posts || [];
+        } else {
+            throw new Error(response.error || 'Failed to load posts');
+        }
+    } catch (error) {
+        console.error('Get posts error:', error);
+        return [];
+    }
+}
       
       // Filter by criteria
       if (community && post.communityName !== community) continue;
