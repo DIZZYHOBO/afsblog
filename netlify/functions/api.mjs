@@ -304,14 +304,20 @@ export default async (req, context) => {
 // ==============================================
 // USER FOLLOWS DATA MIGRATION
 // ==============================================
-
 async function migrateUserFollowsData(blogStore, username) {
   try {
     const followsKey = `user_follows_${username}`;
-    const existingData = await blogStore.get(followsKey, { type: "json" });
+    let existingData;
     
-    if (!existingData) {
-      // No existing data, create empty structure
+    try {
+      existingData = await blogStore.get(followsKey, { type: "json" });
+    } catch (parseError) {
+      console.error('Error parsing follows data, creating new:', parseError);
+      existingData = null;
+    }
+    
+    if (!existingData || typeof existingData !== 'object') {
+      // No existing data or invalid data, create empty structure
       const newData = {
         username: username,
         communities: [],
@@ -348,43 +354,67 @@ async function migrateUserFollowsData(blogStore, username) {
       return newData;
     }
     
+    // Ensure we have a proper object structure
+    const validatedData = {
+      username: username || existingData.username,
+      communities: [],
+      followedUsers: [],
+      followers: [],
+      blockedUsers: [],
+      createdAt: existingData.createdAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    
     // Check if it's using 'followedCommunities' instead of 'communities'
-    if (existingData.followedCommunities && !existingData.communities) {
-      console.log('Normalizing follows property name for user:', username);
-      
-      existingData.communities = existingData.followedCommunities;
-      delete existingData.followedCommunities;
-      existingData.updatedAt = new Date().toISOString();
-      
-      await blogStore.set(followsKey, JSON.stringify(existingData));
-      return existingData;
+    if (existingData.followedCommunities) {
+      if (Array.isArray(existingData.followedCommunities)) {
+        validatedData.communities = existingData.followedCommunities;
+      }
+    } else if (existingData.communities) {
+      if (Array.isArray(existingData.communities)) {
+        validatedData.communities = existingData.communities;
+      }
     }
     
-    // Ensure communities array exists
-    if (!existingData.communities) {
-      console.log('Adding missing communities array for user:', username);
-      existingData.communities = [];
-      existingData.updatedAt = new Date().toISOString();
-      
-      await blogStore.set(followsKey, JSON.stringify(existingData));
-      return existingData;
+    // Copy over other array fields if they exist and are valid
+    if (Array.isArray(existingData.followedUsers)) {
+      validatedData.followedUsers = existingData.followedUsers;
+    }
+    if (Array.isArray(existingData.followers)) {
+      validatedData.followers = existingData.followers;
+    }
+    if (Array.isArray(existingData.blockedUsers)) {
+      validatedData.blockedUsers = existingData.blockedUsers;
     }
     
-    // Data is already in correct format
-    return existingData;
+    // Save the validated data
+    await blogStore.set(followsKey, JSON.stringify(validatedData));
+    console.log('Validated and saved follows data for user:', username);
+    
+    return validatedData;
     
   } catch (error) {
     console.error('Error migrating user follows data:', error);
     // Return a safe default
-    return {
+    const safeDefault = {
       username: username,
       communities: [],
       followedUsers: [],
       followers: [],
       blockedUsers: [],
       createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
+      error: error.message
     };
+    
+    // Try to save this safe default
+    try {
+      await blogStore.set(`user_follows_${username}`, JSON.stringify(safeDefault));
+    } catch (saveError) {
+      console.error('Could not save safe default:', saveError);
+    }
+    
+    return safeDefault;
   }
 }
 
@@ -956,6 +986,12 @@ async function handleFollowCommunity(communityName, blogStore, headers, user) {
     const userFollows = await migrateUserFollowsData(blogStore, user.username);
     console.log('Current user follows:', userFollows);
     
+    // Ensure communities is an array
+    if (!Array.isArray(userFollows.communities)) {
+      console.log('Communities was not an array, fixing...', typeof userFollows.communities, userFollows.communities);
+      userFollows.communities = [];
+    }
+    
     if (!userFollows.communities.includes(communityName)) {
       userFollows.communities.push(communityName);
       userFollows.updatedAt = new Date().toISOString();
@@ -964,6 +1000,9 @@ async function handleFollowCommunity(communityName, blogStore, headers, user) {
       
       // Update community members count
       if (!community.members) {
+        community.members = [];
+      }
+      if (!Array.isArray(community.members)) {
         community.members = [];
       }
       if (!community.members.includes(user.username)) {
@@ -1008,13 +1047,19 @@ async function handleUnfollowCommunity(communityName, blogStore, headers, user) 
     // Migrate and update user's follows
     const userFollows = await migrateUserFollowsData(blogStore, user.username);
     
+    // Ensure communities is an array
+    if (!Array.isArray(userFollows.communities)) {
+      console.log('Communities was not an array, fixing...', typeof userFollows.communities, userFollows.communities);
+      userFollows.communities = [];
+    }
+    
     userFollows.communities = userFollows.communities.filter(c => c !== communityName);
     userFollows.updatedAt = new Date().toISOString();
     await blogStore.set(`user_follows_${user.username}`, JSON.stringify(userFollows));
     console.log(`Removed ${communityName} from user follows`);
     
     // Update community members
-    if (community.members) {
+    if (community.members && Array.isArray(community.members)) {
       community.members = community.members.filter(m => m !== user.username);
       await blogStore.set(`community_${communityName}`, JSON.stringify(community));
       console.log(`Removed ${user.username} from community members`);
