@@ -99,7 +99,7 @@ export default async (req, context) => {
         }),
         { status: 423, headers }
       );
-    }
+    
 
     // Verify password
     const passwordValid = await bcrypt.compare(password, user.passwordHash);
