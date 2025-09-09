@@ -1,3 +1,4 @@
+
 // netlify/functions/api.js - COMPLETE PRODUCTION BACKEND API WITH FIXES
 import { getStore } from "@netlify/blobs";
 import bcrypt from 'bcryptjs';
@@ -1212,8 +1213,9 @@ async function getPosts(filter = {}) {
       JSON.stringify({
         success: true,
         posts
+      }),
       { status: 200, headers }
-     );
+    );
   } catch (error) {
     console.error('Get posts error:', error);
     return new Response(
@@ -2701,3 +2703,4 @@ function getCorsHeaders(req) {
 // ==============================================
 // END OF FILE
 // ==============================================
+s
