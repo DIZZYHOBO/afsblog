@@ -2704,7 +2704,3 @@ function getCorsHeaders(req) {
     "Referrer-Policy": "strict-origin-when-cross-origin"
   };
 }
-
-// ==============================================
-// END OF FILE
-// ==============================================
