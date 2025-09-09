@@ -460,31 +460,32 @@ const secureAPI = {
   // POST METHODS
   // ============================================
   
-  async getPosts(filter = {}) {
+ async function getPosts(filter = {}) {
     try {
-      const params = new URLSearchParams();
-      if (filter.community) params.append('community', filter.community);
-      if (filter.author) params.append('author', filter.author);
-      if (filter.followed) params.append('followed', 'true');
-      if (filter.private) params.append('private', 'true');
-      
-      const url = `/.netlify/functions/api/posts${params.toString() ? '?' + params.toString() : ''}`;
-      
-      const response = await tokenManager.makeRequest(url, {
-        method: 'GET',
-        skipAuth: !filter.private && !filter.followed // Only require auth for private/followed posts
-      });
-      
-      if (response.success) {
-        return response.posts || [];
-      } else {
-        throw new Error(response.error || 'Failed to load posts');
-      }
+        const params = new URLSearchParams();
+        if (filter.community) params.append('community', filter.community);
+        if (filter.author) params.append('author', filter.author);
+        if (filter.followed) params.append('followed', 'true');
+        if (filter.private) params.append('private', 'true');
+        if (filter.includePrivate) params.append('includePrivate', 'true');
+        
+        const url = `/.netlify/functions/api/posts${params.toString() ? '?' + params.toString() : ''}`;
+        
+        const response = await tokenManager.makeRequest(url, {
+            method: 'GET',
+            skipAuth: !filter.private && !filter.followed && !filter.includePrivate
+        });
+        
+        if (response.success) {
+            return response.posts || [];
+        } else {
+            throw new Error(response.error || 'Failed to load posts');
+        }
     } catch (error) {
-      console.error('Get posts error:', error);
-      return [];
+        console.error('Get posts error:', error);
+        return [];
     }
-  },
+}
   
   async createPost(postData) {
     try {
