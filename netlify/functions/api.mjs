@@ -1212,9 +1212,8 @@ async function getPosts(filter = {}) {
       JSON.stringify({
         success: true,
         posts
-      }),
       { status: 200, headers }
-    );
+     );
   } catch (error) {
     console.error('Get posts error:', error);
     return new Response(
