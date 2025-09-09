@@ -1,17 +1,17 @@
 {
-  "name": "the-shed-secure",
-  "version": "2.0.0",
-  "description": "Secure social platform with modern authentication",
-  "main": "index.html",
+  "name": "the-shed",
+  "version": "1.0.0",
+  "description": "The Shed - A Community Platform",
   "scripts": {
-    "build": "echo 'No build step required'"
+    "build": "echo 'No build step required'",
+    "dev": "netlify dev"
   },
   "dependencies": {
-    "@netlify/blobs": "^8.1.0",
+    "@netlify/blobs": "^7.0.0",
     "bcryptjs": "^2.4.3",
     "jsonwebtoken": "^9.0.2"
   },
-  "engines": {
-    "node": ">=18.0.0"
+  "devDependencies": {
+    "netlify-cli": "^17.0.0"
   }
 }
