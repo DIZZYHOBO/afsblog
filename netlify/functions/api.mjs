@@ -1205,7 +1205,7 @@ async function getPosts(filter = {}) {
       posts.push(post);
     }
     
-    // Sort by timestamp (newest first)
+  // Sort by timestamp (newest first)
     posts.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
     
     return new Response(
@@ -1222,7 +1222,7 @@ async function getPosts(filter = {}) {
       { status: 500, headers }
     );
   }
-
+}
 async function handleCreatePost(req, blogStore, headers, user) {
   try {
     const { title, type, content, url, communityName, isPrivate } = await req.json();
