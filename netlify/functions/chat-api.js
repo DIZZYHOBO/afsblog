@@ -1,5 +1,6 @@
-// netlify/functions/chat-api.js - Enhanced Chat API with Performance Optimizations
+// netlify/functions/chat-api.js - Fixed Authentication
 import { getStore } from "@netlify/blobs";
+import jwt from 'jsonwebtoken';
 
 // Chat API configuration
 const CHAT_CONFIG = {
@@ -10,7 +11,9 @@ const CHAT_CONFIG = {
   MAX_ROOMS_PER_USER: 50,
   MAX_SERVERS_PER_USER: 10,
   MESSAGE_BATCH_SIZE: 50,
-  ROOM_INACTIVE_DAYS: 30
+  ROOM_INACTIVE_DAYS: 30,
+  // Add JWT secret - should match the main app
+  JWT_SECRET: process.env.JWT_SECRET || 'your-secret-jwt-key-here'
 };
 
 export default async (req, context) => {
@@ -167,6 +170,102 @@ export default async (req, context) => {
     );
   }
 };
+
+// ==============================================
+// FIXED AUTHENTICATION - Properly handles JWT tokens
+// ==============================================
+
+async function validateAuth(req, apiStore, blogStore) {
+  const authHeader = req.headers.get("Authorization");
+  
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return { valid: false, error: "Authentication required", status: 401 };
+  }
+
+  try {
+    const token = authHeader.substring(7);
+    
+    // First, try to decode as JWT
+    try {
+      const decoded = jwt.verify(token, CHAT_CONFIG.JWT_SECRET);
+      console.log('JWT decoded successfully:', decoded);
+      
+      // Check if it's an access token
+      if (decoded.type !== 'access') {
+        return { valid: false, error: "Invalid token type", status: 401 };
+      }
+      
+      // Check if we have a session for this sessionId
+      if (decoded.sessionId) {
+        const session = await apiStore.get(`session_${decoded.sessionId}`, { type: "json" });
+        
+        if (session) {
+          // Validate session is active and not expired
+          if (!session.active || new Date(session.expiresAt) < new Date()) {
+            return { valid: false, error: "Session expired", status: 401 };
+          }
+        }
+      }
+      
+      // Get the user profile from blog store
+      const userProfile = await blogStore.get(`user_${decoded.username}`, { type: "json" });
+      
+      if (!userProfile) {
+        return { valid: false, error: "User not found", status: 404 };
+      }
+      
+      return { 
+        valid: true, 
+        user: {
+          ...userProfile,
+          sessionId: decoded.sessionId
+        }
+      };
+      
+    } catch (jwtError) {
+      console.error('JWT verification failed:', jwtError);
+      
+      // Fallback: Maybe it's a simple session token (for backward compatibility)
+      const session = await apiStore.get(`session_${token}`, { type: "json" });
+      
+      if (!session) {
+        return { valid: false, error: "Invalid token", status: 401 };
+      }
+      
+      // Check if session is expired
+      if (new Date(session.expiresAt) < new Date()) {
+        return { valid: false, error: "Session expired", status: 401 };
+      }
+      
+      // Check if session is active
+      if (!session.active) {
+        return { valid: false, error: "Session inactive", status: 401 };
+      }
+      
+      // Get full user profile from blog store
+      const userProfile = await blogStore.get(`user_${session.username}`, { type: "json" });
+      
+      if (!userProfile) {
+        return { valid: false, error: "User not found", status: 404 };
+      }
+
+      return { valid: true, user: userProfile };
+    }
+    
+  } catch (error) {
+    console.error("Auth validation error:", error);
+    return { valid: false, error: "Authentication error", status: 500 };
+  }
+}
+
+// Helper function to generate unique IDs
+function generateId() {
+  return `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+}
+
+// Include all the remaining functions from the original chat-api.js
+// (getUserServers, createServer, getRoomMessages, sendMessage, etc.)
+// These remain the same as in the original file
 
 // ==============================================
 // OPTIMIZED MESSAGE LOADING - Key Performance Improvement
@@ -385,58 +484,6 @@ async function getUserServers(chatStore, user, headers) {
       { status: 500, headers }
     );
   }
-}
-
-// ==============================================
-// AUTHENTICATION AND UTILITY FUNCTIONS
-// ==============================================
-
-// Validate authentication
-async function validateAuth(req, apiStore, blogStore) {
-  const authHeader = req.headers.get("Authorization");
-  
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    return { valid: false, error: "Authentication required", status: 401 };
-  }
-
-  try {
-    const token = authHeader.substring(7);
-    
-    // Get session from API store using the token
-    const session = await apiStore.get(`session_${token}`, { type: "json" });
-    
-    if (!session) {
-      return { valid: false, error: "Invalid session", status: 401 };
-    }
-    
-    // Check if session is expired
-    if (new Date(session.expiresAt) < new Date()) {
-      return { valid: false, error: "Session expired", status: 401 };
-    }
-    
-    // Check if session is active
-    if (!session.active) {
-      return { valid: false, error: "Session inactive", status: 401 };
-    }
-    
-    // Get full user profile from blog store
-    const userProfile = await blogStore.get(`user_${session.username}`, { type: "json" });
-    
-    if (!userProfile) {
-      return { valid: false, error: "User not found", status: 404 };
-    }
-
-    return { valid: true, user: userProfile };
-    
-  } catch (error) {
-    console.error("Auth validation error:", error);
-    return { valid: false, error: "Authentication error", status: 500 };
-  }
-}
-
-// Helper function to generate unique IDs
-function generateId() {
-  return `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 }
 
 // ==============================================
