@@ -1,10 +1,12 @@
-# netlify.toml - Simple working configuration
+# netlify.toml - Fixed configuration
 [build]
   publish = "."
-  command = "echo 'Static site - no build required'"
+  command = "npm install"  # This will install dependencies from package.json
+  
 [functions]
   node_bundler = "esbuild"
   external_node_modules = ["@netlify/blobs", "bcryptjs", "jsonwebtoken"]
+
 # Basic security headers
 [[headers]]
   for = "/*"
@@ -15,6 +17,7 @@
     Referrer-Policy = "strict-origin-when-cross-origin"
     Strict-Transport-Security = "max-age=31536000; includeSubDomains"
     Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; img-src 'self' data: https:; connect-src 'self' https:; font-src 'self' https://cdnjs.cloudflare.com; media-src 'self' https:; frame-src 'self' https://www.youtube.com https://www.dailymotion.com; object-src 'none'; base-uri 'self'; form-action 'self';"
+
 # API endpoints
 [[headers]]
   for = "/.netlify/functions/*"
@@ -23,28 +26,35 @@
     Access-Control-Allow-Origin = "*"
     Access-Control-Allow-Headers = "Content-Type, Authorization, X-API-Key"
     Access-Control-Allow-Methods = "GET, POST, PUT, DELETE, OPTIONS"
+
 # SPA routing
 [[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
   conditions = {Path = "!/.netlify/functions/*"}
+
 # API routes
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/api/:splat"
   status = 200
+
 [[redirects]]
   from = "/chat-api/*"
   to = "/.netlify/functions/chat-api/:splat"
   status = 200
+
 # Disable secrets scanning for this project
 [build.environment]
   SECRETS_SCAN_ENABLED = "false"
+
 # Environment settings
 [context.production.environment]
   NODE_ENV = "production"
+
 [context.deploy-preview.environment]
   NODE_ENV = "preview"
+
 [context.branch-deploy.environment]
   NODE_ENV = "development"
