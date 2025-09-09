@@ -1046,8 +1046,14 @@ async function handleGetFollowedCommunities(blogStore, headers, user) {
     
     console.log('User follows data after migration:', userFollows);
     
-    // Get the communities array
-    const followedCommunityNames = userFollows.communities || [];
+    // Get the communities array - ensure it's always an array
+    let followedCommunityNames = userFollows.communities || [];
+    
+    // Extra safety check - ensure it's actually an array
+    if (!Array.isArray(followedCommunityNames)) {
+      console.error('Communities is not an array:', typeof followedCommunityNames, followedCommunityNames);
+      followedCommunityNames = [];
+    }
     
     console.log('Following communities:', followedCommunityNames);
     
