@@ -1,11 +1,6 @@
 {
   "name": "the-shed",
   "version": "1.0.0",
-  "description": "The Shed - A Community Platform",
-  "type": "module",
-  "scripts": {
-    "build": "echo 'Dependencies installed'"
-  },
   "dependencies": {
     "@netlify/blobs": "^7.0.0",
     "bcryptjs": "^2.4.3",
