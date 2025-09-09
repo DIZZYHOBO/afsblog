@@ -1661,32 +1661,57 @@
             }).join('');
         }
 
-        async function selectServer(serverId) {
-            console.log('🏠 Selecting server:', serverId);
-            
-            const server = userServers.find(s => s.id === serverId);
-            if (!server) {
-                console.error('❌ Server not found:', serverId);
-                return;
-            }
-            
-            currentServer = server;
-            currentRoom = null;
-            
-            chatManager.stopRealTimeUpdates();
-            
-            document.getElementById('currentServerName').textContent = server.name;
-            renderServersList();
-            document.getElementById('serverActions').style.display = 'flex';
-            
-            await loadServerRooms(serverId);
-            
-            // Auto-select the first room if available
-            if (serverRooms.length > 0) {
-                console.log('🔄 Auto-selecting first room:', serverRooms[0].name);
-                selectRoom(serverRooms[0].id);
-            }
-        }
+      async function selectServer(serverId) {
+    console.log('🏠 Selecting server:', serverId);
+    
+    const server = userServers.find(s => s.id === serverId);
+    if (!server) {
+        console.error('❌ Server not found:', serverId);
+        return;
+    }
+    
+    // IMPORTANT: Stop any existing chat updates and clear current room
+    chatManager.stopRealTimeUpdates();
+    
+    // Clear current room and messages when switching servers
+    currentRoom = null;
+    chatMessages = [];
+    serverRooms = [];
+    
+    // Update current server
+    currentServer = server;
+    
+    // Update UI to show server is selected but no room yet
+    document.getElementById('currentServerName').textContent = server.name;
+    document.getElementById('chatRoomName').textContent = 'Select a channel';
+    document.getElementById('serverActions').style.display = 'flex';
+    
+    // Clear messages display
+    const messagesWrapper = document.getElementById('messagesWrapper');
+    if (messagesWrapper) {
+        messagesWrapper.innerHTML = `
+            <div class="welcome-message">
+                <h3>Welcome to ${server.name}! 🏠</h3>
+                <p>Select a channel to start chatting.</p>
+            </div>
+        `;
+    }
+    
+    // Update server list UI to show active server
+    renderServersList();
+    
+    // Load rooms for this server
+    await loadServerRooms(serverId);
+    
+    // Only auto-select first room if we have rooms
+    if (serverRooms.length > 0) {
+        console.log('🔄 Auto-selecting first room:', serverRooms[0].name);
+        // Small delay to ensure UI updates properly
+        setTimeout(() => {
+            selectRoom(serverRooms[0].id);
+        }, 100);
+    }
+}
 
         function selectServerFromBrowse(serverId) {
             closeBrowseServersModal();
@@ -1794,40 +1819,129 @@
                 </div>
             `).join('');
         }
+async function selectRoom(roomId) {
+    console.log('📋 Selecting room:', roomId);
+    
+    const room = serverRooms.find(r => r.id === roomId);
+    if (!room) {
+        console.error('❌ Room not found:', roomId);
+        return;
+    }
+    
+    // Stop any existing real-time updates
+    chatManager.stopRealTimeUpdates();
+    
+    // Clear messages array completely
+    chatMessages = [];
+    chatMessages.length = 0;
+    
+    // Clear the chat manager's message tracking
+    chatManager.processedMessageIds.clear();
+    chatManager.messageHistory.clear();
+    chatManager.lastMessageTimestamp = null;
+    
+    // Update current room
+    currentRoom = room;
+    
+    // Update UI immediately to show loading state
+    document.getElementById('chatRoomName').textContent = room.name;
+    
+    // Show loading message while fetching
+    const messagesWrapper = document.getElementById('messagesWrapper');
+    if (messagesWrapper) {
+        messagesWrapper.innerHTML = `
+            <div class="loading">
+                <div class="spinner"></div>
+            </div>
+        `;
+    }
+    
+    // Update room list to show active room
+    renderRoomsList();
+    
+    // Load messages for this room
+    await loadRoomMessages(roomId);
+    
+    // Start real-time updates for this room
+    chatManager.startRealTimeUpdates(roomId);
+}
 
-        async function selectRoom(roomId) {
-            console.log('📋 Selecting room:', roomId);
-            
-            const room = serverRooms.find(r => r.id === roomId);
-            if (!room) {
-                console.error('❌ Room not found:', roomId);
-                return;
-            }
-            
-            chatManager.stopRealTimeUpdates();
-            
-            chatMessages.length = 0;
-            currentRoom = room;
-            
-            document.getElementById('chatRoomName').textContent = room.name;
-            renderRoomsList();
-            
-            await loadRoomMessages(roomId);
-            chatManager.startRealTimeUpdates(roomId);
+       async function loadRoomMessages(roomId) {
+    console.log('💬 Loading messages for room:', roomId);
+    
+    try {
+        const params = new URLSearchParams();
+        params.append('limit', '50');
+        
+        const authToken = await getAuthToken();
+        if (!authToken) {
+            throw new Error('No authentication token');
         }
 
-        async function loadRoomMessages(roomId) {
-            console.log('💬 Loading messages for room:', roomId);
-            
-            try {
-                const params = new URLSearchParams();
-                params.append('limit', '50');
-                
-                const authToken = await getAuthToken();
-                if (!authToken) {
-                    throw new Error('No authentication token');
-                }
+        const response = await fetch(`/.netlify/functions/chat-api/rooms/${roomId}/messages?${params}`, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${authToken}`
+            }
+        });
 
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        
+        if (data.success) {
+            // Completely replace messages array
+            chatMessages = [];
+            chatMessages.length = 0;
+            
+            if (data.messages && data.messages.length > 0) {
+                chatMessages.push(...data.messages);
+                
+                // Reset chat manager's tracking for this room
+                chatManager.processedMessageIds.clear();
+                chatManager.messageHistory.clear();
+                
+                chatMessages.forEach(message => {
+                    chatManager.processedMessageIds.add(message.id);
+                    chatManager.messageHistory.set(message.id, message.createdAt);
+                });
+                
+                // Find the newest message for tracking
+                const newestMessage = chatMessages.reduce((newest, current) => {
+                    const newestTime = new Date(newest.createdAt).getTime();
+                    const currentTime = new Date(current.createdAt).getTime();
+                    return currentTime > newestTime ? current : newest;
+                });
+                chatManager.lastMessageTimestamp = newestMessage.createdAt;
+                console.log(`🕐 Set initial tracking for room ${roomId} - timestamp: ${chatManager.lastMessageTimestamp}`);
+            } else {
+                // No messages in this room
+                chatManager.lastMessageTimestamp = null;
+                chatManager.processedMessageIds.clear();
+                chatManager.messageHistory.clear();
+            }
+            
+            console.log('✅ Loaded messages:', chatMessages.length);
+            renderMessages();
+            
+            // Ensure scroll to bottom after render
+            requestAnimationFrame(() => {
+                scrollToBottom();
+            });
+        } else {
+            console.error('❌ Failed to load messages:', data.error);
+            chatMessages = [];
+            renderMessages();
+        }
+    } catch (error) {
+        console.error('💥 Error loading messages:', error);
+        chatMessages = [];
+        renderMessages();
+    }
+}
                 const response = await fetch(`/.netlify/functions/chat-api/rooms/${roomId}/messages?${params}`, {
                     method: 'GET',
                     headers: {
