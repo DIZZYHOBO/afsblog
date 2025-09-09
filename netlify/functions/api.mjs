@@ -2704,7 +2704,5 @@ function getCorsHeaders(req) {
     "Referrer-Policy": "strict-origin-when-cross-origin"
   };
 }
-
-  }; // <-- ADD THIS LINE - closes the main export default async function
-}
+//end of file
 
