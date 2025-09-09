@@ -1222,7 +1222,6 @@ async function getPosts(filter = {}) {
       { status: 500, headers }
     );
   }
-}
 
 async function handleCreatePost(req, blogStore, headers, user) {
   try {
