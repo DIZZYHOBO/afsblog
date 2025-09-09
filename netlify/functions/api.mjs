@@ -1170,23 +1170,6 @@ async function handleCommunityPosts(req, blogStore, headers, communityName) {
 // POST HANDLERS
 // ==============================================
 
-
-async function getPosts(filter = {}) {
-    try {
-        const params = new URLSearchParams();
-        if (filter.community) params.append('community', filter.community);
-        if (filter.author) params.append('author', filter.author);
-        if (filter.followed) params.append('followed', 'true');
-        if (filter.private) params.append('private', 'true');
-        if (filter.includePrivate) params.append('includePrivate', 'true');
-        
-        const url = `/.netlify/functions/api/posts${params.toString() ? '?' + params.toString() : ''}`;
-        
-        const response = await tokenManager.makeRequest(url, {
-            method: 'GET',
-            skipAuth: !filter.private && !filter.followed && !filter.includePrivate // Require auth for private/followed posts
-        });
-        
        async function handleGetPosts(req, blogStore, headers) {
   try {
     const url = new URL(req.url);
