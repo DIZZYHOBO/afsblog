@@ -1,4 +1,4 @@
-// netlify/functions/chat-api.js - Fixed Authentication
+// netlify/functions/chat-api.js - Complete Production-Ready Chat API
 import { getStore } from "@netlify/blobs";
 import jwt from 'jsonwebtoken';
 
@@ -12,7 +12,6 @@ const CHAT_CONFIG = {
   MAX_SERVERS_PER_USER: 10,
   MESSAGE_BATCH_SIZE: 50,
   ROOM_INACTIVE_DAYS: 30,
-  // Add JWT secret - should match the main app
   JWT_SECRET: process.env.JWT_SECRET || 'your-secret-jwt-key-here'
 };
 
@@ -114,10 +113,10 @@ export default async (req, context) => {
       }
     }
 
-    // ROOM ROUTES (Updated for server context)
+    // ROOM ROUTES
     if (path[0] === "rooms") {
       if (!path[1]) {
-        // /rooms (legacy - get all user rooms across all servers)
+        // /rooms
         if (req.method === "GET") {
           return getUserRooms(chatStore, user, headers);
         } else if (req.method === "POST") {
@@ -171,10 +170,7 @@ export default async (req, context) => {
   }
 };
 
-// ==============================================
-// FIXED AUTHENTICATION - Properly handles JWT tokens
-// ==============================================
-
+// Authentication validation
 async function validateAuth(req, apiStore, blogStore) {
   const authHeader = req.headers.get("Authorization");
   
@@ -263,179 +259,7 @@ function generateId() {
   return `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 }
 
-// Include all the remaining functions from the original chat-api.js
-// (getUserServers, createServer, getRoomMessages, sendMessage, etc.)
-// These remain the same as in the original file
-
-// ==============================================
-// OPTIMIZED MESSAGE LOADING - Key Performance Improvement
-// ==============================================
-
-// Get room messages with enhanced filtering and caching support
-async function getRoomMessages(roomId, req, chatStore, user, headers) {
-  try {
-    const room = await chatStore.get(`room_${roomId}`, { type: "json" });
-    if (!room) {
-      return new Response(
-        JSON.stringify({ error: "Room not found" }),
-        { status: 404, headers }
-      );
-    }
-
-    if (!room.members.includes(user.username)) {
-      return new Response(
-        JSON.stringify({ error: "Not a member of this room" }),
-        { status: 403, headers }
-      );
-    }
-
-    const url = new URL(req.url);
-    const limit = parseInt(url.searchParams.get('limit') || '50');
-    const before = url.searchParams.get('before');
-    const after = url.searchParams.get('after'); // NEW: For efficient polling
-
-    const { blobs } = await chatStore.list({ prefix: `message_${roomId}_` });
-    
-    // Sort by timestamp (newest first)
-    const sortedBlobs = blobs.sort((a, b) => {
-      const timeA = a.key.split('_')[2];
-      const timeB = b.key.split('_')[2];
-      return timeB.localeCompare(timeA);
-    });
-
-    let filteredBlobs = sortedBlobs;
-
-    // NEW: Efficient filtering for polling (only get messages after timestamp)
-    if (after) {
-      filteredBlobs = sortedBlobs.filter(blob => {
-        const messageTime = blob.key.split('_')[2];
-        return messageTime > after;
-      });
-      // For 'after' queries, we want chronological order
-      filteredBlobs.reverse();
-    } else if (before) {
-      // Existing 'before' logic for pagination
-      filteredBlobs = sortedBlobs.filter(blob => {
-        const messageTime = blob.key.split('_')[2];
-        return messageTime < before;
-      });
-    }
-
-    // Limit results
-    const limitedBlobs = filteredBlobs.slice(0, limit);
-
-    // Batch load messages for better performance
-    const messagePromises = limitedBlobs.map(async (blob) => {
-      try {
-        return await chatStore.get(blob.key, { type: "json" });
-      } catch (error) {
-        console.error(`Error loading message ${blob.key}:`, error);
-        return null;
-      }
-    });
-
-    const messages = await Promise.all(messagePromises);
-    const validMessages = messages.filter(msg => msg !== null);
-
-    // For non-'after' queries, reverse to get chronological order (oldest first)
-    if (!after) {
-      validMessages.reverse();
-    }
-
-    return new Response(
-      JSON.stringify({
-        success: true,
-        messages: validMessages,
-        hasMore: filteredBlobs.length > limit,
-        count: validMessages.length
-      }),
-      { status: 200, headers }
-    );
-
-  } catch (error) {
-    console.error("Get room messages error:", error);
-    return new Response(
-      JSON.stringify({ error: "Failed to load messages" }),
-      { status: 500, headers }
-    );
-  }
-}
-
-// ==============================================
-// OPTIMIZED MESSAGE SENDING
-// ==============================================
-
-// Send message with immediate response for optimistic UI updates
-async function sendMessage(roomId, req, chatStore, user, headers) {
-  try {
-    const { content } = await req.json();
-
-    if (!content || content.length > CHAT_CONFIG.MAX_MESSAGE_LENGTH) {
-      return new Response(
-        JSON.stringify({ error: "Invalid message content" }),
-        { status: 400, headers }
-      );
-    }
-
-    const room = await chatStore.get(`room_${roomId}`, { type: "json" });
-    if (!room) {
-      return new Response(
-        JSON.stringify({ error: "Room not found" }),
-        { status: 404, headers }
-      );
-    }
-
-    if (!room.members.includes(user.username)) {
-      return new Response(
-        JSON.stringify({ error: "Not a member of this room" }),
-        { status: 403, headers }
-      );
-    }
-
-    // Create message with precise timestamp
-    const timestamp = new Date().toISOString();
-    const messageId = generateId();
-    const message = {
-      id: messageId,
-      roomId,
-      content,
-      author: user.username,
-      authorDisplayName: user.displayName || user.username,
-      createdAt: timestamp,
-      edited: false
-    };
-
-    // Store message
-    await chatStore.set(`message_${roomId}_${timestamp}_${messageId}`, JSON.stringify(message));
-
-    // Update room's last activity (async, don't wait)
-    room.updatedAt = timestamp;
-    chatStore.set(`room_${roomId}`, JSON.stringify(room)).catch(console.error);
-
-    // Return immediately for fast UI feedback
-    return new Response(
-      JSON.stringify({ 
-        success: true, 
-        message,
-        timestamp: timestamp
-      }),
-      { status: 201, headers }
-    );
-
-  } catch (error) {
-    console.error("Send message error:", error);
-    return new Response(
-      JSON.stringify({ error: "Failed to send message" }),
-      { status: 500, headers }
-    );
-  }
-}
-
-// ==============================================
-// ENHANCED SERVER MANAGEMENT (with caching hints)
-// ==============================================
-
-// Get user's servers with optimizations
+// Get user's servers
 async function getUserServers(chatStore, user, headers) {
   try {
     const userServers = await chatStore.get(`user_servers_${user.username}`, { type: "json" }) || [];
@@ -466,7 +290,7 @@ async function getUserServers(chatStore, user, headers) {
     // Add cache hints for better performance
     const responseHeaders = {
       ...headers,
-      'Cache-Control': 'max-age=30, must-revalidate' // Cache for 30 seconds
+      'Cache-Control': 'max-age=30, must-revalidate'
     };
 
     return new Response(
@@ -485,10 +309,6 @@ async function getUserServers(chatStore, user, headers) {
     );
   }
 }
-
-// ==============================================
-// SERVER MANAGEMENT FUNCTIONS
-// ==============================================
 
 // Create server
 async function createServer(req, chatStore, user, headers) {
@@ -584,7 +404,7 @@ async function createServer(req, chatStore, user, headers) {
   }
 }
 
-// Delete server (owner only)
+// Delete server
 async function deleteServer(serverId, chatStore, user, headers) {
   try {
     const server = await chatStore.get(`server_${serverId}`, { type: "json" });
@@ -948,7 +768,7 @@ async function getPublicServers(chatStore, headers) {
 
     const responseHeaders = {
       ...headers,
-      'Cache-Control': 'max-age=60, public' // Cache public servers for 1 minute
+      'Cache-Control': 'max-age=60, public'
     };
 
     return new Response(
@@ -968,11 +788,163 @@ async function getPublicServers(chatStore, headers) {
   }
 }
 
-// ==============================================
-// ROOM MANAGEMENT FUNCTIONS
-// ==============================================
+// Get room messages with optimized filtering
+async function getRoomMessages(roomId, req, chatStore, user, headers) {
+  try {
+    const room = await chatStore.get(`room_${roomId}`, { type: "json" });
+    if (!room) {
+      return new Response(
+        JSON.stringify({ error: "Room not found" }),
+        { status: 404, headers }
+      );
+    }
 
-// Create room (legacy function, creates room without server)
+    if (!room.members.includes(user.username)) {
+      return new Response(
+        JSON.stringify({ error: "Not a member of this room" }),
+        { status: 403, headers }
+      );
+    }
+
+    const url = new URL(req.url);
+    const limit = parseInt(url.searchParams.get('limit') || '50');
+    const before = url.searchParams.get('before');
+    const after = url.searchParams.get('after');
+
+    const { blobs } = await chatStore.list({ prefix: `message_${roomId}_` });
+    
+    // Sort by timestamp (newest first)
+    const sortedBlobs = blobs.sort((a, b) => {
+      const timeA = a.key.split('_')[2];
+      const timeB = b.key.split('_')[2];
+      return timeB.localeCompare(timeA);
+    });
+
+    let filteredBlobs = sortedBlobs;
+
+    // Efficient filtering for polling (only get messages after timestamp)
+    if (after) {
+      filteredBlobs = sortedBlobs.filter(blob => {
+        const messageTime = blob.key.split('_')[2];
+        return messageTime > after;
+      });
+      // For 'after' queries, we want chronological order
+      filteredBlobs.reverse();
+    } else if (before) {
+      // Existing 'before' logic for pagination
+      filteredBlobs = sortedBlobs.filter(blob => {
+        const messageTime = blob.key.split('_')[2];
+        return messageTime < before;
+      });
+    }
+
+    // Limit results
+    const limitedBlobs = filteredBlobs.slice(0, limit);
+
+    // Batch load messages for better performance
+    const messagePromises = limitedBlobs.map(async (blob) => {
+      try {
+        return await chatStore.get(blob.key, { type: "json" });
+      } catch (error) {
+        console.error(`Error loading message ${blob.key}:`, error);
+        return null;
+      }
+    });
+
+    const messages = await Promise.all(messagePromises);
+    const validMessages = messages.filter(msg => msg !== null);
+
+    // For non-'after' queries, reverse to get chronological order (oldest first)
+    if (!after) {
+      validMessages.reverse();
+    }
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        messages: validMessages,
+        hasMore: filteredBlobs.length > limit,
+        count: validMessages.length
+      }),
+      { status: 200, headers }
+    );
+
+  } catch (error) {
+    console.error("Get room messages error:", error);
+    return new Response(
+      JSON.stringify({ error: "Failed to load messages" }),
+      { status: 500, headers }
+    );
+  }
+}
+
+// Send message with immediate response
+async function sendMessage(roomId, req, chatStore, user, headers) {
+  try {
+    const { content } = await req.json();
+
+    if (!content || content.length > CHAT_CONFIG.MAX_MESSAGE_LENGTH) {
+      return new Response(
+        JSON.stringify({ error: "Invalid message content" }),
+        { status: 400, headers }
+      );
+    }
+
+    const room = await chatStore.get(`room_${roomId}`, { type: "json" });
+    if (!room) {
+      return new Response(
+        JSON.stringify({ error: "Room not found" }),
+        { status: 404, headers }
+      );
+    }
+
+    if (!room.members.includes(user.username)) {
+      return new Response(
+        JSON.stringify({ error: "Not a member of this room" }),
+        { status: 403, headers }
+      );
+    }
+
+    // Create message with precise timestamp
+    const timestamp = new Date().toISOString();
+    const messageId = generateId();
+    const message = {
+      id: messageId,
+      roomId,
+      content,
+      author: user.username,
+      authorDisplayName: user.displayName || user.username,
+      createdAt: timestamp,
+      edited: false
+    };
+
+    // Store message
+    await chatStore.set(`message_${roomId}_${timestamp}_${messageId}`, JSON.stringify(message));
+
+    // Update room's last activity (async, don't wait)
+    room.updatedAt = timestamp;
+    chatStore.set(`room_${roomId}`, JSON.stringify(room)).catch(console.error);
+
+    // Return immediately for fast UI feedback
+    return new Response(
+      JSON.stringify({ 
+        success: true, 
+        message,
+        timestamp: timestamp
+      }),
+      { status: 201, headers }
+    );
+
+  } catch (error) {
+    console.error("Send message error:", error);
+    return new Response(
+      JSON.stringify({ error: "Failed to send message" }),
+      { status: 500, headers }
+    );
+  }
+}
+
+// Create room (legacy function)
 async function createRoom(req, chatStore, user, headers) {
   try {
     const { name, description = "", isPrivate = false } = await req.json();
@@ -1006,7 +978,7 @@ async function createRoom(req, chatStore, user, headers) {
       name,
       description,
       owner: user.username,
-      members: [user.username], // Creator is automatically a member
+      members: [user.username],
       isPrivate,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
@@ -1043,7 +1015,7 @@ async function createRoom(req, chatStore, user, headers) {
   }
 }
 
-// Delete room (owner only)
+// Delete room
 async function deleteRoom(roomId, chatStore, user, headers) {
   try {
     const room = await chatStore.get(`room_${roomId}`, { type: "json" });
@@ -1248,7 +1220,7 @@ async function getRoomDetails(roomId, chatStore, user, headers) {
   }
 }
 
-// Get user's rooms (legacy function for backward compatibility)
+// Get user's rooms (legacy)
 async function getUserRooms(chatStore, user, headers) {
   try {
     // Get rooms from user's servers
@@ -1328,11 +1300,7 @@ async function getPublicRooms(chatStore, headers) {
   }
 }
 
-// ==============================================
-// MESSAGE MANAGEMENT FUNCTIONS
-// ==============================================
-
-// Delete message (author or room owner only)
+// Delete message
 async function deleteMessage(roomId, messageId, chatStore, user, headers) {
   try {
     const room = await chatStore.get(`room_${roomId}`, { type: "json" });
