@@ -1,5 +1,4 @@
-
-// netlify/functions/api.js - COMPLETE PRODUCTION BACKEND API WITH FIXES
+// netlify/functions/api.mjs - COMPLETE PRODUCTION BACKEND API WITH ALL FIXES
 import { getStore } from "@netlify/blobs";
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
@@ -10,7 +9,7 @@ const SECURITY_CONFIG = {
   // Environment variables (must be set in Netlify)
   JWT_SECRET: process.env.JWT_SECRET || crypto.randomBytes(64).toString('hex'),
   JWT_REFRESH_SECRET: process.env.JWT_REFRESH_SECRET || crypto.randomBytes(64).toString('hex'),
-  MASTER_API_KEY: process.env.MASTER_API_KEY || "a35fbc82d57e13d10e8c150d5c6e8b1d4f722c1a88d3b0e7c91a4f327c8b1e2d",
+  MASTER_API_KEY: process.env.MASTER_API_KEY || "your-secret-master-key-here",
   
   // Token lifetimes
   ACCESS_TOKEN_LIFETIME: 15 * 60, // 15 minutes
@@ -302,8 +301,9 @@ export default async (req, context) => {
 };
 
 // ==============================================
-// USER FOLLOWS DATA MIGRATION
+// USER FOLLOWS DATA MIGRATION - FIXED VERSION
 // ==============================================
+
 async function migrateUserFollowsData(blogStore, username) {
   try {
     const followsKey = `user_follows_${username}`;
@@ -793,6 +793,11 @@ async function handleGetAllCommunities(blogStore, headers) {
 // ==============================================
 
 async function handleAuthenticatedEndpoints(path, req, blogStore, store, headers, user) {
+  // My Sheds endpoint (private posts)
+  if (path === 'my-sheds' && req.method === 'GET') {
+    return await handleGetMySheds(blogStore, headers, user);
+  }
+  
   // Community endpoints
   if (path === 'communities' && req.method === 'POST') {
     return await handleCreateCommunity(req, blogStore, headers, user);
@@ -843,7 +848,7 @@ async function handleAuthenticatedEndpoints(path, req, blogStore, store, headers
 }
 
 // ==============================================
-// COMMUNITY HANDLERS
+// COMMUNITY HANDLERS - FIXED VERSION
 // ==============================================
 
 async function handleGetCommunities(req, blogStore, headers) {
@@ -946,6 +951,12 @@ async function handleCreateCommunity(req, blogStore, headers, user) {
     
     // Add to user's followed communities
     const userFollows = await migrateUserFollowsData(blogStore, user.username);
+    
+    // Ensure communities is an array
+    if (!Array.isArray(userFollows.communities)) {
+      userFollows.communities = [];
+    }
+    
     if (!userFollows.communities.includes(name)) {
       userFollows.communities.push(name);
       userFollows.updatedAt = new Date().toISOString();
@@ -1167,7 +1178,7 @@ async function handleDeleteCommunity(communityName, blogStore, headers, user) {
     const { blobs } = await blogStore.list({ prefix: "user_follows_" });
     for (const blob of blobs) {
       const userFollows = await blogStore.get(blob.key, { type: "json" });
-      if (userFollows && userFollows.communities) {
+      if (userFollows && Array.isArray(userFollows.communities)) {
         userFollows.communities = userFollows.communities.filter(c => c !== communityName);
         await blogStore.set(blob.key, JSON.stringify(userFollows));
       }
@@ -1218,15 +1229,30 @@ async function handleCommunityPosts(req, blogStore, headers, communityName) {
 }
 
 // ==============================================
-// POST HANDLERS
+// POST HANDLERS - FIXED VERSION WITH MY SHEDS
 // ==============================================
 
-       async function handleGetPosts(req, blogStore, headers) {
+async function handleGetPosts(req, blogStore, headers) {
   try {
     const url = new URL(req.url);
     const community = url.searchParams.get('community');
     const author = url.searchParams.get('author');
     const privateOnly = url.searchParams.get('private');
+    
+    // Check if this is an authenticated request
+    let currentUser = null;
+    const authHeader = req.headers.get("Authorization");
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      try {
+        const store = getStore("blog-api-data");
+        const authResult = await validateSecureAuth(req, store, blogStore);
+        if (authResult.valid) {
+          currentUser = authResult.user;
+        }
+      } catch (error) {
+        console.log('Not authenticated, continuing without user context');
+      }
+    }
     
     const { blobs } = await blogStore.list({ prefix: "post_" });
     const posts = [];
@@ -1235,11 +1261,25 @@ async function handleCommunityPosts(req, blogStore, headers, communityName) {
       const post = await blogStore.get(blob.key, { type: "json" });
       if (!post) continue;
       
-      // Filter by criteria
+      // Filter by community if specified
       if (community && post.communityName !== community) continue;
+      
+      // Filter by author if specified
       if (author && post.author !== author) continue;
-      if (privateOnly === 'true' && !post.isPrivate) continue;
-      if (!privateOnly && post.isPrivate) continue;
+      
+      // Handle private posts
+      if (privateOnly === 'true') {
+        // Only show private posts, and only if user is authenticated and is the author
+        if (!post.isPrivate) continue;
+        if (!currentUser || post.author !== currentUser.username) continue;
+      } else if (privateOnly === 'false' || !privateOnly) {
+        // Show public posts, or private posts if user is the author
+        if (post.isPrivate) {
+          if (!currentUser || post.author !== currentUser.username) {
+            continue; // Skip private posts from other users
+          }
+        }
+      }
       
       posts.push(post);
     }
@@ -1258,6 +1298,41 @@ async function handleCommunityPosts(req, blogStore, headers, communityName) {
     console.error('Get posts error:', error);
     return new Response(
       JSON.stringify({ error: "Failed to load posts" }),
+      { status: 500, headers }
+    );
+  }
+}
+
+// New handler specifically for My Sheds (private posts)
+async function handleGetMySheds(blogStore, headers, user) {
+  try {
+    const { blobs } = await blogStore.list({ prefix: "post_" });
+    const posts = [];
+    
+    for (const blob of blobs) {
+      const post = await blogStore.get(blob.key, { type: "json" });
+      if (!post) continue;
+      
+      // Only include private posts by the current user
+      if (post.isPrivate && post.author === user.username) {
+        posts.push(post);
+      }
+    }
+    
+    // Sort by timestamp (newest first)
+    posts.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    
+    return new Response(
+      JSON.stringify({
+        success: true,
+        posts
+      }),
+      { status: 200, headers }
+    );
+  } catch (error) {
+    console.error('Get my sheds error:', error);
+    return new Response(
+      JSON.stringify({ error: "Failed to load private posts" }),
       { status: 500, headers }
     );
   }
@@ -1293,7 +1368,7 @@ async function handleCreatePost(req, blogStore, headers, user) {
     await blogStore.set(`post_${postId}`, JSON.stringify(post));
     
     // Update community post count if applicable
-    if (communityName) {
+    if (communityName && !isPrivate) {
       const community = await blogStore.get(`community_${communityName}`, { type: "json" });
       if (community) {
         community.postCount = (community.postCount || 0) + 1;
@@ -1339,7 +1414,7 @@ async function handleDeletePost(postId, blogStore, headers, user) {
     await blogStore.delete(`post_${postId}`);
     
     // Update community post count if applicable
-    if (post.communityName) {
+    if (post.communityName && !post.isPrivate) {
       const community = await blogStore.get(`community_${post.communityName}`, { type: "json" });
       if (community) {
         community.postCount = Math.max(0, (community.postCount || 0) - 1);
@@ -2738,4 +2813,5 @@ function getCorsHeaders(req) {
     "Referrer-Policy": "strict-origin-when-cross-origin"
   };
 }
-//end of file
+
+// End of file
