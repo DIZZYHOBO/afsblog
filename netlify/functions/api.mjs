@@ -2705,7 +2705,7 @@ function getCorsHeaders(req) {
   };
 }
 
-};  // <-- ADD THIS LINE - closes the main export default async function
+} // <-- ADD THIS LINE - closes the main export default async function
 
 // ==============================================
 // END OF FILE
