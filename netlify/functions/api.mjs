@@ -1187,26 +1187,30 @@ async function getPosts(filter = {}) {
             skipAuth: !filter.private && !filter.followed && !filter.includePrivate // Require auth for private/followed posts
         });
         
-        if (response.success) {
-            return response.posts || [];
-        } else {
-            throw new Error(response.error || 'Failed to load posts');
-        }
-    } catch (error) {
-        console.error('Get posts error:', error);
-        return [];
-    }
+       async function handleGetPosts(req, blogStore, headers) {
+  try {
+    const url = new URL(req.url);
+    const community = url.searchParams.get('community');
+    const author = url.searchParams.get('author');
+    const privateOnly = url.searchParams.get('private');
+    
+    const { blobs } = await blogStore.list({ prefix: "post_" });
+    const posts = [];
+    
+    for (const blob of blobs) {
+      const post = await blogStore.get(blob.key, { type: "json" });
+      if (!post) continue;
       
       // Filter by criteria
       if (community && post.communityName !== community) continue;
       if (author && post.author !== author) continue;
       if (privateOnly === 'true' && !post.isPrivate) continue;
-      if (!privateOnly && post.isPrivate) continue; // Don't show private posts unless specifically requested
+      if (!privateOnly && post.isPrivate) continue;
       
       posts.push(post);
     }
     
-  // Sort by timestamp (newest first)
+    // Sort by timestamp (newest first)
     posts.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
     
     return new Response(
@@ -1224,6 +1228,7 @@ async function getPosts(filter = {}) {
     );
   }
 }
+
 async function handleCreatePost(req, blogStore, headers, user) {
   try {
     const { title, type, content, url, communityName, isPrivate } = await req.json();
