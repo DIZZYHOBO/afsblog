@@ -2268,8 +2268,10 @@
                     console.log('✅ Room created successfully:', data.room.id);
                     showSuccessMessage(`Channel "${roomName}" created successfully!`);
                     
-                    await loadServerRooms(currentServer.id);
-                    selectRoom(data.room.id);
+                    // Pass signal to loadServerRooms
+                    serverLoadAbortController = new AbortController();
+                    await loadServerRooms(currentServer.id, serverLoadAbortController.signal);
+                    await selectRoom(data.room.id);
                 } else {
                     console.error('❌ Failed to create room:', data.error || 'Unknown error');
                     showErrorMessage(data.error || 'Failed to create channel');
