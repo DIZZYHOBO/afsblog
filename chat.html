@@ -1844,6 +1844,9 @@
         async function loadRoomMessages(roomId) {
             console.log('💬 Loading messages for room:', roomId);
             
+            // Capture the current room ID to check if it changes during loading
+            const loadingRoomId = roomId;
+            
             try {
                 const params = new URLSearchParams();
                 params.append('limit', '50');
@@ -1867,13 +1870,21 @@
 
                 const data = await response.json();
                 
+                // Check if the room selection has changed while we were loading
+                if (currentRoom?.id !== loadingRoomId) {
+                    console.log('⏭️ Room changed during message loading, discarding results');
+                    return;
+                }
+                
                 if (data.success) {
+                    // Clear and set messages
                     chatMessages = [];
                     chatMessages.length = 0;
                     
                     if (data.messages && data.messages.length > 0) {
                         chatMessages.push(...data.messages);
                         
+                        // Reset chat manager's tracking
                         chatManager.processedMessageIds.clear();
                         chatManager.messageHistory.clear();
                         
@@ -1896,20 +1907,27 @@
                     }
                     
                     console.log('✅ Loaded messages:', chatMessages.length);
-                    renderMessages();
                     
-                    requestAnimationFrame(() => {
-                        scrollToBottom();
-                    });
+                    // Final check before rendering
+                    if (currentRoom?.id === loadingRoomId) {
+                        renderMessages();
+                        requestAnimationFrame(() => {
+                            scrollToBottom();
+                        });
+                    }
                 } else {
                     console.error('❌ Failed to load messages:', data.error);
-                    chatMessages = [];
-                    renderMessages();
+                    if (currentRoom?.id === loadingRoomId) {
+                        chatMessages = [];
+                        renderMessages();
+                    }
                 }
             } catch (error) {
                 console.error('💥 Error loading messages:', error);
-                chatMessages = [];
-                renderMessages();
+                if (currentRoom?.id === loadingRoomId) {
+                    chatMessages = [];
+                    renderMessages();
+                }
             }
         }
 
