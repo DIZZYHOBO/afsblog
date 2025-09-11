@@ -48,19 +48,33 @@ async function init() {
 async function checkAuthentication() {
     try {
         // Get token from localStorage (from your existing app)
-        const accessToken = localStorage.getItem(AUTH_CONFIG.ACCESS_TOKEN_KEY);
-        const userData = localStorage.getItem(AUTH_CONFIG.USER_DATA_KEY);
+        const accessTokenData = localStorage.getItem(AUTH_CONFIG.ACCESS_TOKEN_KEY);
+        const userDataRaw = localStorage.getItem(AUTH_CONFIG.USER_DATA_KEY);
         
-        if (!accessToken || !userData) {
+        if (!accessTokenData || !userDataRaw) {
             console.log('No authentication tokens found');
             return false;
         }
         
+        // Parse the access token (wrapped in object)
+        let accessToken;
+        try {
+            const tokenParsed = JSON.parse(accessTokenData);
+            accessToken = tokenParsed.value || tokenParsed;
+        } catch (e) {
+            accessToken = accessTokenData; // Use raw if not JSON
+        }
+        
         // Parse user data
         try {
-            const userDataParsed = JSON.parse(userData);
+            const userDataParsed = JSON.parse(userDataRaw);
             currentUser = userDataParsed.value || userDataParsed;
             console.log('Authenticated as:', currentUser.username);
+            console.log('Token available:', accessToken ? 'Yes' : 'No');
+            
+            // Store the actual token for later use
+            window.currentAccessToken = accessToken;
+            
             return true;
         } catch (error) {
             console.error('Error parsing user data:', error);
@@ -74,9 +88,26 @@ async function checkAuthentication() {
 
 // Get authentication headers
 function getAuthHeaders() {
-    const accessToken = localStorage.getItem(AUTH_CONFIG.ACCESS_TOKEN_KEY);
+    // Use the stored token from authentication check
+    const accessToken = window.currentAccessToken;
+    
+    if (!accessToken) {
+        // Fallback: try to get it again from localStorage
+        const tokenData = localStorage.getItem(AUTH_CONFIG.ACCESS_TOKEN_KEY);
+        if (tokenData) {
+            try {
+                const parsed = JSON.parse(tokenData);
+                window.currentAccessToken = parsed.value || parsed;
+            } catch (e) {
+                window.currentAccessToken = tokenData;
+            }
+        }
+    }
+    
+    console.log('Sending auth header:', window.currentAccessToken ? 'Bearer token included' : 'No token');
+    
     return {
-        'Authorization': `Bearer ${accessToken}`,
+        'Authorization': window.currentAccessToken ? `Bearer ${window.currentAccessToken}` : '',
         'Content-Type': 'application/json'
     };
 }
@@ -84,20 +115,37 @@ function getAuthHeaders() {
 // API Request Helper
 async function apiRequest(url, options = {}) {
     try {
+        const headers = getAuthHeaders();
+        console.log('Making API request to:', url);
+        console.log('Request method:', options.method || 'GET');
+        
         const response = await fetch(url, {
             ...options,
             headers: {
-                ...getAuthHeaders(),
+                ...headers,
                 ...options.headers
             }
         });
         
+        console.log('Response status:', response.status);
+        
         if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || `HTTP ${response.status}`);
+            const errorText = await response.text();
+            console.error('API Error Response:', errorText);
+            
+            let error;
+            try {
+                const errorJson = JSON.parse(errorText);
+                error = new Error(errorJson.error || `HTTP ${response.status}`);
+            } catch (e) {
+                error = new Error(`HTTP ${response.status}: ${errorText}`);
+            }
+            throw error;
         }
         
-        return await response.json();
+        const data = await response.json();
+        console.log('API Response success');
+        return data;
     } catch (error) {
         console.error('API Request failed:', error);
         throw error;
