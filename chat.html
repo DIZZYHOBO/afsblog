@@ -3,22 +3,30 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AFS Chat</title>
+    <title>The Shed - Chat</title>
     <style>
+        /* GitHub Dark Theme Variables */
         :root {
-            --bg-primary: #36393f;
-            --bg-secondary: #2f3136;
-            --bg-tertiary: #202225;
-            --bg-chat: #40444b;
-            --text-primary: #dcddde;
-            --text-secondary: #b9bbbe;
-            --text-muted: #72767d;
-            --accent-color: #5865f2;
-            --success-color: #3ba55c;
-            --danger-color: #ed4245;
-            --warning-color: #faa61a;
-            --info-color: #00d4aa;
-            --border-color: #4f545c;
+            --color-canvas-default: #0d1117;
+            --color-canvas-subtle: #161b22;
+            --color-canvas-inset: #010409;
+            --color-fg-default: #e6edf3;
+            --color-fg-muted: #7d8590;
+            --color-fg-subtle: #6e7681;
+            --color-border-default: #30363d;
+            --color-border-muted: #21262d;
+            --color-neutral-muted: rgba(110, 118, 129, 0.4);
+            --color-accent-fg: #2f81f7;
+            --color-accent-emphasis: #1f6feb;
+            --color-success-fg: #3fb950;
+            --color-danger-fg: #f85149;
+            --color-btn-bg: #21262d;
+            --color-btn-hover-bg: #30363d;
+            --color-btn-active-bg: #282e33;
+            --color-btn-primary-bg: #238636;
+            --color-btn-primary-hover-bg: #2ea043;
+            --color-input-bg: #0d1117;
+            --color-input-border: #30363d;
         }
 
         * {
@@ -28,397 +36,198 @@
         }
 
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: var(--bg-primary);
-            color: var(--text-primary);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif;
+            background: var(--color-canvas-default);
+            color: var(--color-fg-default);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
             overflow: hidden;
-            height: 100vh;
         }
 
-        .auth-required {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            height: 100vh;
-            text-align: center;
-            padding: 2rem;
-            background: var(--bg-primary);
-        }
-
-        .auth-required h1 {
-            color: var(--accent-color);
-            margin-bottom: 1rem;
-            font-size: 2.5rem;
-        }
-
-        .auth-required p {
-            color: var(--text-secondary);
-            margin-bottom: 2rem;
-            font-size: 1.1rem;
-            max-width: 600px;
-        }
-
-        .btn {
-            background: var(--accent-color);
-            color: white;
-            border: none;
-            padding: 12px 24px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 14px;
-            font-weight: 600;
-            transition: all 0.2s ease;
-        }
-
-        .btn:hover {
-            background: #4752c4;
-        }
-
-        .btn-primary {
-            background: var(--accent-color);
-        }
-
-        .btn-primary:hover {
-            background: #4752c4;
-        }
-
-        .btn-secondary {
-            background: transparent;
-            color: var(--text-secondary);
-            border: 1px solid var(--border-color);
-        }
-
-        .btn-secondary:hover {
-            background: var(--bg-chat);
-            color: var(--text-primary);
-        }
-
-        .btn-success {
-            background: var(--success-color);
-        }
-
-        .btn-success:hover {
-            background: #2d7d32;
-        }
-
-        .btn-small {
-            padding: 6px 12px;
-            font-size: 12px;
-        }
-
-        .session-status {
-            margin-top: 1rem;
-            padding: 1rem;
-            border-radius: 8px;
-            font-size: 14px;
-            max-width: 600px;
-            width: 100%;
-        }
-
-        .app {
-            display: flex;
-            height: 100vh;
-            background: var(--bg-primary);
-        }
-
-        .guilds-wrapper {
-            width: 72px;
-            background: var(--bg-tertiary);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            padding: 12px 0;
-            overflow-y: auto;
-            flex-shrink: 0;
-        }
-
-        .guild-item {
-            width: 48px;
+        /* Server Bar */
+        .server-bar {
             height: 48px;
-            border-radius: 50%;
-            background: var(--bg-primary);
-            margin-bottom: 8px;
+            background: var(--color-canvas-subtle);
+            border-bottom: 1px solid var(--color-border-default);
+            display: flex;
+            align-items: center;
+            padding: 0 8px;
+            gap: 8px;
+            overflow-x: auto;
+            scrollbar-width: thin;
+            scrollbar-color: var(--color-neutral-muted) transparent;
+        }
+
+        .server-bar::-webkit-scrollbar {
+            height: 6px;
+        }
+
+        .server-bar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .server-bar::-webkit-scrollbar-thumb {
+            background: var(--color-neutral-muted);
+            border-radius: 3px;
+        }
+
+        .server-button {
+            height: 36px;
+            min-width: 36px;
+            padding: 0 12px;
+            background: var(--color-btn-bg);
+            border: 1px solid var(--color-border-default);
+            color: var(--color-fg-default);
+            border-radius: 6px;
             cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
-            color: var(--text-primary);
-            font-weight: 600;
-            transition: all 0.2s ease;
+            font-size: 14px;
+            white-space: nowrap;
+            transition: all 0.2s;
+        }
+
+        .server-button:hover {
+            background: var(--color-btn-hover-bg);
+            border-color: var(--color-border-muted);
+        }
+
+        .server-button.active {
+            background: var(--color-accent-emphasis);
+            border-color: var(--color-accent-fg);
+        }
+
+        .server-button.create {
+            min-width: 36px;
+            width: 36px;
+            font-size: 20px;
+            font-weight: 300;
+        }
+
+        .server-button.browse {
+            background: var(--color-btn-bg);
+            border-color: var(--color-accent-fg);
+            color: var(--color-accent-fg);
+        }
+
+        /* Main Container */
+        .main-container {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
             position: relative;
         }
 
-        .guild-item:hover {
-            border-radius: 16px;
-            background: var(--accent-color);
-        }
-
-        .guild-item.active {
-            border-radius: 16px;
-            background: var(--accent-color);
-        }
-
-        .guild-item.browse-servers {
-            background: var(--bg-primary);
-            border: 2px dashed var(--warning-color);
-            color: var(--warning-color);
-            font-size: 18px;
-        }
-
-        .guild-item.browse-servers:hover {
-            background: var(--warning-color);
-            color: white;
-        }
-
-        .guild-item.join-server {
-            background: var(--bg-primary);
-            border: 2px dashed var(--border-color);
-            color: var(--info-color);
-            font-size: 18px;
-        }
-
-        .guild-item.join-server:hover {
-            background: var(--info-color);
-            color: white;
-        }
-
-        .guild-item.add-server {
-            background: var(--bg-primary);
-            border: 2px dashed var(--border-color);
-            color: var(--success-color);
-            font-size: 24px;
-        }
-
-        .guild-item.add-server:hover {
-            background: var(--success-color);
-            color: white;
-        }
-
-        .channels-wrapper {
+        /* Rooms Sidebar */
+        .rooms-sidebar {
             width: 240px;
-            background: var(--bg-secondary);
+            background: var(--color-canvas-subtle);
+            border-right: 1px solid var(--color-border-default);
             display: flex;
             flex-direction: column;
-            flex-shrink: 0;
-            height: 100vh;
+            transform: translateX(-240px);
+            transition: transform 0.3s ease;
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            z-index: 10;
         }
 
-        .server-header {
-            padding: 16px;
-            border-bottom: 1px solid var(--border-color);
-            font-weight: 600;
-            cursor: pointer;
+        .rooms-sidebar.open {
+            transform: translateX(0);
+        }
+
+        .rooms-header {
+            padding: 12px;
+            border-bottom: 1px solid var(--color-border-default);
             display: flex;
             justify-content: space-between;
             align-items: center;
-            flex-shrink: 0;
         }
 
-        .server-header:hover {
-            background: var(--bg-primary);
+        .rooms-header h3 {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--color-fg-muted);
         }
 
-        .server-actions {
-            display: flex;
-            gap: 4px;
-            opacity: 0;
-            transition: opacity 0.2s ease;
-        }
-
-        .server-header:hover .server-actions {
-            opacity: 1;
-        }
-
-        .action-icon {
-            width: 20px;
-            height: 20px;
-            border: none;
-            background: none;
-            color: var(--text-muted);
-            cursor: pointer;
-            border-radius: 3px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 12px;
-        }
-
-        .action-icon:hover {
-            background: var(--bg-primary);
-            color: var(--text-primary);
-        }
-
-        .channels-list {
+        .rooms-list {
             flex: 1;
-            padding: 16px 8px;
             overflow-y: auto;
-        }
-
-        .channel-category {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 8px;
             padding: 8px;
-            font-size: 12px;
-            font-weight: 600;
-            color: var(--text-muted);
-            text-transform: uppercase;
         }
 
-        .add-channel-btn {
-            width: 18px;
-            height: 18px;
-            cursor: pointer;
-            color: var(--text-muted);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 3px;
-        }
-
-        .add-channel-btn:hover {
-            background: var(--bg-primary);
-            color: var(--text-primary);
-        }
-
-        .channel-item {
+        .room-item {
             padding: 8px 12px;
-            margin-bottom: 2px;
-            border-radius: 4px;
+            border-radius: 6px;
             cursor: pointer;
+            margin-bottom: 2px;
+            font-size: 14px;
+            color: var(--color-fg-muted);
             display: flex;
             align-items: center;
             gap: 8px;
-            color: var(--text-secondary);
         }
 
-        .channel-item:hover {
-            background: var(--bg-primary);
-            color: var(--text-primary);
+        .room-item:hover {
+            background: var(--color-btn-hover-bg);
+            color: var(--color-fg-default);
         }
 
-        .channel-item.active {
-            background: var(--bg-chat);
-            color: var(--text-primary);
+        .room-item.active {
+            background: var(--color-accent-emphasis);
+            color: #fff;
         }
 
-        .channel-prefix {
-            color: var(--text-muted);
+        .room-item .room-hash {
+            opacity: 0.6;
+            font-size: 16px;
         }
 
-        .user-area {
-            padding: 16px;
-            border-top: 1px solid var(--border-color);
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            flex-shrink: 0;
-        }
-
-        .user-avatar {
-            width: 32px;
-            height: 32px;
-            border-radius: 50%;
-            background: var(--accent-color);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-weight: 600;
-            font-size: 14px;
-        }
-
-        .user-info {
-            flex: 1;
-        }
-
-        .user-name {
-            font-weight: 600;
-            font-size: 14px;
-        }
-
-        .user-status {
-            font-size: 12px;
-            color: var(--text-muted);
-        }
-
-        .chat-wrapper {
+        /* Chat Area */
+        .chat-area {
             flex: 1;
             display: flex;
             flex-direction: column;
-            background: var(--bg-primary);
-            height: 100vh;
-            min-width: 0;
+            background: var(--color-canvas-default);
         }
 
         .chat-header {
             height: 48px;
+            background: var(--color-canvas-subtle);
+            border-bottom: 1px solid var(--color-border-default);
+            display: flex;
+            align-items: center;
             padding: 0 16px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            border-bottom: 1px solid var(--border-color);
-            flex-shrink: 0;
-            background: var(--bg-primary);
+            gap: 12px;
         }
 
-        .chat-title {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-weight: 600;
-        }
-
-        .chat-actions {
-            display: flex;
-            gap: 8px;
-            align-items: center;
-        }
-
-        .action-btn {
-            width: 24px;
-            height: 24px;
-            border: none;
-            background: none;
-            color: var(--text-muted);
+        .sidebar-toggle {
+            width: 32px;
+            height: 32px;
+            background: transparent;
+            border: 1px solid var(--color-border-default);
+            color: var(--color-fg-muted);
+            border-radius: 6px;
             cursor: pointer;
-            border-radius: 4px;
             display: flex;
             align-items: center;
             justify-content: center;
+            transition: all 0.2s;
         }
 
-        .action-btn:hover {
-            background: var(--bg-secondary);
-            color: var(--text-primary);
+        .sidebar-toggle:hover {
+            background: var(--color-btn-hover-bg);
+            color: var(--color-fg-default);
         }
 
-        .connection-status {
-            font-size: 10px;
-            color: var(--text-muted);
-            display: flex;
-            align-items: center;
-            gap: 4px;
-            margin-right: 8px;
-        }
-
-        .status-indicator {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            display: inline-block;
-        }
-
-        .status-connected { background: var(--success-color); }
-        .status-connecting { background: var(--warning-color); animation: pulse 1s infinite; }
-        .status-error { background: var(--danger-color); }
-        .status-disconnected { background: var(--text-muted); }
-
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
+        .room-name {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--color-fg-default);
         }
 
         .messages-container {
@@ -427,54 +236,40 @@
             padding: 16px;
             display: flex;
             flex-direction: column;
-            justify-content: flex-start;
-            min-height: 0;
-            scroll-behavior: smooth;
-        }
-
-        .messages-wrapper {
-            display: flex;
-            flex-direction: column;
-            min-height: 100%;
-            justify-content: flex-end;
+            gap: 12px;
         }
 
         .message {
-            margin-bottom: 16px;
             display: flex;
             gap: 12px;
-            flex-shrink: 0;
+            animation: messageSlide 0.3s ease;
         }
 
-        .message-pending {
-            opacity: 0.7;
-        }
-
-        .message-failed {
-            opacity: 0.5;
-            background: rgba(237, 66, 69, 0.1);
-            border-left: 3px solid var(--danger-color);
-            padding-left: 8px;
-            margin-left: -8px;
+        @keyframes messageSlide {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
 
         .message-avatar {
             width: 40px;
             height: 40px;
+            background: var(--color-neutral-muted);
             border-radius: 50%;
-            background: var(--accent-color);
             display: flex;
             align-items: center;
             justify-content: center;
-            color: white;
             font-weight: 600;
-            font-size: 14px;
             flex-shrink: 0;
         }
 
         .message-content {
             flex: 1;
-            min-width: 0;
         }
 
         .message-header {
@@ -486,1985 +281,497 @@
 
         .message-author {
             font-weight: 600;
+            color: var(--color-fg-default);
             font-size: 14px;
         }
 
-        .message-timestamp {
+        .message-time {
             font-size: 12px;
-            color: var(--text-muted);
-        }
-
-        .message-status {
-            font-size: 11px;
-            color: var(--warning-color);
-            font-style: italic;
-            margin-left: 8px;
-        }
-
-        .message-status.failed {
-            color: var(--danger-color);
+            color: var(--color-fg-subtle);
         }
 
         .message-text {
-            font-size: 14px;
-            line-height: 1.4;
+            color: var(--color-fg-default);
+            line-height: 1.5;
             word-wrap: break-word;
         }
 
-        .message-input-container {
+        /* Input Area */
+        .input-area {
             padding: 16px;
-            flex-shrink: 0;
-            background: var(--bg-primary);
+            background: var(--color-canvas-subtle);
+            border-top: 1px solid var(--color-border-default);
+        }
+
+        .input-container {
+            display: flex;
+            gap: 8px;
         }
 
         .message-input {
-            background: var(--bg-chat);
-            border: none;
-            border-radius: 8px;
-            padding: 12px 16px;
-            color: var(--text-primary);
-            width: 100%;
+            flex: 1;
+            background: var(--color-input-bg);
+            border: 1px solid var(--color-input-border);
+            color: var(--color-fg-default);
+            padding: 10px 16px;
+            border-radius: 6px;
             font-size: 14px;
             resize: none;
-            min-height: 44px;
-            max-height: 200px;
             font-family: inherit;
-        }
-
-        .message-input:focus {
             outline: none;
         }
 
-        .message-input::placeholder {
-            color: var(--text-muted);
+        .message-input:focus {
+            border-color: var(--color-accent-fg);
         }
 
-        .welcome-message {
-            text-align: center;
-            color: var(--text-muted);
-            padding: 40px 20px;
-            flex-shrink: 0;
+        .send-button {
+            padding: 10px 20px;
+            background: var(--color-btn-primary-bg);
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: background 0.2s;
         }
 
-        .welcome-message h3 {
-            margin-bottom: 8px;
+        .send-button:hover {
+            background: var(--color-btn-primary-hover-bg);
         }
 
-        .loading {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            padding: 20px;
-            color: var(--text-muted);
+        .send-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
         }
 
-        .spinner {
-            width: 20px;
-            height: 20px;
-            border: 2px solid var(--border-color);
-            border-top: 2px solid var(--accent-color);
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-        }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
+        /* Modals */
         .modal {
             display: none;
             position: fixed;
-            z-index: 1000;
-            left: 0;
             top: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.5);
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 1000;
             align-items: center;
             justify-content: center;
         }
 
+        .modal.active {
+            display: flex;
+        }
+
         .modal-content {
-            background: var(--bg-secondary);
-            margin: auto;
-            padding: 2rem;
-            border-radius: 8px;
+            background: var(--color-canvas-subtle);
+            border: 1px solid var(--color-border-default);
+            border-radius: 12px;
+            padding: 24px;
+            max-width: 480px;
             width: 90%;
-            max-width: 500px;
-            max-height: 90vh;
+            max-height: 80vh;
             overflow-y: auto;
         }
 
         .modal-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 1.5rem;
-            padding-bottom: 1rem;
-            border-bottom: 1px solid var(--border-color);
+            margin-bottom: 16px;
         }
 
         .modal-title {
-            font-size: 1.5rem;
+            font-size: 20px;
             font-weight: 600;
-        }
-
-        .close-btn {
-            background: none;
-            border: none;
-            font-size: 1.5rem;
-            color: var(--text-muted);
-            cursor: pointer;
-            padding: 0;
-            width: 30px;
-            height: 30px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .close-btn:hover {
-            color: var(--text-primary);
+            color: var(--color-fg-default);
         }
 
         .form-group {
-            margin-bottom: 1rem;
+            margin-bottom: 16px;
         }
 
-        .form-group label {
+        .form-label {
             display: block;
-            margin-bottom: 0.5rem;
-            font-weight: 600;
-            color: var(--text-primary);
-        }
-
-        .form-control {
-            width: 100%;
-            padding: 0.75rem;
-            background: var(--bg-primary);
-            border: 1px solid var(--border-color);
-            border-radius: 4px;
-            color: var(--text-primary);
+            margin-bottom: 6px;
             font-size: 14px;
+            font-weight: 500;
+            color: var(--color-fg-muted);
         }
 
-        .form-control:focus {
+        .form-input {
+            width: 100%;
+            padding: 8px 12px;
+            background: var(--color-input-bg);
+            border: 1px solid var(--color-input-border);
+            color: var(--color-fg-default);
+            border-radius: 6px;
+            font-size: 14px;
             outline: none;
-            border-color: var(--accent-color);
         }
 
-        .form-control::placeholder {
-            color: var(--text-muted);
+        .form-input:focus {
+            border-color: var(--color-accent-fg);
         }
 
-        .checkbox-wrapper {
+        .form-textarea {
+            width: 100%;
+            padding: 8px 12px;
+            background: var(--color-input-bg);
+            border: 1px solid var(--color-input-border);
+            color: var(--color-fg-default);
+            border-radius: 6px;
+            font-size: 14px;
+            resize: vertical;
+            min-height: 80px;
+            font-family: inherit;
+            outline: none;
+        }
+
+        .form-checkbox {
+            margin-right: 8px;
+        }
+
+        .form-actions {
             display: flex;
-            align-items: center;
             gap: 8px;
-        }
-
-        .checkbox {
-            width: 16px;
-            height: 16px;
-        }
-
-        .checkbox-label {
-            margin: 0;
-            font-weight: normal;
-        }
-
-        .modal-footer {
-            display: flex;
             justify-content: flex-end;
-            gap: 12px;
-            margin-top: 1.5rem;
-            padding-top: 1rem;
-            border-top: 1px solid var(--border-color);
+            margin-top: 24px;
         }
 
+        .btn {
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 1px solid transparent;
+        }
+
+        .btn-secondary {
+            background: var(--color-btn-bg);
+            color: var(--color-fg-default);
+            border-color: var(--color-border-default);
+        }
+
+        .btn-secondary:hover {
+            background: var(--color-btn-hover-bg);
+        }
+
+        .btn-primary {
+            background: var(--color-btn-primary-bg);
+            color: #fff;
+        }
+
+        .btn-primary:hover {
+            background: var(--color-btn-primary-hover-bg);
+        }
+
+        /* Server List in Browse Modal */
         .server-list {
-            max-height: 400px;
+            margin: 16px 0;
+            max-height: 300px;
             overflow-y: auto;
         }
 
-        .server-item {
+        .server-list-item {
             padding: 12px;
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
+            background: var(--color-canvas-default);
+            border: 1px solid var(--color-border-default);
+            border-radius: 6px;
             margin-bottom: 8px;
-            background: var(--bg-primary);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+            cursor: pointer;
+            transition: all 0.2s;
         }
 
-        .server-info h4 {
-            margin: 0 0 4px 0;
-            color: var(--text-primary);
+        .server-list-item:hover {
+            background: var(--color-canvas-subtle);
+            border-color: var(--color-accent-fg);
         }
 
-        .server-info p {
-            margin: 0;
-            color: var(--text-muted);
+        .server-list-name {
+            font-weight: 600;
+            color: var(--color-fg-default);
+            margin-bottom: 4px;
+        }
+
+        .server-list-info {
             font-size: 12px;
+            color: var(--color-fg-muted);
         }
 
-        .share-code {
-            background: var(--bg-secondary);
-            border: 1px solid var(--border-color);
-            border-radius: 4px;
-            padding: 8px 12px;
-            margin: 8px 0;
-            font-family: monospace;
-            font-size: 14px;
+        /* Loading State */
+        .loading {
             display: flex;
-            justify-content: space-between;
+            align-items: center;
+            justify-content: center;
+            padding: 32px;
+            color: var(--color-fg-muted);
+        }
+
+        .spinner {
+            width: 24px;
+            height: 24px;
+            border: 3px solid var(--color-neutral-muted);
+            border-top-color: var(--color-accent-fg);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Welcome Screen */
+        .welcome-screen {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 32px;
+            text-align: center;
+        }
+
+        .welcome-title {
+            font-size: 24px;
+            font-weight: 600;
+            color: var(--color-fg-default);
+            margin-bottom: 8px;
+        }
+
+        .welcome-subtitle {
+            font-size: 16px;
+            color: var(--color-fg-muted);
+            margin-bottom: 24px;
+        }
+
+        .welcome-actions {
+            display: flex;
+            gap: 12px;
+        }
+
+        /* Error Message */
+        .error-message {
+            background: rgba(248, 81, 73, 0.1);
+            border: 1px solid var(--color-danger-fg);
+            color: var(--color-danger-fg);
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 16px;
+            font-size: 14px;
+        }
+
+        /* Success Message */
+        .success-message {
+            background: rgba(63, 185, 80, 0.1);
+            border: 1px solid var(--color-success-fg);
+            color: var(--color-success-fg);
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 16px;
+            font-size: 14px;
+        }
+
+        /* Toast Notifications */
+        .toast-container {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            z-index: 2000;
+        }
+
+        .toast {
+            background: var(--color-canvas-subtle);
+            border: 1px solid var(--color-border-default);
+            border-radius: 6px;
+            padding: 12px 16px;
+            margin-top: 8px;
+            display: flex;
             align-items: center;
             gap: 8px;
+            animation: slideIn 0.3s ease;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
         }
 
-        .copy-btn {
-            background: var(--success-color);
-            border: none;
-            color: white;
-            padding: 4px 8px;
-            border-radius: 3px;
-            cursor: pointer;
-            font-size: 11px;
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
         }
 
-        .copy-btn:hover {
-            background: #2d7d32;
+        .toast.success {
+            border-color: var(--color-success-fg);
         }
 
-        /* Scrollbar styling */
-        .messages-container::-webkit-scrollbar,
-        .channels-list::-webkit-scrollbar,
-        .guilds-wrapper::-webkit-scrollbar {
-            width: 8px;
+        .toast.error {
+            border-color: var(--color-danger-fg);
         }
 
-        .messages-container::-webkit-scrollbar-track,
-        .channels-list::-webkit-scrollbar-track,
-        .guilds-wrapper::-webkit-scrollbar-track {
-            background: var(--bg-secondary);
-            border-radius: 4px;
+        .toast-message {
+            color: var(--color-fg-default);
+            font-size: 14px;
         }
 
-        .messages-container::-webkit-scrollbar-thumb,
-        .channels-list::-webkit-scrollbar-thumb,
-        .guilds-wrapper::-webkit-scrollbar-thumb {
-            background: var(--border-color);
-            border-radius: 4px;
-        }
-
-        .messages-container::-webkit-scrollbar-thumb:hover,
-        .channels-list::-webkit-scrollbar-thumb:hover,
-        .guilds-wrapper::-webkit-scrollbar-thumb:hover {
-            background: var(--text-muted);
-        }
-
-        /* Firefox scrollbar support */
-        .messages-container,
-        .channels-list,
-        .guilds-wrapper {
-            scrollbar-width: thin;
-            scrollbar-color: var(--border-color) var(--bg-secondary);
-        }
-
-        /* Mobile Styles */
+        /* Responsive */
         @media (max-width: 768px) {
-            .channels-wrapper {
-                position: fixed;
-                left: -240px;
-                top: 0;
-                height: 100vh;
-                z-index: 100;
-                transition: left 0.3s ease;
-                transform: translateX(0);
+            .rooms-sidebar {
+                width: 100%;
+                transform: translateX(-100%);
             }
 
-            .channels-wrapper.mobile-open {
-                left: 72px;
+            .server-bar {
+                padding: 0 4px;
             }
 
-            .channels-wrapper.open {
-                transform: translateX(0);
-                left: 72px;
+            .modal-content {
+                width: 95%;
+                padding: 16px;
             }
-
-            .chat-wrapper {
-                margin-left: 0;
-                width: 100vw;
-            }
-
-            .server-header {
-                display: flex;
-            }
-
-            .chat-header {
-                position: relative;
-                z-index: 50;
-            }
-
-            .guilds-wrapper {
-                width: 72px;
-                z-index: 110;
-            }
-
-            .message-input {
-                font-size: 16px;
-            }
-
-            .messages-container {
-                padding: 12px;
-            }
-        }
-
-        /* Very small screens */
-        @media (max-width: 480px) {
-            .chat-header {
-                padding: 0 12px;
-                height: 44px;
-            }
-
-            .messages-container {
-                padding: 8px;
-            }
-
-            .message-input-container {
-                padding: 12px;
-            }
-
-            .guilds-wrapper {
-                width: 60px;
-                padding: 8px 0;
-            }
-
-            .guild-item {
-                width: 40px;
-                height: 40px;
-                font-size: 14px;
-                margin-bottom: 6px;
-            }
-
-            .channels-wrapper.mobile-open,
-            .channels-wrapper.open {
-                left: 60px;
-            }
-        }
-
-        /* Success/Error Messages */
-        .message-success {
-            background: var(--success-color);
-            color: white;
-            padding: 12px 16px;
-            border-radius: 4px;
-            margin: 16px;
-            font-size: 14px;
-        }
-
-        .message-error {
-            background: var(--danger-color);
-            color: white;
-            padding: 12px 16px;
-            border-radius: 4px;
-            margin: 16px;
-            font-size: 14px;
         }
     </style>
 </head>
 <body>
-    <div id="authRequired" class="auth-required" style="display: none;">
-        <h1>🔒 Authentication Required</h1>
-        <p>Please log in to your main app account to access the chat system.
-        The chat will automatically detect your login session.</p>
-        <div style="display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;">
-            <button class="btn btn-primary" onclick="redirectToLogin()">Go to Main App</button>
-            <button class="btn btn-secondary" onclick="checkMainAppSession()">🔄 Check Session</button>
-        </div>
-        <div id="sessionStatus" class="session-status" style="display: none;"></div>
+    <!-- Server Bar -->
+    <div class="server-bar" id="serverBar">
+        <button class="server-button create" onclick="showCreateServerModal()" title="Create Server">+</button>
+        <button class="server-button browse" onclick="showBrowseServersModal()" title="Browse Servers">Browse</button>
+        <div id="serverList"></div>
     </div>
 
-    <div id="chatApp" class="app" style="display: none;">
-        <!-- Server/Guild List (left sidebar) -->
-        <div class="guilds-wrapper">
-            <div id="serversList">
-                <div class="loading">
-                    <div class="spinner"></div>
-                </div>
+    <!-- Main Container -->
+    <div class="main-container">
+        <!-- Rooms Sidebar -->
+        <div class="rooms-sidebar" id="roomsSidebar">
+            <div class="rooms-header">
+                <h3 id="sidebarServerName">Select a Server</h3>
+                <button class="server-button create" onclick="showCreateRoomModal()" title="Create Room" style="width: 28px; height: 28px; min-width: 28px; font-size: 16px;">+</button>
             </div>
-            
-            <div class="guild-item browse-servers" onclick="openBrowseServersModal()" title="Browse Public Servers">
-                🌐
-            </div>
-            
-            <div class="guild-item join-server" onclick="openJoinServerModal()" title="Join Server with Code">
-                🔍
-            </div>
-            
-            <div class="guild-item add-server" onclick="openCreateServerModal()" title="Create Server">
-                +
+            <div class="rooms-list" id="roomsList">
+                <div class="loading">Select a server to view rooms</div>
             </div>
         </div>
 
-        <!-- Channels List (middle sidebar) -->
-        <div class="channels-wrapper" id="channelsWrapper">
-            <div class="server-header" id="serverHeader" onclick="toggleMobileChannels()">
-                <span id="currentServerName">Select a Server</span>
-                <div class="server-actions" id="serverActions">
-                    <button class="action-icon" onclick="showShareCode(event)" title="Share Server">📋</button>
-                    <button class="action-icon" onclick="showServerInfo(event)" title="Server Info">ℹ️</button>
-                </div>
+        <!-- Chat Area -->
+        <div class="chat-area">
+            <div class="chat-header">
+                <button class="sidebar-toggle" onclick="toggleSidebar()" title="Toggle Rooms">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                        <path d="M1 2.75A.75.75 0 0 1 1.75 2h12.5a.75.75 0 0 1 0 1.5H1.75A.75.75 0 0 1 1 2.75Zm0 5A.75.75 0 0 1 1.75 7h12.5a.75.75 0 0 1 0 1.5H1.75A.75.75 0 0 1 1 7.75ZM1.75 12h12.5a.75.75 0 0 1 0 1.5H1.75a.75.75 0 0 1 0-1.5Z"/>
+                    </svg>
+                </button>
+                <div class="room-name" id="roomName">Welcome to Chat</div>
             </div>
-            
-            <div class="channels-list">
-                <div class="channel-category">
-                    <span>Text Channels</span>
-                    <div class="add-channel-btn" onclick="openCreateRoomModal()" title="Create Channel">+</div>
-                </div>
-                
-                <div id="roomsList">
-                    <div class="welcome-message">
-                        <p>Select a server to see channels</p>
-                    </div>
-                </div>
-            </div>
-
-            <div class="user-area">
-                <div class="user-avatar" id="userAvatar">?</div>
-                <div class="user-info">
-                    <div class="user-name" id="userName">Loading...</div>
-                    <div class="user-status">Online</div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Main Chat Area -->
-        <div class="chat-wrapper">
-            <div class="chat-header" onclick="toggleMobileChannels()">
-                <div class="chat-title">
-                    <span class="channel-prefix">#</span>
-                    <span id="chatRoomName">Select a channel</span>
-                </div>
-                <div class="chat-actions">
-                    <div class="connection-status" id="connectionStatus">
-                        <span class="status-indicator status-disconnected" id="statusIndicator"></span>
-                        <span id="statusText">Disconnected</span>
-                    </div>
-                    <button class="action-btn" onclick="checkMainAppSession()" title="Check Session">
-                        🔄
-                    </button>
-                </div>
-            </div>
-            
             <div class="messages-container" id="messagesContainer">
-                <div class="messages-wrapper" id="messagesWrapper">
-                    <div class="welcome-message">
-                        <h3>Welcome to AFS Chat! 💬</h3>
-                        <p>Select a server and channel to start chatting.</p>
+                <div class="welcome-screen">
+                    <div class="welcome-title">Welcome to The Shed Chat</div>
+                    <div class="welcome-subtitle">Create or join a server to start chatting</div>
+                    <div class="welcome-actions">
+                        <button class="btn btn-primary" onclick="showCreateServerModal()">Create Server</button>
+                        <button class="btn btn-secondary" onclick="showBrowseServersModal()">Browse Servers</button>
                     </div>
                 </div>
             </div>
-            
-            <div class="message-input-container">
-                <textarea 
-                    id="messageInput" 
-                    class="message-input" 
-                    placeholder="Type a message..."
-                    onkeydown="handleMessageKeyDown(event)"
-                    rows="1"
-                ></textarea>
+            <div class="input-area" id="inputArea" style="display: none;">
+                <div class="input-container">
+                    <input type="text" class="message-input" id="messageInput" placeholder="Type a message..." onkeypress="handleMessageKeypress(event)">
+                    <button class="send-button" id="sendButton" onclick="sendMessage()">Send</button>
+                </div>
             </div>
         </div>
     </div>
 
-    <!-- Modals -->
-    <div class="modal" id="browseServersModal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3 class="modal-title">Browse Public Servers</h3>
-                <button class="close-btn" onclick="closeBrowseServersModal()">&times;</button>
-            </div>
-            <div class="server-list" id="publicServersList">
-                <div class="loading"><div class="spinner"></div></div>
-            </div>
-        </div>
-    </div>
-
-    <div class="modal" id="joinServerModal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3 class="modal-title">Join Server</h3>
-                <button class="close-btn" onclick="closeJoinServerModal()">&times;</button>
-            </div>
-            <div class="form-group">
-                <label for="serverIdInput">Server Code</label>
-                <input type="text" id="serverIdInput" class="form-control" placeholder="Enter server code" maxlength="100" onkeydown="handleJoinServerKeyDown(event)">
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" onclick="closeJoinServerModal()">Cancel</button>
-                <button type="button" class="btn btn-primary" onclick="joinServerSubmit()">Join Server</button>
-            </div>
-        </div>
-    </div>
-
+    <!-- Create Server Modal -->
     <div class="modal" id="createServerModal">
         <div class="modal-content">
             <div class="modal-header">
-                <h3 class="modal-title">Create Server</h3>
-                <button class="close-btn" onclick="closeCreateServerModal()">&times;</button>
+                <h2 class="modal-title">Create Server</h2>
+            </div>
+            <div id="createServerError"></div>
+            <div class="form-group">
+                <label class="form-label" for="serverName">Server Name</label>
+                <input type="text" class="form-input" id="serverName" placeholder="My Awesome Server" maxlength="50">
             </div>
             <div class="form-group">
-                <label for="serverNameInput">Server Name</label>
-                <input type="text" id="serverNameInput" class="form-control" placeholder="Enter server name" maxlength="50">
+                <label class="form-label" for="serverDescription">Description (Optional)</label>
+                <textarea class="form-textarea" id="serverDescription" placeholder="What's this server about?" maxlength="200"></textarea>
             </div>
             <div class="form-group">
-                <label for="serverDescriptionInput">Description</label>
-                <textarea id="serverDescriptionInput" class="form-control" placeholder="Describe your server..." rows="3" maxlength="200"></textarea>
+                <label>
+                    <input type="checkbox" class="form-checkbox" id="serverPrivate">
+                    Private Server (Invite Only)
+                </label>
             </div>
-            <div class="form-group">
-                <div class="checkbox-wrapper">
-                    <input type="checkbox" id="serverPrivateInput" class="checkbox" />
-                    <label class="checkbox-label" for="serverPrivateInput">Private Server</label>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" onclick="closeCreateServerModal()">Cancel</button>
-                <button type="button" class="btn btn-primary" onclick="createServerSubmit()">Create Server</button>
+            <div class="form-actions">
+                <button class="btn btn-secondary" onclick="closeModal('createServerModal')">Cancel</button>
+                <button class="btn btn-primary" onclick="createServer()">Create Server</button>
             </div>
         </div>
     </div>
 
-    <div class="modal" id="shareCodeModal">
+    <!-- Browse Servers Modal -->
+    <div class="modal" id="browseServersModal">
         <div class="modal-content">
             <div class="modal-header">
-                <h3 class="modal-title">Share Server</h3>
-                <button class="close-btn" onclick="closeShareCodeModal()">&times;</button>
+                <h2 class="modal-title">Browse Servers</h2>
             </div>
-            <div style="text-align: center;">
-                <h4 id="shareServerName" style="margin-bottom: 16px;">Server Name</h4>
-                <p style="color: var(--text-muted); margin-bottom: 16px;">Share this code with others:</p>
-                <div class="share-code">
-                    <span id="shareCodeText">Loading...</span>
-                    <button class="copy-btn" onclick="copyShareCode()">Copy</button>
+            <div id="browseServersError"></div>
+            <div class="form-group">
+                <label class="form-label" for="serverCode">Join with Server Code</label>
+                <div style="display: flex; gap: 8px;">
+                    <input type="text" class="form-input" id="serverCode" placeholder="Enter server code" style="flex: 1;">
+                    <button class="btn btn-primary" onclick="joinServerByCode()">Join</button>
                 </div>
             </div>
-        </div>
-    </div>
-
-    <script src="/api.js"></script>
-    <script>
-        // Global state
-        let currentUser = null;
-        let currentServer = null;
-        let currentRoom = null;
-        let userServers = [];
-        let serverRooms = [];
-        let chatMessages = [];
-        let sessionCheckInterval = null;
-        let publicServers = [];
-        let lastActivity = Date.now();
-
-        // Chat Manager Class
-        class ChatManager {
-            constructor() {
-                this.lastMessageTimestamp = null;
-                this.pollingInterval = null;
-                this.connectionState = 'disconnected';
-                this.retryCount = 0;
-                this.maxRetries = 5;
-                this.baseDelay = 500;
-                this.currentDelay = this.baseDelay;
-                this.isActive = true;
-                this.pendingMessages = new Map();
-                this.roomId = null;
-                this.consecutiveEmptyPolls = 0;
-                this.maxEmptyPolls = 10;
-                this.processedMessageIds = new Set();
-                this.messageHistory = new Map();
-            }
-
-            startRealTimeUpdates(roomId) {
-                this.stopRealTimeUpdates();
-                this.roomId = roomId;
-                this.connectionState = 'connecting';
-                this.updateConnectionStatus();
-                this.consecutiveEmptyPolls = 0;
-                this.processedMessageIds.clear();
-                this.messageHistory.clear();
-                this.lastMessageTimestamp = null;
-                
-                console.log(`🚀 Starting updates for room ${roomId}`);
-                
-                this.pollForMessages();
-                this.pollingInterval = setInterval(() => {
-                    this.pollForMessages();
-                }, this.currentDelay);
-            }
-
-            async pollForMessages() {
-                if (!this.roomId || !this.isActive) return;
-
-                try {
-                    const params = new URLSearchParams();
-                    
-                    if (this.lastMessageTimestamp && this.processedMessageIds.size > 0) {
-                        params.append('after', this.lastMessageTimestamp);
-                        params.append('limit', '20');
-                    } else {
-                        params.append('limit', '50');
-                    }
-
-                    const authToken = await getAuthToken();
-                    if (!authToken) {
-                        throw new Error('No authentication token available');
-                    }
-
-                    const response = await fetch(`/.netlify/functions/chat-api/rooms/${this.roomId}/messages?${params}`, {
-                        method: 'GET',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${authToken}`
-                        }
-                    });
-
-                    if (!response.ok) {
-                        throw new Error(`HTTP ${response.status}`);
-                    }
-
-                    const data = await response.json();
-                    
-                    if (data.success && data.messages?.length > 0) {
-                        this.handleNewMessages(data.messages);
-                    } else {
-                        this.consecutiveEmptyPolls++;
-                        this.optimizePollingSpeed(false);
-                    }
-
-                    this.connectionState = 'connected';
-                    this.updateConnectionStatus();
-                    this.resetRetryCount();
-                    
-                } catch (error) {
-                    console.error('💥 Polling error:', error);
-                    this.handleConnectionError();
-                }
-            }
-
-            handleNewMessages(messages) {
-                if (!messages || messages.length === 0) return;
-
-                const wasAtBottom = isAtBottom();
-                let newMessagesCount = 0;
-                let latestTimestamp = this.lastMessageTimestamp;
-                
-                const newMessages = messages.filter(message => {
-                    if (this.processedMessageIds.has(message.id)) {
-                        return false;
-                    }
-                    
-                    const exists = chatMessages.some(existingMsg => existingMsg.id === message.id);
-                    if (exists) {
-                        this.processedMessageIds.add(message.id);
-                        return false;
-                    }
-                    
-                    return true;
-                });
-
-                if (newMessages.length === 0) {
-                    this.consecutiveEmptyPolls++;
-                    this.optimizePollingSpeed(false);
-                    return;
-                }
-
-                for (const message of newMessages) {
-                    chatMessages.push(message);
-                    this.processedMessageIds.add(message.id);
-                    this.messageHistory.set(message.id, message.createdAt);
-                    
-                    if (!latestTimestamp || message.createdAt > latestTimestamp) {
-                        latestTimestamp = message.createdAt;
-                    }
-                    
-                    newMessagesCount++;
-                }
-
-                this.lastMessageTimestamp = latestTimestamp;
-                this.consecutiveEmptyPolls = 0;
-                this.optimizePollingSpeed(true);
-
-                renderMessages();
-                
-                if (wasAtBottom) {
-                    scrollToBottom();
-                }
-                
-                if (!this.isActive) {
-                    this.flashNotification(newMessagesCount);
-                }
-                
-                console.log(`✅ Received ${newMessagesCount} new messages`);
-            }
-
-            optimizePollingSpeed(hasActivity) {
-                const timeSinceActivity = Date.now() - lastActivity;
-                
-                if (hasActivity) {
-                    this.currentDelay = 300;
-                } else if (timeSinceActivity < 30000) {
-                    this.currentDelay = 500;
-                } else if (timeSinceActivity < 120000) {
-                    this.currentDelay = 1000;
-                } else if (this.consecutiveEmptyPolls > this.maxEmptyPolls) {
-                    this.currentDelay = 2000;
-                } else {
-                    this.currentDelay = 1000;
-                }
-                
-                if (this.pollingInterval) {
-                    clearInterval(this.pollingInterval);
-                    this.pollingInterval = setInterval(() => {
-                        this.pollForMessages();
-                    }, this.currentDelay);
-                }
-            }
-
-            handleConnectionError() {
-                this.connectionState = 'error';
-                this.updateConnectionStatus();
-                this.retryCount++;
-                
-                if (this.retryCount < this.maxRetries) {
-                    const retryDelay = Math.min(1000 * Math.pow(2, this.retryCount), 10000);
-                    console.log(`🔄 Retrying in ${retryDelay}ms`);
-                    
-                    setTimeout(() => {
-                        this.connectionState = 'connecting';
-                        this.updateConnectionStatus();
-                        this.pollForMessages();
-                    }, retryDelay);
-                } else {
-                    console.error('❌ Max retries reached');
-                    this.stopRealTimeUpdates();
-                    showErrorMessage('Connection lost. Please refresh.');
-                }
-            }
-
-            resetRetryCount() {
-                this.retryCount = 0;
-            }
-
-            setActive(active) {
-                this.isActive = active;
-                if (active) {
-                    lastActivity = Date.now();
-                    if (this.roomId && this.connectionState === 'connected') {
-                        this.pollForMessages();
-                    }
-                }
-            }
-
-            flashNotification(messageCount) {
-                const originalTitle = document.title;
-                document.title = `💬 ${messageCount} New - AFS Chat`;
-                
-                setTimeout(() => {
-                    document.title = originalTitle;
-                }, 3000);
-            }
-
-            updateConnectionStatus() {
-                const statusIndicator = document.getElementById('statusIndicator');
-                const statusText = document.getElementById('statusText');
-                
-                if (!statusIndicator || !statusText) return;
-
-                statusIndicator.className = `status-indicator status-${this.connectionState}`;
-                
-                const statusMessages = {
-                    'connecting': 'Connecting...',
-                    'connected': `${this.currentDelay}ms`,
-                    'error': 'Error',
-                    'disconnected': 'Offline'
-                };
-                
-                statusText.textContent = statusMessages[this.connectionState] || 'Unknown';
-            }
-
-            stopRealTimeUpdates() {
-                if (this.pollingInterval) {
-                    clearInterval(this.pollingInterval);
-                    this.pollingInterval = null;
-                }
-                this.connectionState = 'disconnected';
-                this.updateConnectionStatus();
-                this.retryCount = 0;
-                this.consecutiveEmptyPolls = 0;
-                console.log('⏹️ Stopped updates');
-            }
-
-            async sendMessage(content) {
-                const messageId = 'temp_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-                
-                const optimisticMessage = {
-                    id: messageId,
-                    content: content,
-                    author: currentUser.username,
-                    createdAt: new Date().toISOString(),
-                    pending: true
-                };
-
-                this.pendingMessages.set(messageId, optimisticMessage);
-                chatMessages.push(optimisticMessage);
-                renderMessages();
-                scrollToBottom();
-
-                lastActivity = Date.now();
-                
-                try {
-                    const authToken = await getAuthToken();
-                    if (!authToken) {
-                        throw new Error('No authentication token available');
-                    }
-
-                    const response = await fetch(`/.netlify/functions/chat-api/rooms/${this.roomId}/messages`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${authToken}`
-                        },
-                        body: JSON.stringify({ content })
-                    });
-
-                    if (!response.ok) {
-                        throw new Error(`HTTP ${response.status}`);
-                    }
-
-                    const data = await response.json();
-                    
-                    if (data.success) {
-                        const tempIndex = chatMessages.findIndex(m => m.id === messageId);
-                        if (tempIndex !== -1) {
-                            chatMessages.splice(tempIndex, 1);
-                        }
-                        
-                        chatMessages.push(data.message);
-                        this.processedMessageIds.add(data.message.id);
-                        this.lastMessageTimestamp = data.message.createdAt;
-                        this.pendingMessages.delete(messageId);
-                        
-                        renderMessages();
-                        scrollToBottom();
-                        
-                        this.currentDelay = 300;
-                        this.consecutiveEmptyPolls = 0;
-                        
-                        console.log('✅ Message sent');
-                    } else {
-                        throw new Error(data.error || 'Failed to send message');
-                    }
-                    
-                } catch (error) {
-                    console.error('💥 Error sending message:', error);
-                    
-                    const messageIndex = chatMessages.findIndex(m => m.id === messageId);
-                    if (messageIndex !== -1) {
-                        chatMessages[messageIndex].pending = false;
-                        chatMessages[messageIndex].failed = true;
-                    }
-                    this.pendingMessages.delete(messageId);
-                    renderMessages();
-                    
-                    throw error;
-                }
-            }
-        }
-
-        const chatManager = new ChatManager();
-
-        // Authentication
-        async function getAuthToken() {
-            if (typeof secureAPI !== 'undefined' && secureAPI.isAuthenticated()) {
-                const token = tokenManager.getAccessToken();
-                console.log('🔑 Using main app auth token');
-                return token;
-            }
-            
-            console.log('❌ No valid authentication found');
-            return null;
-        }
-
-        // Initialize app
-        function initializeApp() {
-            console.log('🚀 Initializing chat app...');
-            
-            if ('Notification' in window && Notification.permission === 'default') {
-                Notification.requestPermission();
-            }
-            
-            checkMainAppSession();
-        }
-
-        async function checkMainAppSession() {
-            console.log('🔍 Checking main app session...');
-            
-            const statusEl = document.getElementById('sessionStatus');
-            if (statusEl) {
-                statusEl.style.display = 'block';
-                statusEl.textContent = 'Checking session...';
-                statusEl.style.background = 'var(--warning-color)';
-                statusEl.style.color = 'white';
-            }
-
-            try {
-                if (typeof secureAPI !== 'undefined' && secureAPI.isAuthenticated()) {
-                    await secureAPI.loadUserData();
-                    
-                    if (currentUser) {
-                        console.log('✅ Main app session found for user:', currentUser.username);
-                        
-                        if (statusEl) {
-                            statusEl.textContent = `✅ Logged in as ${currentUser.username}`;
-                            statusEl.style.background = 'var(--success-color)';
-                            statusEl.style.color = 'white';
-                            setTimeout(() => {
-                                statusEl.style.display = 'none';
-                            }, 2000);
-                        }
-                        
-                        showChatApp();
-                        return;
-                    }
-                }
-                
-                throw new Error('No main app session found');
-                
-            } catch (error) {
-                console.error('💥 Error checking main app session:', error);
-                
-                if (statusEl) {
-                    statusEl.textContent = '❌ Please log in to the main app first';
-                    statusEl.style.background = 'var(--danger-color)';
-                    statusEl.style.color = 'white';
-                }
-                
-                showAuthRequired();
-            }
-        }
-
-        function showAuthRequired() {
-            console.log('🔒 Showing auth required screen');
-            document.getElementById('authRequired').style.display = 'flex';
-            document.getElementById('chatApp').style.display = 'none';
-            chatManager.stopRealTimeUpdates();
-        }
-
-        function showChatApp() {
-            console.log('💬 Showing chat app');
-            document.getElementById('authRequired').style.display = 'none';
-            document.getElementById('chatApp').style.display = 'flex';
-            
-            loadUserProfile();
-            loadUserServers();
-            
-            if (sessionCheckInterval) {
-                clearInterval(sessionCheckInterval);
-            }
-            sessionCheckInterval = setInterval(checkMainAppSession, 30 * 1000);
-        }
-
-        function handleLogout() {
-            console.log('👋 Handling logout');
-            currentUser = null;
-            currentServer = null;
-            currentRoom = null;
-            userServers = [];
-            serverRooms = [];
-            chatMessages = [];
-            publicServers = [];
-            
-            chatManager.stopRealTimeUpdates();
-            
-            if (sessionCheckInterval) {
-                clearInterval(sessionCheckInterval);
-                sessionCheckInterval = null;
-            }
-            
-            showAuthRequired();
-        }
-
-        function redirectToLogin() {
-            console.log('🔄 Redirecting to main app');
-            window.location.href = '/';
-        }
-
-        async function loadUserProfile() {
-            if (!currentUser) return;
-            
-            console.log('👤 Loading user profile for:', currentUser.username);
-            
-            const userNameEl = document.getElementById('userName');
-            const userAvatarEl = document.getElementById('userAvatar');
-            
-            if (userNameEl) {
-                userNameEl.textContent = currentUser.username;
-            }
-            
-            if (userAvatarEl) {
-                userAvatarEl.textContent = currentUser.username.charAt(0).toUpperCase();
-            }
-        }
-
-        async function loadUserServers() {
-            if (!currentUser) return;
-            
-            console.log('🏠 Loading user servers...');
-            
-            try {
-                const authToken = await getAuthToken();
-                if (!authToken) {
-                    throw new Error('No authentication token');
-                }
-
-                const response = await fetch('/.netlify/functions/chat-api/servers', {
-                    method: 'GET',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${authToken}`
-                    }
-                });
-
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                }
-
-                const data = await response.json();
-                
-                if (data.success) {
-                    userServers = data.servers || [];
-                    console.log('✅ Loaded servers:', userServers.length);
-                    renderServersList();
-                } else {
-                    console.error('❌ Failed to load servers:', data.error);
-                    userServers = [];
-                    renderServersList();
-                }
-            } catch (error) {
-                console.error('💥 Error loading servers:', error);
-                userServers = [];
-                renderServersList();
-            }
-        }
-
-        async function loadPublicServers() {
-            console.log('🌐 Loading public servers...');
-            
-            try {
-                const authToken = await getAuthToken();
-                if (!authToken) {
-                    throw new Error('No authentication token');
-                }
-
-                const response = await fetch('/.netlify/functions/chat-api/servers/public', {
-                    method: 'GET',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${authToken}`
-                    }
-                });
-
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                }
-
-                const data = await response.json();
-                
-                if (data.success) {
-                    publicServers = data.servers || [];
-                    console.log('✅ Loaded public servers:', publicServers.length);
-                    renderPublicServersList();
-                } else {
-                    console.error('❌ Failed to load public servers:', data.error);
-                    publicServers = [];
-                    renderPublicServersList();
-                }
-            } catch (error) {
-                console.error('💥 Error loading public servers:', error);
-                publicServers = [];
-                renderPublicServersList();
-            }
-        }
-
-        function renderServersList() {
-            const serversListEl = document.getElementById('serversList');
-            if (!serversListEl) return;
-            
-            if (userServers.length === 0) {
-                serversListEl.innerHTML = `
-                    <div style="color: var(--text-muted); font-size: 12px; text-align: center; padding: 8px;">
-                        No servers
-                    </div>
-                `;
-                return;
-            }
-            
-            serversListEl.innerHTML = userServers.map(server => `
-                <div class="guild-item ${currentServer?.id === server.id ? 'active' : ''}" 
-                     onclick="selectServer('${server.id}')" 
-                     title="${server.name}${server.isPrivate ? ' (Private)' : ''}">
-                    ${server.name.charAt(0).toUpperCase()}
-                </div>
-            `).join('');
-        }
-
-        function renderPublicServersList() {
-            const publicServersListEl = document.getElementById('publicServersList');
-            if (!publicServersListEl) return;
-            
-            if (publicServers.length === 0) {
-                publicServersListEl.innerHTML = `
-                    <div style="text-align: center; padding: 20px; color: var(--text-muted);">
-                        <p>No public servers available</p>
-                    </div>
-                `;
-                return;
-            }
-            
-            publicServersListEl.innerHTML = publicServers.map(server => {
-                const isJoined = userServers.some(us => us.id === server.id);
-                return `
-                    <div class="server-item">
-                        <div class="server-info">
-                            <h4>${server.name}</h4>
-                            <p>${server.description || 'No description'}</p>
-                            <p>${server.memberCount || 0} members • ${server.roomCount || 0} channels</p>
-                        </div>
-                        <div>
-                            ${isJoined ? 
-                                `<button class="btn btn-secondary btn-small" onclick="selectServerFromBrowse('${server.id}')">Open</button>` :
-                                `<button class="btn btn-success btn-small" onclick="joinPublicServer('${server.id}')">Join</button>`
-                            }
-                        </div>
-                    </div>
-                `;
-            }).join('');
-        }
-
-        async function selectServer(serverId) {
-            console.log('🏠 Selecting server:', serverId);
-            
-            const server = userServers.find(s => s.id === serverId);
-            if (!server) {
-                console.error('❌ Server not found:', serverId);
-                return;
-            }
-            
-            chatManager.stopRealTimeUpdates();
-            
-            currentRoom = null;
-            chatMessages = [];
-            serverRooms = [];
-            
-            currentServer = server;
-            
-            document.getElementById('currentServerName').textContent = server.name;
-            document.getElementById('chatRoomName').textContent = 'Select a channel';
-            document.getElementById('serverActions').style.display = 'flex';
-            
-            const messagesWrapper = document.getElementById('messagesWrapper');
-            if (messagesWrapper) {
-                messagesWrapper.innerHTML = `
-                    <div class="welcome-message">
-                        <h3>Welcome to ${server.name}! 🏠</h3>
-                        <p>Select a channel to start chatting.</p>
-                    </div>
-                `;
-            }
-            
-            renderServersList();
-            
-            await loadServerRooms(serverId);
-            
-            if (serverRooms.length > 0) {
-                console.log('🔄 Auto-selecting first room:', serverRooms[0].name);
-                setTimeout(() => {
-                    selectRoom(serverRooms[0].id);
-                }, 100);
-            }
-        }
-
-        function selectServerFromBrowse(serverId) {
-            closeBrowseServersModal();
-            selectServer(serverId);
-        }
-
-        async function joinPublicServer(serverId) {
-            console.log('🚀 Joining public server:', serverId);
-            
-            try {
-                const authToken = await getAuthToken();
-                if (!authToken) {
-                    throw new Error('No authentication token');
-                }
-
-                const response = await fetch(`/.netlify/functions/chat-api/servers/${serverId}/join`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${authToken}`
-                    }
-                });
-
-                if (!response.ok) {
-                    const errorData = await response.json().catch(() => ({}));
-                    throw new Error(errorData.error || `Failed to join server (${response.status})`);
-                }
-
-                const data = await response.json();
-                
-                if (data.success) {
-                    console.log('✅ Successfully joined public server');
-                    showSuccessMessage('Successfully joined server!');
-                    
-                    await loadUserServers();
-                    await loadPublicServers();
-                    selectServer(serverId);
-                } else {
-                    throw new Error(data.error || 'Failed to join server');
-                }
-            } catch (error) {
-                console.error('💥 Error joining public server:', error);
-                showErrorMessage(error.message || 'Failed to join server');
-            }
-        }
-
-        async function loadServerRooms(serverId) {
-            console.log('📋 Loading rooms for server:', serverId);
-            
-            try {
-                const authToken = await getAuthToken();
-                if (!authToken) {
-                    throw new Error('No authentication token');
-                }
-
-                const response = await fetch(`/.netlify/functions/chat-api/servers/${serverId}/rooms`, {
-                    method: 'GET',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${authToken}`
-                    }
-                });
-
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                }
-
-                const data = await response.json();
-                
-                if (data.success) {
-                    serverRooms = data.rooms || [];
-                    console.log('✅ Loaded rooms:', serverRooms.length);
-                    renderRoomsList();
-                } else {
-                    console.error('❌ Failed to load rooms:', data.error);
-                    serverRooms = [];
-                    renderRoomsList();
-                }
-            } catch (error) {
-                console.error('💥 Error loading rooms:', error);
-                serverRooms = [];
-                renderRoomsList();
-            }
-        }
-
-        function renderRoomsList() {
-            const roomsListEl = document.getElementById('roomsList');
-            if (!roomsListEl) return;
-            
-            if (serverRooms.length === 0) {
-                roomsListEl.innerHTML = `
-                    <div class="welcome-message">
-                        <p>No channels yet</p>
-                        <small style="color: var(--text-muted);">Create the first channel!</small>
-                    </div>
-                `;
-                return;
-            }
-            
-            roomsListEl.innerHTML = serverRooms.map(room => `
-                <div class="channel-item ${currentRoom?.id === room.id ? 'active' : ''}" 
-                     onclick="selectRoom('${room.id}')">
-                    <span class="channel-prefix">#</span>
-                    <span>${room.name}</span>
-                </div>
-            `).join('');
-        }
-
-        async function selectRoom(roomId) {
-            console.log('📋 Selecting room:', roomId);
-            
-            const room = serverRooms.find(r => r.id === roomId);
-            if (!room) {
-                console.error('❌ Room not found:', roomId);
-                return;
-            }
-            
-            chatManager.stopRealTimeUpdates();
-            
-            chatMessages = [];
-            chatMessages.length = 0;
-            
-            chatManager.processedMessageIds.clear();
-            chatManager.messageHistory.clear();
-            chatManager.lastMessageTimestamp = null;
-            
-            currentRoom = room;
-            
-            document.getElementById('chatRoomName').textContent = room.name;
-            
-            const messagesWrapper = document.getElementById('messagesWrapper');
-            if (messagesWrapper) {
-                messagesWrapper.innerHTML = `
+            <div class="form-group">
+                <label class="form-label">Public Servers</label>
+                <div class="server-list" id="publicServersList">
                     <div class="loading">
                         <div class="spinner"></div>
                     </div>
-                `;
-            }
-            
-            renderRoomsList();
-            
-            await loadRoomMessages(roomId);
-            
-            chatManager.startRealTimeUpdates(roomId);
-        }
+                </div>
+            </div>
+            <div class="form-actions">
+                <button class="btn btn-secondary" onclick="closeModal('browseServersModal')">Close</button>
+            </div>
+        </div>
+    </div>
 
-        async function loadRoomMessages(roomId) {
-            console.log('💬 Loading messages for room:', roomId);
-            
-            // Capture the current room ID to check if it changes during loading
-            const loadingRoomId = roomId;
-            
-            try {
-                const params = new URLSearchParams();
-                params.append('limit', '50');
-                
-                const authToken = await getAuthToken();
-                if (!authToken) {
-                    throw new Error('No authentication token');
-                }
+    <!-- Create Room Modal -->
+    <div class="modal" id="createRoomModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">Create Room</h2>
+            </div>
+            <div id="createRoomError"></div>
+            <div class="form-group">
+                <label class="form-label" for="roomNameInput">Room Name</label>
+                <input type="text" class="form-input" id="roomNameInput" placeholder="general-chat" maxlength="50">
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="roomDescription">Description (Optional)</label>
+                <textarea class="form-textarea" id="roomDescription" placeholder="What's this room for?" maxlength="200"></textarea>
+            </div>
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" class="form-checkbox" id="roomPrivate">
+                    Private Room
+                </label>
+            </div>
+            <div class="form-actions">
+                <button class="btn btn-secondary" onclick="closeModal('createRoomModal')">Cancel</button>
+                <button class="btn btn-primary" onclick="createRoom()">Create Room</button>
+            </div>
+        </div>
+    </div>
 
-                const response = await fetch(`/.netlify/functions/chat-api/rooms/${roomId}/messages?${params}`, {
-                    method: 'GET',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${authToken}`
-                    }
-                });
+    <!-- Toast Container -->
+    <div class="toast-container" id="toastContainer"></div>
 
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                }
-
-                const data = await response.json();
-                
-                // Check if the room selection has changed while we were loading
-                if (currentRoom?.id !== loadingRoomId) {
-                    console.log('⏭️ Room changed during message loading, discarding results');
-                    return;
-                }
-                
-                if (data.success) {
-                    // Clear and set messages
-                    chatMessages = [];
-                    chatMessages.length = 0;
-                    
-                    if (data.messages && data.messages.length > 0) {
-                        chatMessages.push(...data.messages);
-                        
-                        // Reset chat manager's tracking
-                        chatManager.processedMessageIds.clear();
-                        chatManager.messageHistory.clear();
-                        
-                        chatMessages.forEach(message => {
-                            chatManager.processedMessageIds.add(message.id);
-                            chatManager.messageHistory.set(message.id, message.createdAt);
-                        });
-                        
-                        const newestMessage = chatMessages.reduce((newest, current) => {
-                            const newestTime = new Date(newest.createdAt).getTime();
-                            const currentTime = new Date(current.createdAt).getTime();
-                            return currentTime > newestTime ? current : newest;
-                        });
-                        chatManager.lastMessageTimestamp = newestMessage.createdAt;
-                        console.log(`🕐 Set initial tracking for room ${roomId} - timestamp: ${chatManager.lastMessageTimestamp}`);
-                    } else {
-                        chatManager.lastMessageTimestamp = null;
-                        chatManager.processedMessageIds.clear();
-                        chatManager.messageHistory.clear();
-                    }
-                    
-                    console.log('✅ Loaded messages:', chatMessages.length);
-                    
-                    // Final check before rendering
-                    if (currentRoom?.id === loadingRoomId) {
-                        renderMessages();
-                        requestAnimationFrame(() => {
-                            scrollToBottom();
-                        });
-                    }
-                } else {
-                    console.error('❌ Failed to load messages:', data.error);
-                    if (currentRoom?.id === loadingRoomId) {
-                        chatMessages = [];
-                        renderMessages();
-                    }
-                }
-            } catch (error) {
-                console.error('💥 Error loading messages:', error);
-                if (currentRoom?.id === loadingRoomId) {
-                    chatMessages = [];
-                    renderMessages();
-                }
-            }
-        }
-
-        function scrollToBottom() {
-            const container = document.getElementById('messagesContainer');
-            if (container) {
-                container.scrollTop = container.scrollHeight;
-            }
-        }
-
-        function isAtBottom() {
-            const container = document.getElementById('messagesContainer');
-            if (!container) return true;
-            const threshold = 100;
-            return container.scrollTop >= (container.scrollHeight - container.clientHeight - threshold);
-        }
-
-        function renderMessages() {
-            const messagesWrapper = document.getElementById('messagesWrapper');
-            if (!messagesWrapper) return;
-            
-            if (chatMessages.length === 0) {
-                messagesWrapper.innerHTML = `
-                    <div class="welcome-message">
-                        <h3>Welcome to #${currentRoom?.name || 'channel'}! 💬</h3>
-                        <p>This is the beginning of the conversation.</p>
-                    </div>
-                `;
-                return;
-            }
-            
-            const sortedMessages = [...chatMessages].sort((a, b) => {
-                const timeA = new Date(a.createdAt || a.timestamp).getTime();
-                const timeB = new Date(b.createdAt || b.timestamp).getTime();
-                return timeA - timeB;
-            });
-            
-            messagesWrapper.innerHTML = sortedMessages.map(message => {
-                let messageClass = 'message';
-                let statusText = '';
-                
-                if (message.pending) {
-                    messageClass += ' message-pending';
-                    statusText = '<span class="message-status">Sending...</span>';
-                } else if (message.failed) {
-                    messageClass += ' message-failed';
-                    statusText = '<span class="message-status failed">Failed</span>';
-                }
-                
-                return `
-                    <div class="${messageClass}">
-                        <div class="message-avatar">
-                            ${message.author.charAt(0).toUpperCase()}
-                        </div>
-                        <div class="message-content">
-                            <div class="message-header">
-                                <span class="message-author">${message.author}</span>
-                                <span class="message-timestamp">${formatTimestamp(message.createdAt || message.timestamp)}</span>
-                                ${statusText}
-                            </div>
-                            <div class="message-text">${escapeHtml(message.content)}</div>
-                        </div>
-                    </div>
-                `;
-            }).join('');
-            
-            setTimeout(() => {
-                scrollToBottom();
-            }, 10);
-        }
-
-        function formatTimestamp(timestamp) {
-            const date = new Date(timestamp);
-            const now = new Date();
-            const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-            const messageDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-            
-            if (messageDate.getTime() === today.getTime()) {
-                return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-            } else if (messageDate.getTime() === today.getTime() - 86400000) {
-                return 'Yesterday at ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-            } else {
-                return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-            }
-        }
-
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        }
-
-        function handleMessageKeyDown(event) {
-            if (event.key === 'Enter' && !event.shiftKey) {
-                event.preventDefault();
-                sendMessage();
-            }
-        }
-
-        async function sendMessage() {
-            if (!currentRoom || !currentUser) {
-                console.log('❌ Cannot send message: no room or user');
-                return;
-            }
-            
-            const messageInput = document.getElementById('messageInput');
-            const content = messageInput.value.trim();
-            
-            if (!content) {
-                console.log('❌ Cannot send empty message');
-                return;
-            }
-            
-            console.log('📤 Sending message:', content);
-            
-            messageInput.value = '';
-            
-            try {
-                await chatManager.sendMessage(content);
-            } catch (error) {
-                messageInput.value = content;
-                showErrorMessage('Failed to send message. Please try again.');
-            }
-        }
-
-        // Modal Functions
-        function openBrowseServersModal() {
-            console.log('🌐 Opening browse servers modal...');
-            document.getElementById('browseServersModal').style.display = 'flex';
-            loadPublicServers();
-        }
-
-        function closeBrowseServersModal() {
-            console.log('❌ Closing browse servers modal...');
-            document.getElementById('browseServersModal').style.display = 'none';
-        }
-
-        function openJoinServerModal() {
-            console.log('🔍 Opening join server modal...');
-            document.getElementById('joinServerModal').style.display = 'flex';
-            setTimeout(() => {
-                document.getElementById('serverIdInput').focus();
-            }, 100);
-        }
-
-        function closeJoinServerModal() {
-            console.log('❌ Closing join server modal...');
-            document.getElementById('joinServerModal').style.display = 'none';
-            document.getElementById('serverIdInput').value = '';
-        }
-
-        function handleJoinServerKeyDown(event) {
-            if (event.key === 'Enter') {
-                event.preventDefault();
-                joinServerSubmit();
-            } else if (event.key === 'Escape') {
-                event.preventDefault();
-                closeJoinServerModal();
-            }
-        }
-
-        async function joinServerSubmit() {
-            const serverId = document.getElementById('serverIdInput').value.trim().toUpperCase();
-            
-            if (!serverId) {
-                showErrorMessage('Please enter a server code');
-                return;
-            }
-            
-            if (!currentUser) {
-                showErrorMessage('You must be logged in to join a server');
-                return;
-            }
-            
-            console.log('🚀 Attempting to join server with code:', serverId);
-            
-            try {
-                const authToken = await getAuthToken();
-                if (!authToken) {
-                    throw new Error('No authentication token');
-                }
-
-                const response = await fetch(`/.netlify/functions/chat-api/servers/${serverId}/join`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${authToken}`
-                    }
-                });
-
-                if (!response.ok) {
-                    const errorData = await response.json().catch(() => ({}));
-                    throw new Error(errorData.error || `Server not found or access denied (${response.status})`);
-                }
-
-                const data = await response.json();
-                
-                if (data.success) {
-                    console.log('✅ Successfully joined server');
-                    showSuccessMessage('Successfully joined server!');
-                    closeJoinServerModal();
-                    
-                    await loadUserServers();
-                    
-                    const joinedServer = userServers.find(s => s.id === serverId);
-                    if (joinedServer) {
-                        selectServer(joinedServer.id);
-                    }
-                } else {
-                    console.error('❌ Failed to join server:', data.error);
-                    showErrorMessage(data.error || 'Failed to join server');
-                }
-            } catch (error) {
-                console.error('💥 Error joining server:', error);
-                showErrorMessage(error.message || 'Network error. Please try again.');
-            }
-        }
-
-        function openCreateServerModal() {
-            console.log('🏠 Opening create server modal...');
-            document.getElementById('createServerModal').style.display = 'flex';
-        }
-
-        function closeCreateServerModal() {
-            console.log('❌ Closing create server modal...');
-            document.getElementById('createServerModal').style.display = 'none';
-            document.getElementById('serverNameInput').value = '';
-            document.getElementById('serverDescriptionInput').value = '';
-            document.getElementById('serverPrivateInput').checked = false;
-        }
-
-        async function createServerSubmit() {
-            const name = document.getElementById('serverNameInput').value.trim();
-            const description = document.getElementById('serverDescriptionInput').value.trim();
-            const isPrivate = document.getElementById('serverPrivateInput').checked;
-            
-            if (!name) {
-                showErrorMessage('Please enter a server name');
-                return;
-            }
-            
-            if (!currentUser) {
-                showErrorMessage('You must be logged in to create a server');
-                return;
-            }
-            
-            console.log('🚀 Creating server:', { name, description, isPrivate });
-            
-            try {
-                const authToken = await getAuthToken();
-                if (!authToken) {
-                    throw new Error('No authentication token');
-                }
-
-                const response = await fetch('/.netlify/functions/chat-api/servers', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${authToken}`
-                    },
-                    body: JSON.stringify({
-                        name: name,
-                        description: description || `${name} server`,
-                        isPrivate: isPrivate
-                    })
-                });
-
-                if (!response.ok) {
-                    const errorData = await response.json().catch(() => ({}));
-                    throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
-                }
-
-                const data = await response.json();
-                
-                if (data.success && data.server) {
-                    console.log('✅ Server created successfully:', data.server.id);
-                    showSuccessMessage(`Server "${name}" created successfully!`);
-                    closeCreateServerModal();
-                    
-                    await loadUserServers();
-                    selectServer(data.server.id);
-                } else {
-                    console.error('❌ Failed to create server:', data.error || data);
-                    showErrorMessage(data.error || 'Failed to create server');
-                }
-            } catch (error) {
-                console.error('💥 Error creating server:', error);
-                showErrorMessage(error.message || 'Network error. Please try again.');
-            }
-        }
-
-        function openCreateRoomModal() {
-            if (!currentServer) {
-                showErrorMessage('Please select a server first');
-                return;
-            }
-            
-            const roomName = prompt('Enter channel name:');
-            if (roomName && roomName.trim()) {
-                createRoom(roomName.trim());
-            }
-        }
-
-        async function createRoom(roomName) {
-            if (!currentServer) {
-                showErrorMessage('No server selected');
-                return;
-            }
-            
-            console.log('📋 Creating room:', roomName, 'in server:', currentServer.id);
-            
-            try {
-                const authToken = await getAuthToken();
-                if (!authToken) {
-                    throw new Error('No authentication token');
-                }
-
-                const response = await fetch(`/.netlify/functions/chat-api/servers/${currentServer.id}/rooms`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${authToken}`
-                    },
-                    body: JSON.stringify({
-                        name: roomName,
-                        description: `Channel for ${roomName} discussions`
-                    })
-                });
-
-                if (!response.ok) {
-                    const errorData = await response.json().catch(() => ({}));
-                    throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
-                }
-
-                const data = await response.json();
-                
-                if (data.success && data.room) {
-                    console.log('✅ Room created successfully:', data.room.id);
-                    showSuccessMessage(`Channel "${roomName}" created successfully!`);
-                    
-                    // Pass signal to loadServerRooms
-                    serverLoadAbortController = new AbortController();
-                    await loadServerRooms(currentServer.id, serverLoadAbortController.signal);
-                    await selectRoom(data.room.id);
-                } else {
-                    console.error('❌ Failed to create room:', data.error || 'Unknown error');
-                    showErrorMessage(data.error || 'Failed to create channel');
-                }
-            } catch (error) {
-                console.error('💥 Error creating room:', error);
-                showErrorMessage(error.message || 'Network error. Please try again.');
-            }
-        }
-
-        function showShareCode(event) {
-            event.stopPropagation();
-            
-            if (!currentServer) {
-                showErrorMessage('No server selected');
-                return;
-            }
-            
-            document.getElementById('shareServerName').textContent = currentServer.name;
-            document.getElementById('shareCodeText').textContent = currentServer.id;
-            document.getElementById('shareCodeModal').style.display = 'flex';
-        }
-
-        function closeShareCodeModal() {
-            document.getElementById('shareCodeModal').style.display = 'none';
-        }
-
-        function copyShareCode() {
-            const shareCodeText = document.getElementById('shareCodeText').textContent;
-            
-            if (navigator.clipboard) {
-                navigator.clipboard.writeText(shareCodeText).then(() => {
-                    showSuccessMessage('Server code copied to clipboard!');
-                }).catch(err => {
-                    console.error('Failed to copy: ', err);
-                    fallbackCopyTextToClipboard(shareCodeText);
-                });
-            } else {
-                fallbackCopyTextToClipboard(shareCodeText);
-            }
-        }
-
-        function fallbackCopyTextToClipboard(text) {
-            const textArea = document.createElement("textarea");
-            textArea.value = text;
-            textArea.style.top = "0";
-            textArea.style.left = "0";
-            textArea.style.position = "fixed";
-            
-            document.body.appendChild(textArea);
-            textArea.focus();
-            textArea.select();
-            
-            try {
-                const successful = document.execCommand('copy');
-                if (successful) {
-                    showSuccessMessage('Server code copied to clipboard!');
-                } else {
-                    showErrorMessage('Failed to copy server code');
-                }
-            } catch (err) {
-                console.error('Fallback: Unable to copy', err);
-                showErrorMessage('Failed to copy server code');
-            }
-            
-            document.body.removeChild(textArea);
-        }
-
-        function showServerInfo(event) {
-            event.stopPropagation();
-            
-            if (!currentServer) {
-                showErrorMessage('No server selected');
-                return;
-            }
-            
-            const info = `
-Server: ${currentServer.name}
-${currentServer.description ? `Description: ${currentServer.description}` : ''}
-Type: ${currentServer.isPrivate ? 'Private' : 'Public'}
-Members: ${currentServer.memberCount || 'Unknown'}
-Channels: ${serverRooms.length}
-Created: ${currentServer.createdAt ? new Date(currentServer.createdAt).toLocaleDateString() : 'Unknown'}
-            `.trim();
-            
-            alert(info);
-        }
-
-        function toggleMobileChannels() {
-            const channelsWrapper = document.getElementById('channelsWrapper');
-            if (channelsWrapper) {
-                channelsWrapper.classList.toggle('mobile-open');
-            }
-        }
-
-        function showSuccessMessage(message) {
-            const messageEl = document.createElement('div');
-            messageEl.className = 'message-success';
-            messageEl.textContent = message;
-            messageEl.style.position = 'fixed';
-            messageEl.style.top = '20px';
-            messageEl.style.right = '20px';
-            messageEl.style.zIndex = '2000';
-            messageEl.style.borderRadius = '8px';
-            messageEl.style.boxShadow = '0 4px 12px rgba(0,0,0,0.3)';
-            document.body.appendChild(messageEl);
-            
-            setTimeout(() => {
-                messageEl.remove();
-            }, 5000);
-        }
-
-        function showErrorMessage(message) {
-            const messageEl = document.createElement('div');
-            messageEl.className = 'message-error';
-            messageEl.textContent = message;
-            messageEl.style.position = 'fixed';
-            messageEl.style.top = '20px';
-            messageEl.style.right = '20px';
-            messageEl.style.zIndex = '2000';
-            messageEl.style.borderRadius = '8px';
-            messageEl.style.boxShadow = '0 4px 12px rgba(0,0,0,0.3)';
-            document.body.appendChild(messageEl);
-            
-            setTimeout(() => {
-                messageEl.remove();
-            }, 5000);
-        }
-
-        function trackUserActivity() {
-            lastActivity = Date.now();
-            chatManager.setActive(true);
-        }
-
-        // Event Listeners
-        document.addEventListener('visibilitychange', function() {
-            const isActive = !document.hidden;
-            chatManager.setActive(isActive);
-            
-            if (isActive && currentRoom) {
-                console.log('🔄 User returned to tab, forcing immediate poll');
-                chatManager.pollForMessages();
-            }
-        });
-
-        ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'].forEach(event => {
-            document.addEventListener(event, trackUserActivity, { passive: true });
-        });
-
-        document.addEventListener('DOMContentLoaded', initializeApp);
-
-        window.addEventListener('popstate', function(event) {
-            // Handle navigation if needed
-        });
-
-        window.addEventListener('storage', function(e) {
-            console.log('🔄 Storage event detected:', e.key, e.newValue ? 'Set' : 'Removed');
-            
-            if (e.key === 'shed_access_token' || e.key === 'shed_refresh_token' || e.key === 'shed_user_data') {
-                if (e.newValue) {
-                    console.log('🎉 Authentication change detected from main app');
-                    setTimeout(() => {
-                        checkMainAppSession();
-                    }, 1000);
-                } else {
-                    console.log('❌ Authentication removed, user logged out');
-                    handleLogout();
-                }
-            }
-        });
-
-        window.addEventListener('message', function(event) {
-            if (event.data && event.data.type === 'SESSION_UPDATE') {
-                console.log('🔄 Received session update message from main app');
-                checkMainAppSession();
-            }
-        });
-
-        function showConnectionStatus() {
-            const status = {
-                state: chatManager.connectionState,
-                delay: chatManager.currentDelay,
-                retries: chatManager.retryCount,
-                pending: chatManager.pendingMessages.size,
-                emptyPolls: chatManager.consecutiveEmptyPolls,
-                processedCount: chatManager.processedMessageIds.size
-            };
-            console.log('🔌 Connection Status:', status);
-        }
-
-        // Debug access
-        window.chatManager = chatManager;
-        window.showConnectionStatus = showConnectionStatus;
-    </script>
+    <script src="chat.js"></script>
 </body>
 </html>
