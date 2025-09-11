@@ -152,6 +152,11 @@
             font-size: 14px;
             font-weight: 600;
             color: var(--color-fg-muted);
+            transition: color 0.2s;
+        }
+        
+        .rooms-header h3:hover {
+            color: var(--color-fg-default);
         }
 
         .rooms-list {
@@ -648,7 +653,7 @@
         <!-- Rooms Sidebar -->
         <div class="rooms-sidebar" id="roomsSidebar">
             <div class="rooms-header">
-                <h3 id="sidebarServerName">Select a Server</h3>
+                <h3 id="sidebarServerName" style="cursor: pointer; flex: 1;" onclick="toggleSidebar()" title="Click to close">Select a Server</h3>
                 <button class="server-button create" onclick="showCreateRoomModal()" title="Create Room" style="width: 28px; height: 28px; min-width: 28px; font-size: 16px;">+</button>
             </div>
             <div class="rooms-list" id="roomsList">
