@@ -252,12 +252,16 @@ async function selectRoom(roomId) {
     try {
         currentRoom = roomId;
         lastMessageTimestamp = null;
+        messages = []; // Clear existing messages
         
         // Update UI
         renderRoomsList();
         
         const room = rooms.find(r => r.id === roomId);
         document.getElementById('roomName').textContent = room ? `# ${room.name}` : 'Loading...';
+        
+        // Clear messages container
+        document.getElementById('messagesContainer').innerHTML = '<div class="loading"><div class="spinner"></div></div>';
         
         // Show input area
         document.getElementById('inputArea').style.display = 'block';
@@ -286,26 +290,39 @@ async function loadMessages(isPoll = false) {
         const data = await apiRequest(url);
         
         if (isPoll && data.messages.length > 0) {
-            // Append new messages
-            messages = messages.concat(data.messages);
-            data.messages.forEach(msg => renderMessage(msg, true));
+            // Check for duplicates before appending
+            const existingIds = new Set(messages.map(m => m.id));
+            const newMessages = data.messages.filter(msg => !existingIds.has(msg.id));
             
-            // Update last timestamp
-            const lastMsg = data.messages[data.messages.length - 1];
-            if (lastMsg) {
-                lastMessageTimestamp = lastMsg.createdAt;
+            if (newMessages.length > 0) {
+                // Append only truly new messages
+                messages = messages.concat(newMessages);
+                newMessages.forEach(msg => renderMessage(msg, true));
+                
+                // Update last timestamp to the newest message
+                const allMessages = [...messages];
+                if (allMessages.length > 0) {
+                    // Get the most recent timestamp
+                    const sortedByTime = allMessages.sort((a, b) => 
+                        new Date(b.createdAt) - new Date(a.createdAt)
+                    );
+                    lastMessageTimestamp = sortedByTime[0].createdAt;
+                }
+                
+                // Scroll to bottom
+                scrollToBottom();
             }
-            
-            // Scroll to bottom
-            scrollToBottom();
         } else if (!isPoll) {
             // Initial load
             messages = data.messages || [];
             renderMessages();
             
-            // Set last timestamp
+            // Set last timestamp to the newest message
             if (messages.length > 0) {
-                lastMessageTimestamp = messages[messages.length - 1].createdAt;
+                const sortedMessages = [...messages].sort((a, b) => 
+                    new Date(b.createdAt) - new Date(a.createdAt)
+                );
+                lastMessageTimestamp = sortedMessages[0].createdAt;
             }
         }
     } catch (error) {
@@ -338,6 +355,12 @@ function renderMessages() {
 // Render a single message
 function renderMessage(message, append = false) {
     const container = document.getElementById('messagesContainer');
+    
+    // Check if message already exists
+    if (container.querySelector(`[data-message-id="${message.id}"]`)) {
+        console.log('Message already rendered, skipping:', message.id);
+        return;
+    }
     
     // Clear welcome screen if needed
     if (container.querySelector('.welcome-screen')) {
