@@ -1,5 +1,5 @@
-// app.js - COMPLETE PRODUCTION MAIN APPLICATION LOGIC
-// Main application logic with full API integration
+// app.js - COMPLETE PRODUCTION MAIN APPLICATION LOGIC WITH SETTINGS
+// Main application logic with full API integration and theme support
 
 // App state - ALL VARIABLES DECLARED ONCE HERE
 let currentUser = null;
@@ -13,6 +13,51 @@ let currentPostType = 'text';
 let inlineLoginFormOpen = false;
 let currentFeedTab = 'general';
 let followedCommunities = new Set();
+let currentTheme = localStorage.getItem('selectedTheme') || 'github-dark';
+
+// Theme management
+function applyTheme(themeName) {
+    currentTheme = themeName;
+    localStorage.setItem('selectedTheme', themeName);
+    document.documentElement.setAttribute('data-theme', themeName);
+    
+    // Update theme selector if it exists
+    const themeSelector = document.getElementById('themeSelector');
+    if (themeSelector) {
+        themeSelector.value = themeName;
+    }
+}
+
+function openSettingsModal() {
+    // Update theme selector to current theme
+    const themeSelector = document.getElementById('themeSelector');
+    if (themeSelector) {
+        themeSelector.value = currentTheme;
+    }
+    
+    openModal('settingsModal');
+}
+
+function handleThemeChange(themeName) {
+    applyTheme(themeName);
+    showSuccessMessage(`Theme changed to ${getThemeDisplayName(themeName)}`);
+}
+
+function getThemeDisplayName(themeName) {
+    const themes = {
+        'github-dark': 'GitHub Dark',
+        'github-light': 'GitHub Light',
+        'solarized-dark': 'Solarized Dark',
+        'solarized-light': 'Solarized Light',
+        'nord': 'Nord',
+        'dracula': 'Dracula',
+        'gruvbox-dark': 'Gruvbox Dark',
+        'gruvbox-light': 'Gruvbox Light',
+        'sepia': 'Sepia (Eye Comfort)',
+        'high-contrast': 'High Contrast'
+    };
+    return themes[themeName] || themeName;
+}
 
 // Menu functions
 function toggleMenu() {
@@ -197,7 +242,7 @@ function navigateToAdmin() {
 
 function navigateToSettings() {
     toggleMenu();
-    showSuccessMessage('Settings page coming soon!');
+    openSettingsModal();
 }
 
 function navigateToCommunity(communityName) {
@@ -1149,6 +1194,9 @@ function loadMoreAdminPosts() {
 // Initialize app
 document.addEventListener('DOMContentLoaded', async () => {
     console.log('App initializing...');
+    
+    // Apply saved theme
+    applyTheme(currentTheme);
     
     // Configure marked.js for markdown rendering
     if (typeof marked !== 'undefined') {
