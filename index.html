@@ -3,775 +3,368 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>The Shed - Chat</title>
-    <style>
-        /* GitHub Dark Theme Variables */
-        :root {
-            --color-canvas-default: #0d1117;
-            --color-canvas-subtle: #161b22;
-            --color-canvas-inset: #010409;
-            --color-fg-default: #e6edf3;
-            --color-fg-muted: #7d8590;
-            --color-fg-subtle: #6e7681;
-            --color-border-default: #30363d;
-            --color-border-muted: #21262d;
-            --color-neutral-muted: rgba(110, 118, 129, 0.4);
-            --color-accent-fg: #2f81f7;
-            --color-accent-emphasis: #1f6feb;
-            --color-success-fg: #3fb950;
-            --color-danger-fg: #f85149;
-            --color-btn-bg: #21262d;
-            --color-btn-hover-bg: #30363d;
-            --color-btn-active-bg: #282e33;
-            --color-btn-primary-bg: #238636;
-            --color-btn-primary-hover-bg: #2ea043;
-            --color-input-bg: #0d1117;
-            --color-input-border: #30363d;
-        }
-
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif;
-            background: var(--color-canvas-default);
-            color: var(--color-fg-default);
-            height: 100vh;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-        }
-
-        /* Server Bar */
-        .server-bar {
-            height: 48px;
-            background: var(--color-canvas-subtle);
-            border-bottom: 1px solid var(--color-border-default);
-            display: flex;
-            align-items: center;
-            padding: 0 8px;
-            gap: 8px;
-            overflow-x: auto;
-            scrollbar-width: thin;
-            scrollbar-color: var(--color-neutral-muted) transparent;
-        }
-
-        .server-bar::-webkit-scrollbar {
-            height: 6px;
-        }
-
-        .server-bar::-webkit-scrollbar-track {
-            background: transparent;
-        }
-
-        .server-bar::-webkit-scrollbar-thumb {
-            background: var(--color-neutral-muted);
-            border-radius: 3px;
-        }
-
-        .server-button {
-            height: 36px;
-            min-width: 36px;
-            padding: 0 12px;
-            background: var(--color-btn-bg);
-            border: 1px solid var(--color-border-default);
-            color: var(--color-fg-default);
-            border-radius: 6px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 14px;
-            white-space: nowrap;
-            transition: all 0.2s;
-        }
-
-        .server-button:hover {
-            background: var(--color-btn-hover-bg);
-            border-color: var(--color-border-muted);
-        }
-
-        .server-button.active {
-            background: var(--color-accent-emphasis);
-            border-color: var(--color-accent-fg);
-        }
-
-        .server-button.create {
-            min-width: 36px;
-            width: 36px;
-            font-size: 20px;
-            font-weight: 300;
-        }
-
-        .server-button.browse {
-            background: var(--color-btn-bg);
-            border-color: var(--color-accent-fg);
-            color: var(--color-accent-fg);
-        }
-
-        /* Main Container */
-        .main-container {
-            flex: 1;
-            display: flex;
-            overflow: hidden;
-            position: relative;
-        }
-
-        /* Rooms Sidebar */
-        .rooms-sidebar {
-            width: 240px;
-            background: var(--color-canvas-subtle);
-            border-right: 1px solid var(--color-border-default);
-            display: flex;
-            flex-direction: column;
-            transform: translateX(-240px);
-            transition: transform 0.3s ease;
-            position: absolute;
-            left: 0;
-            top: 0;
-            bottom: 0;
-            z-index: 10;
-        }
-
-        .rooms-sidebar.open {
-            transform: translateX(0);
-        }
-
-        .rooms-header {
-            padding: 12px;
-            border-bottom: 1px solid var(--color-border-default);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .rooms-header h3 {
-            font-size: 14px;
-            font-weight: 600;
-            color: var(--color-fg-muted);
-        }
-
-        .rooms-list {
-            flex: 1;
-            overflow-y: auto;
-            padding: 8px;
-        }
-
-        .room-item {
-            padding: 8px 12px;
-            border-radius: 6px;
-            cursor: pointer;
-            margin-bottom: 2px;
-            font-size: 14px;
-            color: var(--color-fg-muted);
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .room-item:hover {
-            background: var(--color-btn-hover-bg);
-            color: var(--color-fg-default);
-        }
-
-        .room-item.active {
-            background: var(--color-accent-emphasis);
-            color: #fff;
-        }
-
-        .room-item .room-hash {
-            opacity: 0.6;
-            font-size: 16px;
-        }
-
-        /* Chat Area */
-        .chat-area {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            background: var(--color-canvas-default);
-        }
-
-        .chat-header {
-            height: 48px;
-            background: var(--color-canvas-subtle);
-            border-bottom: 1px solid var(--color-border-default);
-            display: flex;
-            align-items: center;
-            padding: 0 16px;
-            gap: 12px;
-        }
-
-        .sidebar-toggle {
-            width: 32px;
-            height: 32px;
-            background: transparent;
-            border: 1px solid var(--color-border-default);
-            color: var(--color-fg-muted);
-            border-radius: 6px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: all 0.2s;
-        }
-
-        .sidebar-toggle:hover {
-            background: var(--color-btn-hover-bg);
-            color: var(--color-fg-default);
-        }
-
-        .room-name {
-            font-size: 16px;
-            font-weight: 600;
-            color: var(--color-fg-default);
-        }
-
-        .messages-container {
-            flex: 1;
-            overflow-y: auto;
-            padding: 16px;
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-        }
-
-        .message {
-            display: flex;
-            gap: 12px;
-            animation: messageSlide 0.3s ease;
-        }
-
-        @keyframes messageSlide {
-            from {
-                opacity: 0;
-                transform: translateY(10px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        .message-avatar {
-            width: 40px;
-            height: 40px;
-            background: var(--color-neutral-muted);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 600;
-            flex-shrink: 0;
-        }
-
-        .message-content {
-            flex: 1;
-        }
-
-        .message-header {
-            display: flex;
-            align-items: baseline;
-            gap: 8px;
-            margin-bottom: 4px;
-        }
-
-        .message-author {
-            font-weight: 600;
-            color: var(--color-fg-default);
-            font-size: 14px;
-        }
-
-        .message-time {
-            font-size: 12px;
-            color: var(--color-fg-subtle);
-        }
-
-        .message-text {
-            color: var(--color-fg-default);
-            line-height: 1.5;
-            word-wrap: break-word;
-        }
-
-        /* Input Area */
-        .input-area {
-            padding: 16px;
-            background: var(--color-canvas-subtle);
-            border-top: 1px solid var(--color-border-default);
-        }
-
-        .input-container {
-            display: flex;
-            gap: 8px;
-        }
-
-        .message-input {
-            flex: 1;
-            background: var(--color-input-bg);
-            border: 1px solid var(--color-input-border);
-            color: var(--color-fg-default);
-            padding: 10px 16px;
-            border-radius: 6px;
-            font-size: 14px;
-            resize: none;
-            font-family: inherit;
-            outline: none;
-        }
-
-        .message-input:focus {
-            border-color: var(--color-accent-fg);
-        }
-
-        .send-button {
-            padding: 10px 20px;
-            background: var(--color-btn-primary-bg);
-            color: #fff;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 14px;
-            font-weight: 600;
-            transition: background 0.2s;
-        }
-
-        .send-button:hover {
-            background: var(--color-btn-primary-hover-bg);
-        }
-
-        .send-button:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-
-        /* Modals */
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.7);
-            z-index: 1000;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .modal.active {
-            display: flex;
-        }
-
-        .modal-content {
-            background: var(--color-canvas-subtle);
-            border: 1px solid var(--color-border-default);
-            border-radius: 12px;
-            padding: 24px;
-            max-width: 480px;
-            width: 90%;
-            max-height: 80vh;
-            overflow-y: auto;
-        }
-
-        .modal-header {
-            margin-bottom: 16px;
-        }
-
-        .modal-title {
-            font-size: 20px;
-            font-weight: 600;
-            color: var(--color-fg-default);
-        }
-
-        .form-group {
-            margin-bottom: 16px;
-        }
-
-        .form-label {
-            display: block;
-            margin-bottom: 6px;
-            font-size: 14px;
-            font-weight: 500;
-            color: var(--color-fg-muted);
-        }
-
-        .form-input {
-            width: 100%;
-            padding: 8px 12px;
-            background: var(--color-input-bg);
-            border: 1px solid var(--color-input-border);
-            color: var(--color-fg-default);
-            border-radius: 6px;
-            font-size: 14px;
-            outline: none;
-        }
-
-        .form-input:focus {
-            border-color: var(--color-accent-fg);
-        }
-
-        .form-textarea {
-            width: 100%;
-            padding: 8px 12px;
-            background: var(--color-input-bg);
-            border: 1px solid var(--color-input-border);
-            color: var(--color-fg-default);
-            border-radius: 6px;
-            font-size: 14px;
-            resize: vertical;
-            min-height: 80px;
-            font-family: inherit;
-            outline: none;
-        }
-
-        .form-checkbox {
-            margin-right: 8px;
-        }
-
-        .form-actions {
-            display: flex;
-            gap: 8px;
-            justify-content: flex-end;
-            margin-top: 24px;
-        }
-
-        .btn {
-            padding: 8px 16px;
-            border-radius: 6px;
-            font-size: 14px;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.2s;
-            border: 1px solid transparent;
-        }
-
-        .btn-secondary {
-            background: var(--color-btn-bg);
-            color: var(--color-fg-default);
-            border-color: var(--color-border-default);
-        }
-
-        .btn-secondary:hover {
-            background: var(--color-btn-hover-bg);
-        }
-
-        .btn-primary {
-            background: var(--color-btn-primary-bg);
-            color: #fff;
-        }
-
-        .btn-primary:hover {
-            background: var(--color-btn-primary-hover-bg);
-        }
-
-        /* Server List in Browse Modal */
-        .server-list {
-            margin: 16px 0;
-            max-height: 300px;
-            overflow-y: auto;
-        }
-
-        .server-list-item {
-            padding: 12px;
-            background: var(--color-canvas-default);
-            border: 1px solid var(--color-border-default);
-            border-radius: 6px;
-            margin-bottom: 8px;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-
-        .server-list-item:hover {
-            background: var(--color-canvas-subtle);
-            border-color: var(--color-accent-fg);
-        }
-
-        .server-list-name {
-            font-weight: 600;
-            color: var(--color-fg-default);
-            margin-bottom: 4px;
-        }
-
-        .server-list-info {
-            font-size: 12px;
-            color: var(--color-fg-muted);
-        }
-
-        /* Loading State */
-        .loading {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 32px;
-            color: var(--color-fg-muted);
-        }
-
-        .spinner {
-            width: 24px;
-            height: 24px;
-            border: 3px solid var(--color-neutral-muted);
-            border-top-color: var(--color-accent-fg);
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-        }
-
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-
-        /* Welcome Screen */
-        .welcome-screen {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            padding: 32px;
-            text-align: center;
-        }
-
-        .welcome-title {
-            font-size: 24px;
-            font-weight: 600;
-            color: var(--color-fg-default);
-            margin-bottom: 8px;
-        }
-
-        .welcome-subtitle {
-            font-size: 16px;
-            color: var(--color-fg-muted);
-            margin-bottom: 24px;
-        }
-
-        .welcome-actions {
-            display: flex;
-            gap: 12px;
-        }
-
-        /* Error Message */
-        .error-message {
-            background: rgba(248, 81, 73, 0.1);
-            border: 1px solid var(--color-danger-fg);
-            color: var(--color-danger-fg);
-            padding: 12px;
-            border-radius: 6px;
-            margin-bottom: 16px;
-            font-size: 14px;
-        }
-
-        /* Success Message */
-        .success-message {
-            background: rgba(63, 185, 80, 0.1);
-            border: 1px solid var(--color-success-fg);
-            color: var(--color-success-fg);
-            padding: 12px;
-            border-radius: 6px;
-            margin-bottom: 16px;
-            font-size: 14px;
-        }
-
-        /* Toast Notifications */
-        .toast-container {
-            position: fixed;
-            bottom: 24px;
-            right: 24px;
-            z-index: 2000;
-        }
-
-        .toast {
-            background: var(--color-canvas-subtle);
-            border: 1px solid var(--color-border-default);
-            border-radius: 6px;
-            padding: 12px 16px;
-            margin-top: 8px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            animation: slideIn 0.3s ease;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-        }
-
-        @keyframes slideIn {
-            from {
-                transform: translateX(100%);
-                opacity: 0;
-            }
-            to {
-                transform: translateX(0);
-                opacity: 1;
-            }
-        }
-
-        .toast.success {
-            border-color: var(--color-success-fg);
-        }
-
-        .toast.error {
-            border-color: var(--color-danger-fg);
-        }
-
-        .toast-message {
-            color: var(--color-fg-default);
-            font-size: 14px;
-        }
-
-        /* Responsive */
-        @media (max-width: 768px) {
-            .rooms-sidebar {
-                width: 100%;
-                transform: translateX(-100%);
-            }
-
-            .server-bar {
-                padding: 0 4px;
-            }
-
-            .modal-content {
-                width: 95%;
-                padding: 16px;
-            }
-        }
-    </style>
+    <title>The Shed - Community Forum</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
 </head>
 <body>
-    <!-- Server Bar -->
-    <div class="server-bar" id="serverBar">
-        <button class="server-button create" onclick="showCreateServerModal()" title="Create Server">+</button>
-        <button class="server-button browse" onclick="showBrowseServersModal()" title="Browse Servers">Browse</button>
-        <div id="serverList"></div>
+    <!-- Menu Toggle Button -->
+    <button class="menu-toggle" id="menuToggle" onclick="toggleMenu()">☰</button>
+
+    <!-- Top Navigation Bar -->
+    <div class="top-nav">
+        <div class="top-nav-spacer"></div>
+        
+        <!-- Feed Tabs (only visible when on feed page and logged in) -->
+        <div class="feed-tabs" id="feedTabs">
+            <button class="feed-tab active" id="generalTab" onclick="switchFeedTab('general')">General</button>
+            <button class="feed-tab" id="followedTab" onclick="switchFeedTab('followed')" disabled>Followed</button>
+        </div>
     </div>
+
+    <!-- Sliding Menu -->
+    <div class="slide-menu" id="slideMenu">
+        <div class="menu-header" id="menuHeader">
+            <!-- User info or login prompt will be inserted here by JS -->
+        </div>
+        
+        <nav class="menu-nav">
+            <a href="#" class="menu-item active" id="menuFeed" onclick="navigateToFeed()">
+                <span class="menu-item-icon">🏠</span>
+                <span>Feed</span>
+            </a>
+            
+            <a href="#" class="menu-item" id="menuMyShed" onclick="navigateToMyShed()">
+                <span class="menu-item-icon">🏠</span>
+                <span>My Shed</span>
+            </a>
+            
+            <a href="#" class="menu-item" id="menuProfile" onclick="navigateToProfile()" style="display: none;">
+                <span class="menu-item-icon">👤</span>
+                <span>Profile</span>
+            </a>
+            
+            <div class="menu-divider"></div>
+            
+            <a href="#" class="menu-item" id="menuBrowseCommunities" onclick="toggleCommunitiesDropdown()" style="display: none;">
+                <span class="menu-item-icon">🏘️</span>
+                <span>Communities</span>
+                <span id="communitiesToggle" style="margin-left: auto;">▼</span>
+            </a>
+            
+            <div class="communities-dropdown" id="communitiesDropdown">
+                <!-- Communities will be loaded here -->
+            </div>
+            
+            <a href="#" class="menu-item" id="menuCreateCommunity" onclick="openCreateCommunity()" style="display: none;">
+                <span class="menu-item-icon">➕</span>
+                <span>Create Community</span>
+            </a>
+            
+            <div class="menu-divider"></div>
+            
+            <a href="#" class="menu-item" id="menuAdmin" onclick="navigateToAdmin()" style="display: none;">
+                <span class="menu-item-icon">🛡️</span>
+                <span>Admin</span>
+            </a>
+            
+            <a href="#" class="menu-item" id="menuSettings" onclick="navigateToSettings()" style="display: none;">
+                <span class="menu-item-icon">⚙️</span>
+                <span>Settings</span>
+            </a>
+            
+            <div class="menu-divider"></div>
+            
+            <a href="#" class="menu-item" id="menuLogout" onclick="handleLogout()" style="display: none;">
+                <span class="menu-item-icon">🚪</span>
+                <span>Logout</span>
+            </a>
+        </nav>
+    </div>
+
+    <!-- Menu Overlay -->
+    <div class="menu-overlay" id="menuOverlay" onclick="toggleMenu()"></div>
 
     <!-- Main Container -->
     <div class="main-container">
-        <!-- Rooms Sidebar -->
-        <div class="rooms-sidebar" id="roomsSidebar">
-            <div class="rooms-header">
-                <h3 id="sidebarServerName">Select a Server</h3>
-                <button class="server-button create" onclick="showCreateRoomModal()" title="Create Room" style="width: 28px; height: 28px; min-width: 28px; font-size: 16px;">+</button>
-            </div>
-            <div class="rooms-list" id="roomsList">
-                <div class="loading">Select a server to view rooms</div>
-            </div>
+        <div id="feed" class="tab-content active">
+            <!-- Dynamic content will be loaded here -->
         </div>
+    </div>
 
-        <!-- Chat Area -->
-        <div class="chat-area">
-            <div class="chat-header">
-                <button class="sidebar-toggle" onclick="toggleSidebar()" title="Toggle Rooms">
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                        <path d="M1 2.75A.75.75 0 0 1 1.75 2h12.5a.75.75 0 0 1 0 1.5H1.75A.75.75 0 0 1 1 2.75Zm0 5A.75.75 0 0 1 1.75 7h12.5a.75.75 0 0 1 0 1.5H1.75A.75.75 0 0 1 1 7.75ZM1.75 12h12.5a.75.75 0 0 1 0 1.5H1.75a.75.75 0 0 1 0-1.5Z"/>
-                    </svg>
+    <!-- Compose Button -->
+    <button class="compose-btn" id="composeBtn" onclick="openModal('composeModal')" style="display: none;">
+        ✏️
+    </button>
+
+    <!-- Authentication Modal -->
+    <div class="modal" id="authModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="authTitle">Sign In</h3>
+                <button class="close-btn" onclick="closeModal('authModal')">&times;</button>
+            </div>
+            <div id="authError"></div>
+            <form id="authForm" data-mode="signin">
+                <div class="form-group">
+                    <label for="username">Username</label>
+                    <input type="text" id="username" required minlength="3" maxlength="20">
+                </div>
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" required minlength="9">
+                </div>
+                <div class="form-group" id="bioGroup" style="display: none;">
+                    <label for="bio">Bio (Optional)</label>
+                    <textarea id="bio" maxlength="500" placeholder="Tell us about yourself..."></textarea>
+                </div>
+                <div class="form-group" id="emailGroup" style="display: none;">
+                    <label for="email">Email (Optional)</label>
+                    <input type="email" id="email" placeholder="your@email.com">
+                </div>
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="rememberMe"> Remember me
+                    </label>
+                </div>
+                <div style="text-align: center; margin: 20px 0;">
+                    <button type="submit" class="btn" id="authSubmitBtn">Sign In</button>
+                </div>
+                <div style="text-align: center; color: var(--fg-muted); font-size: 14px;">
+                    <span id="authToggleText">Don't have an account?</span>
+                    <a href="#" onclick="toggleAuthMode()" id="authToggleBtn" style="color: var(--accent-fg); text-decoration: none;">Sign Up</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Create Community Modal -->
+    <div class="modal" id="createCommunityModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>🔨 Build a New Shed</h3>
+                <button class="close-btn" onclick="closeModal('createCommunityModal')">&times;</button>
+            </div>
+            <form id="createCommunityForm">
+                <div class="form-group">
+                    <label for="communityName">Community Handle</label>
+                    <input type="text" id="communityName" required pattern="[a-z0-9-]+" maxlength="30" placeholder="my-awesome-shed">
+                    <small>Lowercase letters, numbers, and hyphens only</small>
+                </div>
+                <div class="form-group">
+                    <label for="communityDisplayName">Display Name</label>
+                    <input type="text" id="communityDisplayName" required maxlength="50" placeholder="My Awesome Shed">
+                </div>
+                <div class="form-group">
+                    <label for="communityDescription">Description</label>
+                    <textarea id="communityDescription" maxlength="200" placeholder="What's your shed all about?"></textarea>
+                </div>
+                <div style="text-align: right; margin-top: 20px;">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('createCommunityModal')" style="margin-right: 8px;">Cancel</button>
+                    <button type="submit" class="btn" id="createCommunitySubmitBtn">🔨 Build Shed</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Compose Modal -->
+    <div class="modal" id="composeModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Create Post</h3>
+                <button class="close-btn" onclick="closeModal('composeModal')">&times;</button>
+            </div>
+            
+            <!-- Post Type Selector -->
+            <div style="display: flex; gap: 8px; margin-bottom: 16px;">
+                <button class="btn" onclick="setPostType('text')" style="flex: 1;">📝 Text</button>
+                <button class="btn btn-secondary" onclick="setPostType('link')" style="flex: 1;">🔗 Link</button>
+            </div>
+            
+            <form id="composeForm">
+                <div class="form-group">
+                    <label for="postCommunity">Community (Optional)</label>
+                    <select id="postCommunity">
+                        <option value="">General Feed</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="postTitle">Title</label>
+                    <input type="text" id="postTitle" required maxlength="200" placeholder="What's on your mind?">
+                </div>
+                
+                <!-- Text Post Fields -->
+                <div id="textPostFields">
+                    <div class="form-group">
+                        <label for="postContent">Content</label>
+                        <textarea id="postContent" rows="6" maxlength="5000" placeholder="Share your thoughts... (Markdown supported)"></textarea>
+                    </div>
+                </div>
+                
+                <!-- Link Post Fields -->
+                <div id="linkPostFields" style="display: none;">
+                    <div class="form-group">
+                        <label for="postUrl">URL</label>
+                        <input type="url" id="postUrl" placeholder="https://example.com">
+                    </div>
+                    <div id="mediaPreview"></div>
+                    <div class="form-group">
+                        <label for="postDescription">Description (Optional)</label>
+                        <textarea id="postDescription" rows="3" maxlength="1000" placeholder="Add some context..."></textarea>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="isPrivate"> Private (only visible to you)
+                    </label>
+                </div>
+                
+                <div style="text-align: right; margin-top: 20px;">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('composeModal')" style="margin-right: 8px;">Cancel</button>
+                    <button type="submit" class="btn" id="composeSubmitBtn">Post</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Edit Profile Modal -->
+    <div class="modal" id="editProfileModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Edit Profile</h3>
+                <button class="close-btn" onclick="closeModal('editProfileModal')">&times;</button>
+            </div>
+            <div id="editProfileError"></div>
+            <form id="editProfileForm">
+                <div class="form-group">
+                    <label for="editProfilePicture">Profile Picture URL</label>
+                    <input type="url" id="editProfilePicture" placeholder="https://example.com/your-photo.jpg">
+                    <small>Enter a URL to an image for your profile picture</small>
+                </div>
+                <div class="form-group">
+                    <label for="editProfileBio">Bio</label>
+                    <textarea id="editProfileBio" maxlength="500" placeholder="Tell us about yourself..."></textarea>
+                    <small>Max 500 characters</small>
+                </div>
+                <div style="text-align: right; margin-top: 20px;">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('editProfileModal')" style="margin-right: 8px;">Cancel</button>
+                    <button type="submit" class="btn" id="editProfileSubmitBtn">Update Profile</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div class="modal" id="settingsModal">
+        <div class="modal-content settings-modal-content">
+            <div class="settings-header">
+                <span class="settings-header-icon">⚙️</span>
+                <h3 class="settings-header-title">Settings</h3>
+            </div>
+            
+            <div class="settings-section">
+                <h4 class="settings-section-title">
+                    <span>🎨</span>
+                    <span>Appearance</span>
+                </h4>
+                
+                <div class="settings-option">
+                    <div class="settings-option-header">
+                        <div>
+                            <div class="settings-option-title">Theme</div>
+                            <div class="settings-option-description">
+                                Choose a color theme that's comfortable for your eyes
+                            </div>
+                        </div>
+                    </div>
+                    <select class="theme-selector" id="themeSelector" onchange="handleThemeChange(this.value)">
+                        <optgroup label="Dark Themes">
+                            <option value="github-dark">GitHub Dark (Default)</option>
+                            <option value="solarized-dark">Solarized Dark (Low Contrast)</option>
+                            <option value="nord">Nord (Cool & Muted)</option>
+                            <option value="dracula">Dracula (Purple Tones)</option>
+                            <option value="gruvbox-dark">Gruvbox Dark (Warm Retro)</option>
+                        </optgroup>
+                        <optgroup label="Light Themes">
+                            <option value="github-light">GitHub Light</option>
+                            <option value="solarized-light">Solarized Light (Warm)</option>
+                            <option value="gruvbox-light">Gruvbox Light (Paper-like)</option>
+                            <option value="sepia">Sepia (Eye Comfort)</option>
+                        </optgroup>
+                        <optgroup label="Special">
+                            <option value="high-contrast">High Contrast</option>
+                        </optgroup>
+                    </select>
+                    
+                    <div class="theme-preview">
+                        <div class="theme-color-box" style="background: var(--bg-canvas);" data-label="Canvas"></div>
+                        <div class="theme-color-box" style="background: var(--bg-default);" data-label="Default"></div>
+                        <div class="theme-color-box" style="background: var(--accent-fg);" data-label="Accent"></div>
+                        <div class="theme-color-box" style="background: var(--success-fg);" data-label="Success"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="settings-section">
+                <h4 class="settings-section-title">
+                    <span>🔔</span>
+                    <span>Notifications</span>
+                </h4>
+                
+                <div class="settings-option">
+                    <div class="settings-option-header">
+                        <div>
+                            <div class="settings-option-title">Coming Soon</div>
+                            <div class="settings-option-description">
+                                Notification preferences will be available in a future update
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="settings-section">
+                <h4 class="settings-section-title">
+                    <span>🔒</span>
+                    <span>Privacy</span>
+                </h4>
+                
+                <div class="settings-option">
+                    <div class="settings-option-header">
+                        <div>
+                            <div class="settings-option-title">Coming Soon</div>
+                            <div class="settings-option-description">
+                                Privacy settings will be available in a future update
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="settings-footer">
+                <div class="settings-info">
+                    Theme preferences are saved locally
+                </div>
+                <button class="settings-close-btn" onclick="closeModal('settingsModal')">
+                    Close Settings
                 </button>
-                <div class="room-name" id="roomName">Welcome to Chat</div>
-            </div>
-            <div class="messages-container" id="messagesContainer">
-                <div class="welcome-screen">
-                    <div class="welcome-title">Welcome to The Shed Chat</div>
-                    <div class="welcome-subtitle">Create or join a server to start chatting</div>
-                    <div class="welcome-actions">
-                        <button class="btn btn-primary" onclick="showCreateServerModal()">Create Server</button>
-                        <button class="btn btn-secondary" onclick="showBrowseServersModal()">Browse Servers</button>
-                    </div>
-                </div>
-            </div>
-            <div class="input-area" id="inputArea" style="display: none;">
-                <div class="input-container">
-                    <input type="text" class="message-input" id="messageInput" placeholder="Type a message..." onkeypress="handleMessageKeypress(event)">
-                    <button class="send-button" id="sendButton" onclick="sendMessage()">Send</button>
-                </div>
             </div>
         </div>
     </div>
 
-    <!-- Create Server Modal -->
-    <div class="modal" id="createServerModal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2 class="modal-title">Create Server</h2>
-            </div>
-            <div id="createServerError"></div>
-            <div class="form-group">
-                <label class="form-label" for="serverName">Server Name</label>
-                <input type="text" class="form-input" id="serverName" placeholder="My Awesome Server" maxlength="50">
-            </div>
-            <div class="form-group">
-                <label class="form-label" for="serverDescription">Description (Optional)</label>
-                <textarea class="form-textarea" id="serverDescription" placeholder="What's this server about?" maxlength="200"></textarea>
-            </div>
-            <div class="form-group">
-                <label>
-                    <input type="checkbox" class="form-checkbox" id="serverPrivate">
-                    Private Server (Invite Only)
-                </label>
-            </div>
-            <div class="form-actions">
-                <button class="btn btn-secondary" onclick="closeModal('createServerModal')">Cancel</button>
-                <button class="btn btn-primary" onclick="createServer()">Create Server</button>
-            </div>
-        </div>
-    </div>
+    <!-- Success Message Toast -->
+    <div id="successMessage" style="position: fixed; top: 90px; right: 20px; background: var(--success-fg); color: white; padding: 12px 20px; border-radius: 6px; display: none; z-index: 1000; box-shadow: 0 4px 12px rgba(0,0,0,0.3);"></div>
 
-    <!-- Browse Servers Modal -->
-    <div class="modal" id="browseServersModal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2 class="modal-title">Browse Servers</h2>
-            </div>
-            <div id="browseServersError"></div>
-            <div class="form-group">
-                <label class="form-label" for="serverCode">Join with Server Code</label>
-                <div style="display: flex; gap: 8px;">
-                    <input type="text" class="form-input" id="serverCode" placeholder="Enter server code" style="flex: 1;">
-                    <button class="btn btn-primary" onclick="joinServerByCode()">Join</button>
-                </div>
-            </div>
-            <div class="form-group">
-                <label class="form-label">Public Servers</label>
-                <div class="server-list" id="publicServersList">
-                    <div class="loading">
-                        <div class="spinner"></div>
-                    </div>
-                </div>
-            </div>
-            <div class="form-actions">
-                <button class="btn btn-secondary" onclick="closeModal('browseServersModal')">Close</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Create Room Modal -->
-    <div class="modal" id="createRoomModal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2 class="modal-title">Create Room</h2>
-            </div>
-            <div id="createRoomError"></div>
-            <div class="form-group">
-                <label class="form-label" for="roomNameInput">Room Name</label>
-                <input type="text" class="form-input" id="roomNameInput" placeholder="general-chat" maxlength="50">
-            </div>
-            <div class="form-group">
-                <label class="form-label" for="roomDescription">Description (Optional)</label>
-                <textarea class="form-textarea" id="roomDescription" placeholder="What's this room for?" maxlength="200"></textarea>
-            </div>
-            <div class="form-group">
-                <label>
-                    <input type="checkbox" class="form-checkbox" id="roomPrivate">
-                    Private Room
-                </label>
-            </div>
-            <div class="form-actions">
-                <button class="btn btn-secondary" onclick="closeModal('createRoomModal')">Cancel</button>
-                <button class="btn btn-primary" onclick="createRoom()">Create Room</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Toast Container -->
-    <div class="toast-container" id="toastContainer"></div>
-
-    <script src="chat.js"></script>
+    <!-- Scripts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/11.1.1/marked.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.8/purify.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="utils.js"></script>
+    <script src="api.js"></script>
+    <script src="ui.js"></script>
+    <script src="render.js"></script>
+    <script src="app.js"></script>
 </body>
 </html>
