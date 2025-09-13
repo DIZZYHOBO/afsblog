@@ -929,6 +929,11 @@
         </div>
     </div>
 
+    <!-- API Notice -->
+    <div style="background: #4a4a20; color: #ffff88; padding: 8px 16px; font-size: 13px; border-bottom: 1px solid #5a5a30;">
+        ⚠️ Note: PieFed doesn't currently have a public JSON API. This is a demonstration UI with sample data showing what a PieFed mobile client could look like.
+    </div>
+
     <!-- Tab Navigation -->
     <div class="tab-nav">
         <button class="tab-btn active" data-feed="subscribed" onclick="app.switchFeed('subscribed')">Subscribed</button>
@@ -1176,7 +1181,7 @@
         const app = {
             // API Configuration
             baseUrl: 'https://piefed.social',
-            apiVersion: '/api/v1',
+            apiVersion: '', // PieFed doesn't use /api/v1 prefix
             token: localStorage.getItem('piefed_token') || null,
             
             // Application State
@@ -1269,43 +1274,108 @@
             // Load Posts
             async loadPosts() {
                 this.showLoading();
-                const endpoint = this.currentCommunity 
-                    ? `/community/${this.currentCommunity}/posts`
-                    : '/posts';
                 
-                const params = new URLSearchParams({
-                    type_: this.currentFeed,
-                    sort: this.currentSort,
-                    page: this.currentPage,
-                    limit: 20
-                });
-
-                const data = await this.apiRequest(`${endpoint}?${params}`);
-                if (data) {
-                    this.posts = data.posts || [];
+                // For PieFed, we need to fetch the homepage HTML and parse it
+                // Since PieFed doesn't have a full JSON API like Lemmy
+                // We'll simulate with sample data for now
+                
+                try {
+                    // PieFed uses server-side rendering, not a full API
+                    // For a real implementation, you'd need to scrape or use RSS feeds
+                    // Let's create sample data to demonstrate the UI
+                    
+                    this.posts = this.generateSamplePosts();
                     this.renderPosts();
+                } catch (error) {
+                    console.error('Failed to load posts:', error);
+                    this.showError('Failed to load posts. PieFed may not have a public API.');
                 }
+            },
+
+            // Generate sample posts for demonstration
+            generateSamplePosts() {
+                return [
+                    {
+                        id: 1,
+                        name: "Three-word comeback is the best phrase to use when insulted, boffins say",
+                        body: "Top egghead neuroscientist Dean Burnett said calling someone 'grandma' is one of the 'scientifically recognised ways' to disable an awkward situation",
+                        community: { name: "science_memes", icon: "🧬" },
+                        creator: { name: "General_Effort" },
+                        published: new Date(Date.now() - 3600000).toISOString(),
+                        score: 65,
+                        counts: { comments: 24 },
+                        url: "https://dailystar.co.uk/news/latest-news",
+                        thumbnail_url: null,
+                        my_vote: 0,
+                        saved: false
+                    },
+                    {
+                        id: 2,
+                        name: "Transition",
+                        body: "A cool visual transition effect",
+                        community: { name: "superbowl", icon: "🦉" },
+                        creator: { name: "anon6789" },
+                        published: new Date(Date.now() - 2940000).toISOString(),
+                        score: 42,
+                        counts: { comments: 8 },
+                        thumbnail_url: "data:image/svg+xml,%3Csvg width='400' height='300' xmlns='http://www.w3.org/2000/svg'%3E%3Crect width='400' height='300' fill='%234a4a50'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dy='.3em' fill='white' font-size='20'%3EImage Placeholder%3C/text%3E%3C/svg%3E",
+                        my_vote: 0,
+                        saved: false
+                    },
+                    {
+                        id: 3,
+                        name: "New rule (and an addendum)",
+                        body: "We are not YPTB. If you have a problem with the way an instance or community is run, then take it up over at !yepowertrippinbastards@lemmy.dbzer0.com. * Addendum: Yes we...",
+                        community: { name: "fedimemes", icon: "🌐" },
+                        creator: { name: "Emperor" },
+                        published: new Date(Date.now() - 61200000).toISOString(),
+                        score: 46,
+                        counts: { comments: 9 },
+                        my_vote: 0,
+                        saved: false
+                    },
+                    {
+                        id: 4,
+                        name: "I like seeing many of you around",
+                        body: "I'm not trying to hijack the conversation by reply-guying all your posts, I just like interacting with this community!",
+                        community: { name: "fedimemes", icon: "🌐" },
+                        creator: { name: "PugJesus" },
+                        published: new Date(Date.now() - 1500000).toISOString(),
+                        score: 89,
+                        counts: { comments: 15 },
+                        my_vote: 1,
+                        saved: true
+                    },
+                    {
+                        id: 5,
+                        name: "Welcome to the Fediverse!",
+                        body: "A guide for newcomers to federated social media platforms.",
+                        community: { name: "fediverse", icon: "🌍" },
+                        creator: { name: "admin" },
+                        published: new Date(Date.now() - 7200000).toISOString(),
+                        score: 156,
+                        counts: { comments: 42 },
+                        url: "https://fediverse.info",
+                        my_vote: 0,
+                        saved: false
+                    }
+                ];
             },
 
             // Load More Posts (Pagination)
             async loadMorePosts() {
-                this.currentPage++;
-                const endpoint = this.currentCommunity 
-                    ? `/community/${this.currentCommunity}/posts`
-                    : '/posts';
+                // Simulate loading more posts
+                if (this.currentPage >= 3) return; // Limit to 3 pages for demo
                 
-                const params = new URLSearchParams({
-                    type_: this.currentFeed,
-                    sort: this.currentSort,
-                    page: this.currentPage,
-                    limit: 20
-                });
-
-                const data = await this.apiRequest(`${endpoint}?${params}`);
-                if (data && data.posts) {
-                    this.posts = [...this.posts, ...data.posts];
-                    this.renderPosts(true);
-                }
+                this.currentPage++;
+                const morePosts = this.generateSamplePosts().map(post => ({
+                    ...post,
+                    id: post.id + (this.currentPage * 100),
+                    name: `${post.name} (Page ${this.currentPage})`
+                }));
+                
+                this.posts = [...this.posts, ...morePosts];
+                this.renderPosts(true);
             },
 
             // Render Posts
@@ -1366,13 +1436,198 @@
                 const post = this.posts.find(p => p.id === postId);
                 if (!post) return;
 
-                // Load full post details
-                const data = await this.apiRequest(`/post/${postId}`);
-                if (data) {
-                    // Update view to show post details
-                    this.renderPostDetail(data.post_view);
-                    this.loadComments(postId);
+                // Create a detailed view from our sample data
+                const detailedPost = {
+                    post_view: {
+                        post: post,
+                        community: post.community,
+                        creator: post.creator,
+                        counts: {
+                            score: post.score,
+                            comments: post.counts?.comments || 0
+                        },
+                        my_vote: post.my_vote,
+                        saved: post.saved
+                    }
+                };
+                
+                this.renderPostDetail(detailedPost.post_view);
+                this.loadComments(postId);
+            },
+
+            // Load Comments
+            async loadComments(postId) {
+                // Generate sample comments
+                this.comments = [
+                    {
+                        comment: {
+                            id: 1,
+                            content: "What are the other 2 words?",
+                            published: new Date(Date.now() - 2520000).toISOString()
+                        },
+                        creator: { name: "NeatNit@discuss.tchncs.de" },
+                        counts: { score: 11 },
+                        my_vote: 0,
+                        children: [
+                            {
+                                comment: {
+                                    id: 2,
+                                    content: "Well at least they didn't call him Grandma Burnett. That would be so awkward.",
+                                    published: new Date(Date.now() - 2460000).toISOString()
+                                },
+                                creator: { name: "ook@discuss.tchncs.de" },
+                                counts: { score: 5 },
+                                my_vote: 0,
+                                children: []
+                            }
+                        ]
+                    },
+                    {
+                        comment: {
+                            id: 3,
+                            content: "This is actually pretty interesting from a psychological perspective!",
+                            published: new Date(Date.now() - 1800000).toISOString()
+                        },
+                        creator: { name: "science_fan" },
+                        counts: { score: 8 },
+                        my_vote: 1,
+                        children: []
+                    }
+                ];
+                this.renderComments();
+            },
+
+            // Show Community
+            async showCommunity(communityId) {
+                this.currentCommunity = communityId;
+                this.currentPage = 1;
+                
+                // Find community from our sample data
+                const community = this.communities.find(c => c.community.id === communityId);
+                if (community) {
+                    // Update community header
+                    document.getElementById('communityHeader').style.display = 'block';
+                    document.getElementById('communityAvatar').textContent = community.community.icon || '🌐';
+                    document.getElementById('communityName').textContent = community.community.name;
+                    document.getElementById('communityInstance').textContent = `@${community.community.instance || 'piefed.social'}`;
+                    document.getElementById('communityDescription').textContent = community.community.description || 'No description';
+                    document.getElementById('communitySubscribers').textContent = community.counts.subscribers || 0;
+                    document.getElementById('communityPosts').textContent = community.counts.posts || 0;
+                    document.getElementById('communityComments').textContent = community.counts.comments || 0;
+                    
+                    const subscribeBtn = document.getElementById('subscribeBtn');
+                    subscribeBtn.textContent = community.subscribed ? 'Unsubscribe' : 'Subscribe';
+                    subscribeBtn.classList.toggle('subscribed', community.subscribed);
+                    
+                    // Load community-specific posts (using filtered sample data)
+                    this.posts = this.generateSamplePosts().filter(p => 
+                        p.community.name.toLowerCase() === community.community.name.toLowerCase()
+                    );
+                    if (this.posts.length === 0) {
+                        // If no matching posts, show all with community name updated
+                        this.posts = this.generateSamplePosts().map(p => ({
+                            ...p,
+                            community: community.community
+                        }));
+                    }
+                    this.renderPosts();
+                    this.closeMenu();
                 }
+            },
+
+            // Submit Post
+            async submitPost() {
+                const community = document.getElementById('postCommunity').value;
+                const title = document.getElementById('postTitle').value;
+                const body = document.getElementById('postBody').value;
+                const url = document.getElementById('postUrl').value;
+                const nsfw = document.getElementById('postNSFW').checked;
+
+                if (!community || !title) {
+                    this.showError('Please fill in required fields');
+                    return;
+                }
+
+                // Simulate post creation
+                const newPost = {
+                    id: Date.now(),
+                    name: title,
+                    body: body,
+                    url: url,
+                    community: { name: community, icon: '🌐' },
+                    creator: { name: this.userProfile?.local_user_view?.person?.name || 'You' },
+                    published: new Date().toISOString(),
+                    score: 1,
+                    counts: { comments: 0 },
+                    my_vote: 1,
+                    saved: false,
+                    nsfw: nsfw
+                };
+
+                this.posts.unshift(newPost);
+                this.hideCreatePost();
+                this.showSuccess('Post created successfully! (Demo - not actually posted)');
+                this.renderPosts();
+            },
+
+            // Submit Comment
+            async submitComment() {
+                const content = document.getElementById('newComment').value;
+                if (!content.trim()) return;
+
+                // Simulate comment creation
+                const newComment = {
+                    comment: {
+                        id: Date.now(),
+                        content: content,
+                        published: new Date().toISOString()
+                    },
+                    creator: { name: this.userProfile?.local_user_view?.person?.name || 'You' },
+                    counts: { score: 1 },
+                    my_vote: 1,
+                    children: []
+                };
+
+                this.comments.unshift(newComment);
+                document.getElementById('newComment').value = '';
+                this.renderComments();
+                this.showSuccess('Comment posted! (Demo - not actually posted)');
+            },
+
+            // Submit Reply
+            async submitReply(parentId) {
+                const content = document.getElementById(`reply-text-${parentId}`).value;
+                if (!content.trim()) return;
+
+                // Find parent comment and add reply
+                const findAndAddReply = (comments) => {
+                    for (let comment of comments) {
+                        if (comment.comment.id === parentId) {
+                            if (!comment.children) comment.children = [];
+                            comment.children.push({
+                                comment: {
+                                    id: Date.now(),
+                                    content: content,
+                                    published: new Date().toISOString()
+                                },
+                                creator: { name: this.userProfile?.local_user_view?.person?.name || 'You' },
+                                counts: { score: 1 },
+                                my_vote: 1,
+                                children: []
+                            });
+                            return true;
+                        }
+                        if (comment.children && findAndAddReply(comment.children)) {
+                            return true;
+                        }
+                    }
+                    return false;
+                };
+
+                findAndAddReply(this.comments);
+                this.hideReplyForm(parentId);
+                this.renderComments();
+                this.showSuccess('Reply posted! (Demo - not actually posted)');
             },
 
             // Render Post Detail
@@ -1543,11 +1798,90 @@
 
             // Load Communities
             async loadCommunities() {
-                const data = await this.apiRequest('/communities?type_=All&sort=Hot&limit=50');
-                if (data) {
-                    this.communities = data.communities || [];
-                    this.renderMenuCommunities();
-                }
+                // PieFed doesn't have a public JSON API, so we'll use sample data
+                this.communities = this.generateSampleCommunities();
+                this.renderMenuCommunities();
+            },
+
+            // Generate sample communities for demonstration
+            generateSampleCommunities() {
+                return [
+                    {
+                        community: {
+                            id: 1,
+                            name: "Fediverse memes",
+                            description: "Memes about the Fediverse. #### Rules ###### General - Be respectful - Post on topic - No bigotry or hate speech ###### Specific * We are not YPTB. If you...",
+                            icon: "🌐",
+                            instance: "feddit.uk"
+                        },
+                        counts: {
+                            subscribers: 1973,
+                            posts: 446,
+                            comments: 13886
+                        },
+                        subscribed: false
+                    },
+                    {
+                        community: {
+                            id: 2,
+                            name: "science_memes",
+                            description: "Memes about science, scientists, and scientific concepts.",
+                            icon: "🧬",
+                            instance: "mander.xyz"
+                        },
+                        counts: {
+                            subscribers: 3245,
+                            posts: 892,
+                            comments: 24531
+                        },
+                        subscribed: true
+                    },
+                    {
+                        community: {
+                            id: 3,
+                            name: "technology",
+                            description: "All things tech - news, discussions, and memes about technology.",
+                            icon: "💻",
+                            instance: "lemmy.world"
+                        },
+                        counts: {
+                            subscribers: 45632,
+                            posts: 5234,
+                            comments: 89234
+                        },
+                        subscribed: true
+                    },
+                    {
+                        community: {
+                            id: 4,
+                            name: "superbowl",
+                            description: "For owl lovers and superb owls everywhere!",
+                            icon: "🦉",
+                            instance: "lemmy.world"
+                        },
+                        counts: {
+                            subscribers: 8934,
+                            posts: 1234,
+                            comments: 4567
+                        },
+                        subscribed: false
+                    },
+                    {
+                        community: {
+                            id: 5,
+                            name: "asklemmy",
+                            description: "A place to ask questions and get answers from the community.",
+                            icon: "❓",
+                            instance: "lemmy.ml"
+                        },
+                        counts: {
+                            subscribers: 67890,
+                            posts: 12345,
+                            comments: 234567
+                        },
+                        subscribed: true
+                    }
+                ];
             },
 
             // Render Menu Communities
@@ -1840,33 +2174,33 @@
                     return;
                 }
 
-                // Update base URL if different instance
-                if (instance && instance !== this.baseUrl) {
-                    this.baseUrl = instance;
-                }
-
-                const loginData = {
-                    username_or_email: username,
-                    password
-                };
-
-                if (totp) {
-                    loginData.totp_2fa_token = totp;
-                }
-
-                const data = await this.apiRequest('/user/login', {
-                    method: 'POST',
-                    body: JSON.stringify(loginData)
-                });
-
-                if (data && data.jwt) {
-                    this.token = data.jwt;
+                // Note: PieFed doesn't have a public JSON API for authentication
+                // This is a demonstration interface
+                // In a real implementation, you would need to:
+                // 1. Use PieFed's form-based authentication
+                // 2. Parse session cookies
+                // 3. Or wait for PieFed to implement a public API
+                
+                this.showError('Note: PieFed does not currently have a public JSON API. This is a demonstration interface showing what a PieFed client could look like.');
+                
+                // Simulate successful login for demo purposes
+                setTimeout(() => {
+                    this.token = 'demo_token_' + Date.now();
                     localStorage.setItem('piefed_token', this.token);
+                    this.userProfile = {
+                        local_user_view: {
+                            person: { name: username },
+                            counts: {
+                                post_count: 12,
+                                comment_count: 45
+                            }
+                        }
+                    };
                     this.hideLogin();
-                    this.showSuccess('Logged in successfully!');
-                    this.loadUserProfile();
-                    this.loadPosts();
-                }
+                    this.showSuccess('Demo login successful! (Note: This is a simulation)');
+                    document.getElementById('profileUsername').textContent = username;
+                    document.getElementById('profileInstance').textContent = `@${new URL(instance || this.baseUrl).hostname}`;
+                }, 1000);
             },
 
             // Logout
