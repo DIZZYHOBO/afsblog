@@ -1190,10 +1190,10 @@
         // Main Application
         const app = {
             // API Configuration
+            proxyUrl: 'http://localhost:3000', // Backend proxy server
             baseUrl: localStorage.getItem('piefed_instance') || 'https://piefed.social',
-            token: localStorage.getItem('piefed_token') || null,
-            cookies: localStorage.getItem('piefed_cookies') || null,
-            useRealData: false,
+            sessionId: localStorage.getItem('piefed_session') || null,
+            useProxy: true, // Use proxy server for full functionality
             
             // Application State
             currentView: 'feed',
@@ -1209,28 +1209,84 @@
 
             // Initialize Application
             init() {
-                // Check for saved instance and real data mode
+                // Check for saved instance
                 const savedInstance = localStorage.getItem('piefed_instance');
                 if (savedInstance) {
                     this.baseUrl = savedInstance;
                 }
                 
-                const useRealData = localStorage.getItem('piefed_use_real_data');
-                if (useRealData === 'true') {
-                    this.useRealData = true;
-                    // Update the notice
-                    const noticeElement = document.querySelector('[style*="background: #4a4a20"]');
-                    if (noticeElement) {
-                        noticeElement.innerHTML = '📖 Connected to ' + this.baseUrl + ' - Loading real content...';
-                        noticeElement.style.background = '#3a3a50';
-                    }
-                }
+                // Check proxy availability
+                this.checkProxyServer();
                 
                 this.loadPosts();
                 this.loadCommunities();
                 this.setupEventListeners();
-                if (this.token) {
+                if (this.sessionId) {
                     this.loadUserProfile();
+                }
+            },
+
+            // Check if proxy server is available
+            async checkProxyServer() {
+                try {
+                    const response = await fetch(this.proxyUrl + '/api/health', {
+                        method: 'GET',
+                        mode: 'cors'
+                    }).catch(() => null);
+                    
+                    if (response && response.ok) {
+                        this.useProxy = true;
+                        this.updateNotice('✅ Connected to proxy server - Full functionality available', '#204a20');
+                    } else {
+                        this.useProxy = false;
+                        this.updateNotice('⚠️ Proxy server not available. Run: node piefed-proxy-server.js', '#4a4a20');
+                    }
+                } catch (error) {
+                    this.useProxy = false;
+                    this.updateNotice('⚠️ Proxy server not available. Run: node piefed-proxy-server.js', '#4a4a20');
+                }
+            },
+
+            // Update notice bar
+            updateNotice(message, bgColor) {
+                const noticeElement = document.querySelector('[style*="background: #4a4a20"], [style*="background: #3a3a50"], [style*="background: #204a20"]');
+                if (noticeElement) {
+                    noticeElement.innerHTML = message;
+                    noticeElement.style.background = bgColor;
+                }
+            },
+
+            // API Request Method
+            async apiRequest(endpoint, options = {}) {
+                if (!this.useProxy) {
+                    // Fallback to direct fetch if proxy not available
+                    return this.fetchWithCORS(this.baseUrl + endpoint);
+                }
+
+                const url = `${this.proxyUrl}/api${endpoint}`;
+                const headers = {
+                    'Content-Type': 'application/json',
+                    ...options.headers
+                };
+
+                try {
+                    const response = await fetch(url, {
+                        ...options,
+                        headers,
+                        mode: 'cors',
+                        credentials: 'include'
+                    });
+
+                    if (!response.ok) {
+                        const error = await response.json();
+                        throw new Error(error.error || `API Error: ${response.status}`);
+                    }
+
+                    return await response.json();
+                } catch (error) {
+                    console.error('API Request failed:', error);
+                    this.showError(error.message);
+                    return null;
                 }
             },
 
@@ -1304,20 +1360,63 @@
                 this.showLoading();
                 
                 try {
-                    if (this.useRealData) {
-                        // Try to fetch real data from RSS or HTML
-                        await this.loadRealPosts();
-                    } else {
-                        // Use sample data for demo
-                        this.posts = this.generateSamplePosts();
-                        this.renderPosts();
+                    if (this.useProxy && this.sessionId) {
+                        // Use proxy server for authenticated requests
+                        const params = new URLSearchParams({
+                            sessionId: this.sessionId,
+                            feed: this.currentFeed,
+                            sort: this.currentSort,
+                            page: this.currentPage
+                        });
+                        
+                        if (this.currentCommunity) {
+                            params.append('community', this.currentCommunity);
+                        }
+                        
+                        const data = await this.apiRequest(`/posts?${params}`);
+                        if (data && data.posts) {
+                            this.posts = data.posts.map((post, index) => ({
+                                id: post.id || index,
+                                name: post.title,
+                                body: post.body,
+                                url: post.url,
+                                thumbnail_url: post.thumbnail_url,
+                                community: { name: post.community, icon: '🌐' },
+                                creator: { name: post.author },
+                                published: post.published,
+                                score: post.score,
+                                counts: { comments: post.comments },
+                                my_vote: 0,
+                                saved: false,
+                                postUrl: post.postUrl
+                            }));
+                            this.renderPosts();
+                            return;
+                        }
+                    } else if (this.useProxy) {
+                        // Use proxy for unauthenticated public content
+                        try {
+                            const response = await fetch(`${this.proxyUrl}/api/public/posts?instance=${encodeURIComponent(this.baseUrl)}&feed=${this.currentFeed}&sort=${this.currentSort}`);
+                            if (response.ok) {
+                                const data = await response.json();
+                                if (data.posts) {
+                                    this.posts = data.posts;
+                                    this.renderPosts();
+                                    return;
+                                }
+                            }
+                        } catch (e) {
+                            console.log('Proxy public fetch failed:', e);
+                        }
                     }
+                    
+                    // Fallback to RSS/HTML parsing
+                    await this.loadRealPosts();
                 } catch (error) {
                     console.error('Failed to load posts:', error);
                     // Fallback to sample data
                     this.posts = this.generateSamplePosts();
                     this.renderPosts();
-                    this.showError('Using sample data. Enable CORS or use a proxy to load real data.');
                 }
             },
 
@@ -2567,89 +2666,70 @@
 
                 // Update base URL if different instance
                 if (instance && instance !== this.baseUrl) {
-                    this.baseUrl = instance.replace(/\/$/, ''); // Remove trailing slash
+                    this.baseUrl = instance.replace(/\/$/, '');
                     localStorage.setItem('piefed_instance', this.baseUrl);
                 }
 
                 this.showLoading();
 
-                try {
-                    // Try to authenticate with PieFed
-                    // PieFed uses form-based authentication, not JSON API
-                    const loginUrl = `${this.baseUrl}/user/login`;
-                    
-                    // First, get the login page to extract CSRF token
-                    const loginPageResponse = await this.fetchWithCORS(loginUrl);
-                    const loginPageHtml = await loginPageResponse.text();
-                    
-                    // Extract CSRF token if present
-                    const csrfMatch = loginPageHtml.match(/name="csrf_token"\s+value="([^"]+)"/);
-                    const csrfToken = csrfMatch ? csrfMatch[1] : '';
+                if (this.useProxy) {
+                    // Use proxy server for real authentication
+                    try {
+                        const response = await fetch(`${this.proxyUrl}/api/login`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                instance: this.baseUrl,
+                                username: username,
+                                password: password,
+                                totp: totp || null
+                            })
+                        });
 
-                    // Prepare form data
-                    const formData = new FormData();
-                    formData.append('username', username);
-                    formData.append('password', password);
-                    if (csrfToken) formData.append('csrf_token', csrfToken);
-                    if (totp) formData.append('totp', totp);
-
-                    // Attempt login
-                    const loginResponse = await fetch(`${this.baseUrl}/user/login`, {
-                        method: 'POST',
-                        body: formData,
-                        credentials: 'include',
-                        redirect: 'manual'
-                    });
-
-                    // Check if login was successful
-                    if (loginResponse.status === 302 || loginResponse.status === 200) {
-                        // Login successful
-                        this.token = 'session_' + Date.now();
-                        this.useRealData = true; // Enable real data fetching
-                        localStorage.setItem('piefed_token', this.token);
-                        localStorage.setItem('piefed_use_real_data', 'true');
+                        const data = await response.json();
                         
-                        this.userProfile = {
-                            local_user_view: {
-                                person: { name: username },
-                                counts: {
-                                    post_count: 0,
-                                    comment_count: 0
+                        if (data.success) {
+                            this.sessionId = data.sessionId;
+                            localStorage.setItem('piefed_session', this.sessionId);
+                            localStorage.setItem('piefed_instance', this.baseUrl);
+                            
+                            this.userProfile = {
+                                local_user_view: {
+                                    person: { name: data.username },
+                                    counts: {
+                                        post_count: 0,
+                                        comment_count: 0
+                                    }
                                 }
-                            }
-                        };
-                        
-                        this.hideLogin();
-                        this.showSuccess('Logged in successfully! Loading real content...');
-                        
-                        // Update profile display
-                        document.getElementById('profileUsername').textContent = username;
-                        document.getElementById('profileInstance').textContent = `@${new URL(this.baseUrl).hostname}`;
-                        
-                        // Update the notice
-                        const noticeElement = document.querySelector('[style*="background: #4a4a20"]');
-                        if (noticeElement) {
-                            noticeElement.innerHTML = '✅ Connected to ' + this.baseUrl + ' - Loading real content via RSS/HTML parsing';
-                            noticeElement.style.background = '#204a20';
+                            };
+                            
+                            this.hideLogin();
+                            this.showSuccess('Logged in successfully!');
+                            this.updateNotice('✅ Authenticated with ' + this.baseUrl, '#204a20');
+                            
+                            // Update profile display
+                            document.getElementById('profileUsername').textContent = username;
+                            document.getElementById('profileInstance').textContent = `@${new URL(this.baseUrl).hostname}`;
+                            
+                            // Reload with authenticated data
+                            await this.loadPosts();
+                            await this.loadCommunities();
+                        } else {
+                            this.showError(data.error || 'Login failed');
                         }
-                        
-                        // Reload with real data
-                        await this.loadPosts();
-                        await this.loadCommunities();
-                    } else {
-                        throw new Error('Login failed');
+                    } catch (error) {
+                        console.error('Login error:', error);
+                        this.showError('Login failed: ' + error.message);
                     }
-                } catch (error) {
-                    console.error('Login error:', error);
+                } else {
+                    // Fallback to read-only mode without proxy
+                    this.showError('Proxy server not available. To enable full functionality, run: node piefed-proxy-server.js');
                     
-                    // Even if actual authentication fails, enable real data mode
-                    // since PieFed content is mostly public
-                    this.showError('Direct login not available due to CORS. Enabling read-only mode with public content.');
-                    
-                    this.token = 'readonly_' + Date.now();
-                    this.useRealData = true;
-                    localStorage.setItem('piefed_token', this.token);
-                    localStorage.setItem('piefed_use_real_data', 'true');
+                    // Enable read-only mode
+                    this.sessionId = 'readonly_' + Date.now();
+                    localStorage.setItem('piefed_session', this.sessionId);
                     localStorage.setItem('piefed_instance', this.baseUrl);
                     
                     this.userProfile = {
@@ -2664,20 +2744,12 @@
                     
                     setTimeout(() => {
                         this.hideLogin();
-                        this.showSuccess('Connected in read-only mode. You can browse public content.');
+                        this.showSuccess('Connected in read-only mode. Start the proxy server for full functionality.');
                         
-                        // Update profile display
                         document.getElementById('profileUsername').textContent = username + ' (read-only)';
                         document.getElementById('profileInstance').textContent = `@${new URL(this.baseUrl).hostname}`;
                         
-                        // Update the notice
-                        const noticeElement = document.querySelector('[style*="background: #4a4a20"]');
-                        if (noticeElement) {
-                            noticeElement.innerHTML = '📖 Read-only mode - Connected to ' + this.baseUrl + ' - Browsing public content';
-                            noticeElement.style.background = '#3a3a50';
-                        }
-                        
-                        // Reload with real data
+                        this.updateNotice('📖 Read-only mode - Start proxy server for full access', '#3a3a50');
                         this.loadPosts();
                         this.loadCommunities();
                     }, 1000);
