@@ -772,15 +772,31 @@ async function loadPendingUsers() {
     
     try {
         const response = await secureAPI.getPendingUsers();
-        if (response.success) {
-            pendingUsersList = response.pendingUsers.sort((a, b) => 
+        console.log('loadPendingUsers response:', response);
+        
+        if (response && response.success) {
+            pendingUsersList = response.pendingUsers || [];
+            pendingUsersList.sort((a, b) => 
                 new Date(b.createdAt) - new Date(a.createdAt)
             );
+            console.log('Loaded', pendingUsersList.length, 'pending users');
             // Re-render the tab content
-            document.getElementById('adminTabContent').innerHTML = renderPendingUsersTab();
+            const adminContent = document.getElementById('adminTabContent');
+            if (adminContent) {
+                adminContent.innerHTML = renderPendingUsersTab();
+            }
+        } else {
+            console.error('Failed to load pending users');
+            pendingUsersList = [];
+            // Still render to show empty state
+            const adminContent = document.getElementById('adminTabContent');
+            if (adminContent) {
+                adminContent.innerHTML = renderPendingUsersTab();
+            }
         }
     } catch (error) {
         console.error('Error loading pending users:', error);
+        pendingUsersList = [];
     }
 }
 
@@ -789,15 +805,31 @@ async function loadAllUsers() {
     
     try {
         const response = await secureAPI.getAllUsers();
-        if (response.success) {
-            allUsersList = response.users.sort((a, b) => 
+        console.log('loadAllUsers response:', response);
+        
+        if (response && response.success) {
+            allUsersList = response.users || [];
+            allUsersList.sort((a, b) => 
                 new Date(b.createdAt || 0) - new Date(a.createdAt || 0)
             );
+            console.log('Loaded', allUsersList.length, 'users');
             // Re-render the tab content
-            document.getElementById('adminTabContent').innerHTML = renderUsersTab();
+            const adminContent = document.getElementById('adminTabContent');
+            if (adminContent) {
+                adminContent.innerHTML = renderUsersTab();
+            }
+        } else {
+            console.error('Failed to load users');
+            allUsersList = [];
+            // Still render to show empty state
+            const adminContent = document.getElementById('adminTabContent');
+            if (adminContent) {
+                adminContent.innerHTML = renderUsersTab();
+            }
         }
     } catch (error) {
         console.error('Error loading all users:', error);
+        allUsersList = [];
     }
 }
 
@@ -810,15 +842,31 @@ async function loadAllCommunities() {
             method: 'GET'
         });
         
-        if (response.success) {
-            allCommunitiesList = response.communities.sort((a, b) => 
+        console.log('loadAllCommunities response:', response);
+        
+        if (response && response.success) {
+            allCommunitiesList = response.communities || [];
+            allCommunitiesList.sort((a, b) => 
                 new Date(b.createdAt) - new Date(a.createdAt)
             );
+            console.log('Loaded', allCommunitiesList.length, 'communities');
             // Re-render the tab content
-            document.getElementById('adminTabContent').innerHTML = renderCommunitiesTab();
+            const adminContent = document.getElementById('adminTabContent');
+            if (adminContent) {
+                adminContent.innerHTML = renderCommunitiesTab();
+            }
+        } else {
+            console.error('Failed to load communities');
+            allCommunitiesList = [];
+            // Still render to show empty state
+            const adminContent = document.getElementById('adminTabContent');
+            if (adminContent) {
+                adminContent.innerHTML = renderCommunitiesTab();
+            }
         }
     } catch (error) {
         console.error('Error loading all communities:', error);
+        allCommunitiesList = [];
     }
 }
 
