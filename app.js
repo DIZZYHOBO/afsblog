@@ -1,4 +1,4 @@
-// app.js - Complete working version with all functions
+// app.js - Complete working version with all functions including enhanced admin
 // Main application logic with theme support and all render functions
 
 // App state - ALL VARIABLES DECLARED ONCE HERE
@@ -15,6 +15,13 @@ let currentFeedTab = 'general';
 let followedCommunities = new Set();
 let currentTheme = localStorage.getItem('selectedTheme') || 'github-dark';
 
+// Admin state variables
+let adminCurrentTab = 'overview';
+let adminStats = null;
+let pendingUsersList = [];
+let allUsersList = [];
+let allCommunitiesList = [];
+
 // Mock secure API if not available
 if (typeof secureAPI === 'undefined') {
     window.secureAPI = {
@@ -22,9 +29,9 @@ if (typeof secureAPI === 'undefined') {
         getCommunities: async () => [],
         getPosts: async () => [],
         loadFollowedCommunities: async () => { followedCommunities = new Set(); },
-        getAdminStats: async () => ({ userCount: 0, pendingCount: 0 }),
-        getPendingUsers: async () => [],
-        getAllUsers: async () => [],
+        getAdminStats: async () => ({ success: true, stats: { totalUsers: 0, pendingUsers: 0, totalPosts: 0, totalCommunities: 0 } }),
+        getPendingUsers: async () => ({ success: true, pendingUsers: [] }),
+        getAllUsers: async () => ({ success: true, users: [] }),
         followCommunity: async (name) => ({ success: true, following: true }),
         unfollowCommunity: async (name) => ({ success: true, following: false }),
         createCommunity: async (data) => ({ success: true }),
@@ -490,6 +497,466 @@ function renderMyShedPage() {
     `;
 }
 
+// ==============================================
+// ADMIN FUNCTIONALITY - ENHANCED VERSION
+// ==============================================
+
+// Admin tab switching
+async function switchAdminTab(tabName) {
+    adminCurrentTab = tabName;
+    
+    // Update active tab button
+    document.querySelectorAll('[data-tab]').forEach(btn => {
+        if (btn.dataset.tab === tabName) {
+            btn.className = 'btn';
+        } else {
+            btn.className = 'btn btn-secondary';
+        }
+    });
+    
+    // Update content
+    const adminContent = document.getElementById('adminTabContent');
+    if (adminContent) {
+        adminContent.innerHTML = renderAdminTabContent();
+    }
+    
+    // Load data for the selected tab
+    switch(tabName) {
+        case 'pending':
+            await loadPendingUsers();
+            break;
+        case 'users':
+            await loadAllUsers();
+            break;
+        case 'communities':
+            await loadAllCommunities();
+            break;
+        case 'overview':
+        default:
+            await loadAdminStatsData();
+            break;
+    }
+}
+
+function renderAdminTabContent() {
+    switch(adminCurrentTab) {
+        case 'pending':
+            return renderPendingUsersTab();
+        case 'users':
+            return renderUsersTab();
+        case 'communities':
+            return renderCommunitiesTab();
+        case 'overview':
+        default:
+            return renderOverviewTab();
+    }
+}
+
+// Admin Overview Tab
+function renderOverviewTab() {
+    return `
+        <div class="admin-overview">
+            <h3 style="color: var(--fg-default); margin-bottom: 20px;">System Overview</h3>
+            
+            <div class="admin-stats">
+                <div class="admin-stat-card">
+                    <div class="admin-stat-number" id="adminTotalUsers">${adminStats?.totalUsers || 0}</div>
+                    <div class="admin-stat-label">Total Users</div>
+                </div>
+                <div class="admin-stat-card">
+                    <div class="admin-stat-number" id="adminPendingUsers">${adminStats?.pendingUsers || 0}</div>
+                    <div class="admin-stat-label">Pending Approval</div>
+                </div>
+                <div class="admin-stat-card">
+                    <div class="admin-stat-number" id="adminTotalPosts">${adminStats?.totalPosts || 0}</div>
+                    <div class="admin-stat-label">Total Posts</div>
+                </div>
+                <div class="admin-stat-card">
+                    <div class="admin-stat-number" id="adminTotalCommunities">${adminStats?.totalCommunities || 0}</div>
+                    <div class="admin-stat-label">Communities</div>
+                </div>
+            </div>
+            
+            <div style="margin-top: 30px;">
+                <h4 style="color: var(--fg-default); margin-bottom: 16px;">Quick Actions</h4>
+                <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+                    <button class="btn" onclick="switchAdminTab('pending')">
+                        ${adminStats?.pendingUsers > 0 ? '🔴' : '✅'} Review Pending Users (${adminStats?.pendingUsers || 0})
+                    </button>
+                    <button class="btn btn-secondary" onclick="loadAdminStatsData()">
+                        🔄 Refresh Stats
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+// Pending Users Tab
+function renderPendingUsersTab() {
+    if (pendingUsersList.length === 0) {
+        return `
+            <div class="admin-empty-state" style="text-align: center; padding: 40px;">
+                <span style="font-size: 48px;">✅</span>
+                <h3 style="margin: 16px 0;">No Pending Users</h3>
+                <p style="color: var(--fg-muted);">All user registrations have been processed!</p>
+            </div>
+        `;
+    }
+    
+    return `
+        <div class="admin-users-list">
+            <h3 style="color: var(--fg-default); margin-bottom: 20px;">
+                Pending Users (${pendingUsersList.length})
+            </h3>
+            ${pendingUsersList.map(user => `
+                <div class="admin-user-card" style="background: var(--bg-default); border: 1px solid var(--border-default); border-radius: 8px; padding: 16px; margin-bottom: 12px;">
+                    <div style="display: flex; justify-content: space-between; align-items: start;">
+                        <div style="display: flex; gap: 12px;">
+                            <div class="profile-avatar" style="width: 48px; height: 48px;">
+                                ${user.username.charAt(0).toUpperCase()}
+                            </div>
+                            <div>
+                                <div style="font-weight: 600; color: var(--fg-default);">@${escapeHtml(user.username)}</div>
+                                <div style="color: var(--fg-muted); font-size: 14px; margin: 4px 0;">
+                                    ${user.email ? `📧 ${escapeHtml(user.email)}` : 'No email'} • 
+                                    Registered ${formatTimestamp(user.createdAt)}
+                                </div>
+                                ${user.bio ? `<div style="color: var(--fg-default); margin-top: 8px;">${escapeHtml(user.bio)}</div>` : ''}
+                            </div>
+                        </div>
+                        <div style="display: flex; gap: 8px;">
+                            <button class="btn" style="background: var(--success-fg);" onclick="approveUser('${user.username}', '${user.key}')">
+                                ✅ Approve
+                            </button>
+                            <button class="btn" style="background: var(--danger-fg);" onclick="rejectUser('${user.username}', '${user.key}')">
+                                ❌ Reject
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `).join('')}
+        </div>
+    `;
+}
+
+// Users Tab
+function renderUsersTab() {
+    return `
+        <div class="admin-users-list">
+            <h3 style="color: var(--fg-default); margin-bottom: 20px;">
+                All Users (${allUsersList.length})
+            </h3>
+            ${allUsersList.map(user => `
+                <div class="admin-user-card" style="background: var(--bg-default); border: 1px solid var(--border-default); border-radius: 8px; padding: 16px; margin-bottom: 12px;">
+                    <div style="display: flex; justify-content: space-between; align-items: start;">
+                        <div style="display: flex; gap: 12px;">
+                            <div class="profile-avatar" style="width: 48px; height: 48px;">
+                                ${user.username.charAt(0).toUpperCase()}
+                            </div>
+                            <div>
+                                <div style="font-weight: 600; color: var(--fg-default);">
+                                    @${escapeHtml(user.username)}
+                                    ${user.isAdmin ? '<span style="background: var(--accent-fg); color: white; padding: 2px 6px; border-radius: 4px; font-size: 12px; margin-left: 8px;">👑 Admin</span>' : ''}
+                                    ${user.username === 'dumbass' ? '<span style="background: var(--danger-fg); color: white; padding: 2px 6px; border-radius: 4px; font-size: 12px; margin-left: 8px;">🔒 Protected</span>' : ''}
+                                </div>
+                                <div style="color: var(--fg-muted); font-size: 14px; margin: 4px 0;">
+                                    Joined ${formatTimestamp(user.createdAt || user.approvedAt)} • 
+                                    Last login: ${user.lastLogin ? formatTimestamp(user.lastLogin) : 'Never'}
+                                </div>
+                            </div>
+                        </div>
+                        <div style="display: flex; gap: 8px;">
+                            ${!user.isAdmin && user.username !== 'dumbass' ? `
+                                <button class="btn btn-secondary" onclick="promoteToAdmin('${user.username}')">
+                                    👑 Make Admin
+                                </button>
+                            ` : ''}
+                            ${user.isAdmin && user.username !== 'dumbass' && user.username !== currentUser.username ? `
+                                <button class="btn btn-secondary" onclick="demoteFromAdmin('${user.username}')">
+                                    👤 Remove Admin
+                                </button>
+                            ` : ''}
+                            ${user.username !== currentUser.username && user.username !== 'dumbass' ? `
+                                <button class="btn" style="background: var(--danger-fg);" onclick="deleteUser('${user.username}')">
+                                    🗑️ Delete
+                                </button>
+                            ` : ''}
+                        </div>
+                    </div>
+                </div>
+            `).join('')}
+        </div>
+    `;
+}
+
+// Communities Tab
+function renderCommunitiesTab() {
+    if (allCommunitiesList.length === 0) {
+        return `
+            <div class="admin-empty-state" style="text-align: center; padding: 40px;">
+                <span style="font-size: 48px;">🏘️</span>
+                <h3 style="margin: 16px 0;">No Communities Yet</h3>
+                <p style="color: var(--fg-muted);">No communities have been created.</p>
+            </div>
+        `;
+    }
+    
+    return `
+        <div class="admin-communities-list">
+            <h3 style="color: var(--fg-default); margin-bottom: 20px;">
+                All Communities (${allCommunitiesList.length})
+            </h3>
+            ${allCommunitiesList.map(community => `
+                <div class="admin-community-card" style="background: var(--bg-default); border: 1px solid var(--border-default); border-radius: 8px; padding: 16px; margin-bottom: 12px;">
+                    <div style="display: flex; justify-content: space-between; align-items: start;">
+                        <div style="display: flex; gap: 12px;">
+                            <div class="profile-avatar" style="width: 48px; height: 48px;">
+                                ${community.displayName.charAt(0).toUpperCase()}
+                            </div>
+                            <div>
+                                <div style="font-weight: 600; color: var(--fg-default);">${escapeHtml(community.displayName)}</div>
+                                <div style="color: var(--fg-muted); font-size: 14px; margin: 4px 0;">
+                                    c/${escapeHtml(community.name)} • 
+                                    Created by @${escapeHtml(community.createdBy)} • 
+                                    ${formatTimestamp(community.createdAt)}
+                                </div>
+                                <div style="color: var(--accent-fg); font-size: 14px;">
+                                    👥 ${community.members?.length || 1} members • 
+                                    📝 ${community.postCount || 0} posts
+                                </div>
+                                ${community.description ? `<div style="color: var(--fg-default); margin-top: 8px;">${escapeHtml(community.description)}</div>` : ''}
+                            </div>
+                        </div>
+                        <div>
+                            <button class="btn" style="background: var(--danger-fg);" onclick="deleteCommunity('${community.name}')">
+                                🗑️ Delete
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `).join('')}
+        </div>
+    `;
+}
+
+// Admin API Calls
+async function loadAdminStatsData() {
+    if (!currentUser?.profile?.isAdmin) return;
+    
+    try {
+        const response = await secureAPI.getAdminStats();
+        if (response.success) {
+            adminStats = response.stats;
+            adminData = { userCount: response.stats.totalUsers, pendingCount: response.stats.pendingUsers };
+            // Update display if we're on overview tab
+            if (adminCurrentTab === 'overview') {
+                const totalUsersEl = document.getElementById('adminTotalUsers');
+                const pendingUsersEl = document.getElementById('adminPendingUsers');
+                const totalPostsEl = document.getElementById('adminTotalPosts');
+                const totalCommunitiesEl = document.getElementById('adminTotalCommunities');
+                
+                if (totalUsersEl) totalUsersEl.textContent = response.stats.totalUsers || 0;
+                if (pendingUsersEl) pendingUsersEl.textContent = response.stats.pendingUsers || 0;
+                if (totalPostsEl) totalPostsEl.textContent = response.stats.totalPosts || 0;
+                if (totalCommunitiesEl) totalCommunitiesEl.textContent = response.stats.totalCommunities || 0;
+            }
+        }
+    } catch (error) {
+        console.error('Error loading admin stats:', error);
+    }
+}
+
+async function loadPendingUsers() {
+    if (!currentUser?.profile?.isAdmin) return;
+    
+    try {
+        const response = await secureAPI.getPendingUsers();
+        if (response.success) {
+            pendingUsersList = response.pendingUsers.sort((a, b) => 
+                new Date(b.createdAt) - new Date(a.createdAt)
+            );
+            // Re-render the tab content
+            document.getElementById('adminTabContent').innerHTML = renderPendingUsersTab();
+        }
+    } catch (error) {
+        console.error('Error loading pending users:', error);
+    }
+}
+
+async function loadAllUsers() {
+    if (!currentUser?.profile?.isAdmin) return;
+    
+    try {
+        const response = await secureAPI.getAllUsers();
+        if (response.success) {
+            allUsersList = response.users.sort((a, b) => 
+                new Date(b.createdAt || 0) - new Date(a.createdAt || 0)
+            );
+            // Re-render the tab content
+            document.getElementById('adminTabContent').innerHTML = renderUsersTab();
+        }
+    } catch (error) {
+        console.error('Error loading all users:', error);
+    }
+}
+
+async function loadAllCommunities() {
+    if (!currentUser?.profile?.isAdmin) return;
+    
+    try {
+        // Use the admin endpoint to get all communities
+        const response = await tokenManager.makeRequest('/.netlify/functions/api/admin/communities', {
+            method: 'GET'
+        });
+        
+        if (response.success) {
+            allCommunitiesList = response.communities.sort((a, b) => 
+                new Date(b.createdAt) - new Date(a.createdAt)
+            );
+            // Re-render the tab content
+            document.getElementById('adminTabContent').innerHTML = renderCommunitiesTab();
+        }
+    } catch (error) {
+        console.error('Error loading all communities:', error);
+    }
+}
+
+// Admin Actions
+async function approveUser(username, pendingKey) {
+    if (!currentUser?.profile?.isAdmin) return;
+    
+    if (!confirm(`Approve user @${username}?`)) return;
+    
+    try {
+        const response = await secureAPI.approveUser(username, pendingKey);
+        if (response.success) {
+            showSuccessMessage('User approved successfully');
+            await loadPendingUsers();
+            await loadAdminStatsData();
+        } else {
+            showSuccessMessage(response.error || 'Failed to approve user');
+        }
+    } catch (error) {
+        console.error('Error approving user:', error);
+        showSuccessMessage('Failed to approve user');
+    }
+}
+
+async function rejectUser(username, pendingKey) {
+    if (!currentUser?.profile?.isAdmin) return;
+    
+    if (!confirm(`Reject user @${username}?`)) return;
+    
+    try {
+        const response = await secureAPI.rejectUser(username, pendingKey);
+        if (response.success) {
+            showSuccessMessage('User rejected');
+            await loadPendingUsers();
+            await loadAdminStatsData();
+        } else {
+            showSuccessMessage(response.error || 'Failed to reject user');
+        }
+    } catch (error) {
+        console.error('Error rejecting user:', error);
+        showSuccessMessage('Failed to reject user');
+    }
+}
+
+async function promoteToAdmin(username) {
+    if (!currentUser?.profile?.isAdmin) return;
+    
+    if (!confirm(`Promote @${username} to admin?`)) return;
+    
+    try {
+        const response = await secureAPI.promoteToAdmin(username);
+        if (response.success) {
+            showSuccessMessage(`${username} promoted to admin`);
+            await loadAllUsers();
+        } else {
+            showSuccessMessage(response.error || 'Failed to promote user');
+        }
+    } catch (error) {
+        console.error('Error promoting user:', error);
+        showSuccessMessage('Failed to promote user');
+    }
+}
+
+async function demoteFromAdmin(username) {
+    if (!currentUser?.profile?.isAdmin) return;
+    
+    if (username === 'dumbass') {
+        showSuccessMessage('Cannot demote protected admin');
+        return;
+    }
+    
+    if (!confirm(`Remove admin privileges from @${username}?`)) return;
+    
+    try {
+        const response = await secureAPI.demoteFromAdmin(username);
+        if (response.success) {
+            showSuccessMessage(`Admin privileges removed from ${username}`);
+            await loadAllUsers();
+        } else {
+            showSuccessMessage(response.error || 'Failed to demote user');
+        }
+    } catch (error) {
+        console.error('Error demoting user:', error);
+        showSuccessMessage('Failed to demote user');
+    }
+}
+
+async function deleteUser(username) {
+    if (!currentUser?.profile?.isAdmin) return;
+    
+    if (username === currentUser.username) {
+        showSuccessMessage('Cannot delete your own account');
+        return;
+    }
+    
+    if (username === 'dumbass') {
+        showSuccessMessage('Cannot delete protected admin');
+        return;
+    }
+    
+    if (!confirm(`⚠️ DELETE user @${username}?\n\nThis will permanently delete:\n• User account\n• All posts\n• All replies\n\nThis action cannot be undone!`)) return;
+    
+    try {
+        const response = await secureAPI.deleteUser(username);
+        if (response.success) {
+            showSuccessMessage(`User ${username} deleted`);
+            await loadAllUsers();
+            await loadAdminStatsData();
+        } else {
+            showSuccessMessage(response.error || 'Failed to delete user');
+        }
+    } catch (error) {
+        console.error('Error deleting user:', error);
+        showSuccessMessage('Failed to delete user');
+    }
+}
+
+async function deleteCommunity(communityName) {
+    if (!currentUser?.profile?.isAdmin) return;
+    
+    if (!confirm(`⚠️ DELETE community "${communityName}"?\n\nThis will permanently delete the community and all its posts.\n\nThis action cannot be undone!`)) return;
+    
+    try {
+        const response = await secureAPI.deleteCommunity(communityName);
+        if (response.success) {
+            showSuccessMessage(`Community "${communityName}" deleted`);
+            await loadAllCommunities();
+            await loadAdminStatsData();
+        } else {
+            showSuccessMessage(response.error || 'Failed to delete community');
+        }
+    } catch (error) {
+        console.error('Error deleting community:', error);
+        showSuccessMessage('Failed to delete community');
+    }
+}
+
+// Enhanced Admin Page Render
 function renderAdminPage() {
     if (!currentUser || !currentUser.profile?.isAdmin) {
         document.getElementById('feed').innerHTML = `
@@ -501,6 +968,11 @@ function renderAdminPage() {
         return;
     }
     
+    // Initialize admin data if needed
+    if (!adminCurrentTab) {
+        adminCurrentTab = 'overview';
+    }
+    
     document.getElementById('feed').innerHTML = `
         <div class="admin-panel">
             <div class="admin-panel-header">
@@ -508,35 +980,35 @@ function renderAdminPage() {
                 <span>Admin Panel</span>
             </div>
             
-            <div class="admin-stats">
-                <div class="admin-stat-card">
-                    <div class="admin-stat-number">${posts.length}</div>
-                    <div class="admin-stat-label">Total Posts</div>
-                </div>
-                <div class="admin-stat-card">
-                    <div class="admin-stat-number">${communities.length}</div>
-                    <div class="admin-stat-label">Communities</div>
-                </div>
-                <div class="admin-stat-card">
-                    <div class="admin-stat-number">${adminData?.userCount || 0}</div>
-                    <div class="admin-stat-label">Users</div>
-                </div>
-                <div class="admin-stat-card">
-                    <div class="admin-stat-number">${adminData?.pendingCount || 0}</div>
-                    <div class="admin-stat-label">Pending</div>
-                </div>
+            <!-- Admin Navigation Tabs -->
+            <div style="display: flex; gap: 8px; margin-bottom: 24px; border-bottom: 1px solid var(--border-default); padding-bottom: 12px;">
+                <button class="btn ${adminCurrentTab === 'overview' ? '' : 'btn-secondary'}" 
+                        onclick="switchAdminTab('overview')" data-tab="overview">
+                    📊 Overview
+                </button>
+                <button class="btn ${adminCurrentTab === 'pending' ? '' : 'btn-secondary'}" 
+                        onclick="switchAdminTab('pending')" data-tab="pending">
+                    ⏳ Pending Users ${adminStats?.pendingUsers > 0 ? '(' + adminStats.pendingUsers + ')' : ''}
+                </button>
+                <button class="btn ${adminCurrentTab === 'users' ? '' : 'btn-secondary'}" 
+                        onclick="switchAdminTab('users')" data-tab="users">
+                    👥 Manage Users
+                </button>
+                <button class="btn ${adminCurrentTab === 'communities' ? '' : 'btn-secondary'}" 
+                        onclick="switchAdminTab('communities')" data-tab="communities">
+                    🏘️ Manage Communities
+                </button>
             </div>
             
-            <div style="margin-top: 24px;">
-                <h3 style="color: var(--fg-default); margin-bottom: 16px;">Admin Actions</h3>
-                <div style="display: flex; gap: 12px; flex-wrap: wrap;">
-                    <button class="btn" onclick="showSuccessMessage('View pending users feature coming soon')">View Pending Users</button>
-                    <button class="btn btn-secondary" onclick="showSuccessMessage('Manage users feature coming soon')">Manage Users</button>
-                    <button class="btn btn-secondary" onclick="showSuccessMessage('Manage communities feature coming soon')">Manage Communities</button>
-                </div>
+            <!-- Tab Content -->
+            <div id="adminTabContent">
+                ${renderAdminTabContent()}
             </div>
         </div>
     `;
+    
+    // Load initial data for current tab
+    switchAdminTab(adminCurrentTab);
 }
 
 // Helper function to render a post card
@@ -658,8 +1130,12 @@ async function loadFollowedCommunities() {
 async function loadAdminStats() {
     try {
         if (currentUser?.profile?.isAdmin) {
-            adminData = await secureAPI.getAdminStats();
-            console.log('Loaded admin stats:', adminData);
+            const response = await secureAPI.getAdminStats();
+            if (response.success) {
+                adminData = { userCount: response.stats.totalUsers, pendingCount: response.stats.pendingUsers };
+                adminStats = response.stats;
+                console.log('Loaded admin stats:', adminData);
+            }
         }
     } catch (error) {
         console.error('Error loading admin stats:', error);
