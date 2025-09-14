@@ -1,0 +1,46 @@
+# Netlify Configuration for PieFed Mobile Client
+
+[build]
+  # Directory with the serverless functions
+  functions = "netlify/functions"
+  # Directory to publish (where index.html is)
+  publish = "."
+
+# Headers for better security and CORS
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-XSS-Protection = "1; mode=block"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+
+# Redirect rules
+[[redirects]]
+  from = "/"
+  to = "/index.html"
+  status = 200
+
+# Function configuration
+[functions]
+  node_bundler = "esbuild"
+  
+# Environment variables (set these in Netlify dashboard)
+[build.environment]
+  NODE_VERSION = "18"
+
+# Cache control for static assets
+[[headers]]
+  for = "/*.js"
+  [headers.values]
+    Cache-Control = "public, max-age=3600"
+
+[[headers]]
+  for = "/*.css"
+  [headers.values]
+    Cache-Control = "public, max-age=3600"
+
+[[headers]]
+  for = "/*.html"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"

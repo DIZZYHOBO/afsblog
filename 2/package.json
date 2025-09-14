@@ -1,0 +1,27 @@
+{
+  "name": "piefed-mobile-client-netlify",
+  "version": "1.0.0",
+  "description": "PieFed Mobile Client for Netlify deployment",
+  "scripts": {
+    "build": "echo 'No build required'",
+    "test": "echo 'No tests configured'"
+  },
+  "dependencies": {
+    "node-fetch": "^2.7.0",
+    "cheerio": "^1.0.0-rc.12",
+    "form-data": "^4.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "piefed",
+    "fediverse",
+    "client",
+    "mobile",
+    "netlify",
+    "serverless"
+  ],
+  "author": "",
+  "license": "MIT"
+}
